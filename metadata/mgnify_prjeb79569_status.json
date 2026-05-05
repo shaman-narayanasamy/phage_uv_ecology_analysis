@@ -1,0 +1,7 @@
+{
+  "status": "mgnifyr_missing",
+  "accession": "PRJEB79569",
+  "checked_with": "MGnifyR",
+  "message": "MGnifyR is not installed in this R library. Install/load MGnifyR on HPC or set R_LIBS before re-running.",
+  "timestamp": "2026-05-05T22:21:25+0200"
+}

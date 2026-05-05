@@ -1,0 +1,7 @@
+.DS_Store
+*.html
+*_cache/
+MGnifyR_cache/
+.Rproj.user/
+.quarto/
+
