@@ -1,0 +1,32 @@
+---
+tmp_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/tmp"
+output_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569"
+data_table: "/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_multiomics_samples.tsv"
+
+input_dir:
+  mt_assembly_input: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/metatranscriptomics/preprocessing"
+  mt_quantification_input: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/metatranscriptomics/preprocessing"
+
+data_source:
+  mode: "ena_stage"
+  stage_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/staged_reads"
+  keep_staged: false
+  downloader: "curl"
+  retries: 3
+
+fastp:
+  length_required: 36
+  extra_args: "--detect_adapter_for_pe"
+
+sortmerna:
+  db_path: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/multiomics_pipeline/sortmerna"
+  rrna_refs:
+    - "smr_v4.3_default_db.fasta"
+  filter_length: 20
+  filter_human: false
+  #  human_genome_fasta_path: "/work/projects/bioinformatics_platform/ref/ensembl/Homo_sapiens/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+  #human_mrna_fasta_path: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/multiomics_pipeline/human/Homo_sapiens.GRCh38.mrna.fa"
+
+metatranscriptomics:
+  combine_replicates: true
+  replicate_group_column: "biological_sample_alias"
