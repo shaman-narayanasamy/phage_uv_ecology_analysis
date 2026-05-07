@@ -1,0 +1,59 @@
+executor: slurm
+use-conda: true
+conda-frontend: mamba
+keep-going: true
+printshellcmds: true
+rerun-incomplete: true
+show-failed-logs: true
+latency-wait: 60
+slurm-logdir: /scratch/users/snarayanasamy/phage_uv_treatment/slurm
+slurm-keep-successful-logs: true
+slurm-qos: normal
+default-resources:
+  slurm_account: "michael.heneka"
+  slurm_partition: "batch"
+  nodes: 1
+  tasks: 1
+  cpus_per_task: 1
+  mem: "4G"
+  runtime: 120
+set-resources:
+  stage_mg_read_1:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mg_read_2:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mt_read_1:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mt_read_2:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  fastp_trimming:
+    cpus_per_task: 12
+    mem: "48G"
+    runtime: 1440
+  sortmerna_prepare_sequences:
+    cpus_per_task: 4
+    mem: "32G"
+    runtime: 720
+  sortmerna_index_database:
+    slurm_partition: "bigmem"
+    cpus_per_task: 12
+    mem: "250G"
+    runtime: 2880
+  sortmerna_rrna_paired:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 2880
+  sortmerna_rrna_single:
+    slurm_partition: "bigmem"
+    cpus_per_task: 12
+    mem: "150G"
+    runtime: 2880
