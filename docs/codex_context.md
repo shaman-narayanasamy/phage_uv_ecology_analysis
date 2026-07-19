@@ -79,6 +79,50 @@ Open decision before the next fetch:
   link tables, and final UV/inStrain summaries while excluding raw intermediate
   matrices.
 
+Resolution: use the curated manuscript/poster-replication table sync first.
+
+Curated fetch contract:
+
+- Manifest:
+  `manifests/cluster_curated_table_manifest.tsv`
+- Fetch script:
+  `scripts/fetch_curated_cluster_tables.sh`
+- Default local data root:
+  `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569`
+- Default Iris alias:
+  `iris-cluster`
+
+Curated tranche fetched successfully on 2026-07-19:
+
+- dRep tables:
+  `Widb.csv`, `genomeInfo.csv`, `Cdb.csv`, `Bdb.csv`, `Ndb.csv`, `Sdb.csv`
+- MAG/vOTU read-count matrices:
+  `quantification/mags_votu/coverage/metagenomics/coverm/output-Read_Count.tsv`
+  and
+  `quantification/mags_votu/coverage/metatranscriptomics/coverm/output-Read_Count.tsv`
+- vOTU catalogue tables:
+  `viromics/votu_clustering/cluster_summary.tsv`,
+  `viromics/votu_clustering/clusters.tsv`,
+  `viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/checkv/quality_summary.tsv`,
+  `viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/checkv/complete_genomes.tsv`,
+  `viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/cenotetaker3/output/output_virus_summary.tsv`,
+  and
+  `viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/cenotetaker3/output/output_prune_summary.tsv`.
+
+Curated validation notes:
+
+- No hidden rsync partial files remained after the curated fetch.
+- Every `fetch_now=yes` entry in
+  `manifests/cluster_curated_table_manifest.tsv` exists locally.
+- `bash -n scripts/fetch_curated_cluster_tables.sh` passed.
+- `bash scripts/validate_manifests.sh` passed.
+- Large deferred tables remain intentionally unfetched:
+  vContact3 `final_assignments.csv` and NeoRdRp `output.tsv`.
+- Missing replication inputs from the current Iris tree:
+  CRISPR/SpacePHARER host-phage link tables, legacy biofilm summaries, and
+  legacy DE summary tables. Rebuild these from canonical pipeline outputs or
+  point Codex to the separate host-phage pipeline output if it lives elsewhere.
+
 ## Decisions
 
 - Keep project-specific configs and launchers in this analysis repository, not
