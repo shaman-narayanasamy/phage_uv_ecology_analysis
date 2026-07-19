@@ -20,6 +20,8 @@ repositories or chat history.
 ## Current State
 
 - ENA study: `PRJEB79569`
+- Local desktop table cache:
+  `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569`
 - Generated sample sheet:
   `/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_multiomics_samples.tsv`
 - Sample counts in the generated sheet: 12 MG rows and 23 MT rows.
@@ -35,6 +37,47 @@ repositories or chat history.
   interface by default. The current launchers were initially written in that
   older style and must be adapted to Snakemake 9 Slurm execution before real
   submission.
+
+## Cluster Table Import On 2026-07-19
+
+- Desktop branch for downstream import/analysis work:
+  `feature/prjeb79569-cluster-analysis-ingest`.
+- Iris source root inspected:
+  `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`.
+- Local destination used for table cache:
+  `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569`.
+- A broad CSV/TSV-only `rsync` was started and then intentionally stopped when
+  it reached very large intermediate matrix tables such as CONCOCT/SemiBin
+  `data.csv` files. No non-table files were present after the interrupt, and no
+  hidden rsync partials remained.
+- Local table files present after the broad partial fetch: 1,058 files, mostly
+  Bakta annotation tables (`annotation/`) plus 14 binning tables.
+- Targeted compact community UV-response tables were fetched and checksummed in
+  `manifests/data_manifest.tsv`:
+  - `community_uv_response/uv_signature_hits.tsv`
+  - `community_uv_response/uv_signature_entity_summary.tsv`
+  - `community_uv_response/uv_signature_mag_summary.tsv`
+  - `community_uv_response/instrain_profile_manifest.tsv`
+  - `community_uv_response/variant_analysis/mags_votu_metagenomic_bams.tsv`
+  - `community_uv_response/variant_analysis/variant_analysis_input_audit.tsv`
+- The UV signature summaries are ready for local downstream figure work. The
+  fetched inStrain manifest marks 12 sample profiles as `ready`, but no
+  `inStrain compare` output table was found under `community_uv_response`.
+- Caveat before interpreting variant data: the fetched BAM manifest reports
+  `bam_exists=true` and `bai_exists=false` for the quantification BAM paths,
+  while the variant input audit reports 12 indexed BAMs in the audited input
+  set. Resolve this path/index convention on Iris before running or trusting
+  `inStrain compare`.
+
+Open decision before the next fetch:
+
+- Either continue a broad all-CSV/TSV sync, accepting multi-GB intermediate
+  tables such as CoverM full outputs, vClust ANI, geNomad feature/gene tables,
+  and SemiBin matrices.
+- Or switch to a curated manuscript-table sync that fetches summary tables,
+  manifests, quantification summaries, quality/taxonomy outputs, phage-host
+  link tables, and final UV/inStrain summaries while excluding raw intermediate
+  matrices.
 
 ## Decisions
 
