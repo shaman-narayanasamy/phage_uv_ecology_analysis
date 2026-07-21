@@ -123,6 +123,21 @@ Curated validation notes:
   legacy DE summary tables. Rebuild these from canonical pipeline outputs or
   point Codex to the separate host-phage pipeline output if it lives elsewhere.
 
+Update on 2026-07-21:
+
+- Iris rejected SSH command sessions with a general maintenance banner, so live
+  verification/fetching of additional tables is temporarily blocked.
+- Gene-level BED-guided quantification is likely present on Iris based on the
+  previous remote listing under
+  `quantification/mags_votu/gene_coverage/metatranscriptomics/*.tsv`, but those
+  large per-run tables were not part of the first curated local fetch.
+- Queued GitHub issue:
+  https://github.com/shaman-narayanasamy/phage_uv_ecology_analysis/issues/19
+- Once Iris returns, fetch or compact:
+  `community_uv_response/uv_signature_gene_coverage_run_level.tsv`,
+  `community_uv_response/uv_signature_gene_coverage_sample_summary.tsv`, and the
+  all-gene MT expression table needed to reproduce legacy DE/expression logic.
+
 ## Decisions
 
 - Keep project-specific configs and launchers in this analysis repository, not
