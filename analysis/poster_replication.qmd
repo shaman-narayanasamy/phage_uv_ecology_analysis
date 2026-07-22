@@ -1,0 +1,105 @@
+---
+title: "Poster Replication: vOTU and UV Signature Layers"
+author: "Shaman Narayanasamy"
+format:
+  html:
+    toc: true
+execute:
+  echo: true
+  warning: false
+  message: false
+params:
+  data_root: "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+  derived_root: "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/poster_replication"
+---
+
+```{r setup}
+library(readr)
+library(dplyr)
+library(knitr)
+```
+
+## Scope
+
+This notebook starts the clean recreation of the poster-level analysis from the
+tables already available locally. It currently covers the vOTU quality/taxonomy
+layer and UV/DNA-damage genome-potential summaries.
+
+Blocked until Iris returns: MAG taxonomy, BED-guided gene-level expression,
+legacy DE summaries, and host-phage link tables.
+
+```{r load-derived}
+derived_root <- params$derived_root
+tables_dir <- file.path(derived_root, "tables")
+figures_dir <- file.path(derived_root, "figures")
+
+manifest <- read_tsv(file.path(derived_root, "poster_replication_manifest.tsv"), show_col_types = FALSE)
+votu_quality <- read_tsv(file.path(tables_dir, "votu_quality_summary.tsv"), show_col_types = FALSE)
+votu_tax_groups <- read_tsv(file.path(tables_dir, "votu_high_quality_taxonomy_groups.tsv"), show_col_types = FALSE)
+votu_realm <- read_tsv(file.path(tables_dir, "votu_high_quality_realm_summary.tsv"), show_col_types = FALSE)
+uv_category <- read_tsv(file.path(tables_dir, "uv_signature_category_rollup.tsv"), show_col_types = FALSE)
+uv_mag <- read_tsv(file.path(tables_dir, "uv_signature_mag_rollup.tsv"), show_col_types = FALSE)
+```
+
+## Generated Artifacts
+
+```{r manifest}
+manifest %>%
+  mutate(path = basename(path)) %>%
+  kable()
+```
+
+## vOTU Quality
+
+```{r votu-quality-table}
+votu_quality %>%
+  arrange(desc(n_votus)) %>%
+  kable()
+```
+
+```{r votu-quality-figure, out.width="80%"}
+include_graphics(file.path(figures_dir, "votu_quality_distribution.png"))
+```
+
+## High-Quality vOTU Taxonomy
+
+```{r votu-taxonomy-summary}
+votu_realm %>%
+  arrange(desc(n_votus)) %>%
+  kable()
+```
+
+```{r votu-realm-figure, out.width="80%"}
+include_graphics(file.path(figures_dir, "votu_high_quality_realm_summary.png"))
+```
+
+```{r votu-tree-figure, out.width="100%"}
+include_graphics(file.path(figures_dir, "votu_high_quality_taxonomy_tree.png"))
+```
+
+```{r dominant-votu-groups}
+votu_tax_groups %>%
+  select(vOTU_group, realm, kingdom, phylum, class, order, family, genus, n_votus, n_cluster_members) %>%
+  arrange(desc(n_votus), desc(n_cluster_members)) %>%
+  head(20) %>%
+  kable()
+```
+
+## UV Signature Potential
+
+```{r uv-category-table}
+uv_category %>%
+  arrange(signature_tier, desc(n_unique_signature_symbols)) %>%
+  kable()
+```
+
+```{r uv-category-figure, out.width="80%"}
+include_graphics(file.path(figures_dir, "uv_signature_category_rollup.png"))
+```
+
+```{r uv-mag-table}
+uv_mag %>%
+  arrange(desc(n_unique_signature_symbols), desc(n_signature_gene_rows)) %>%
+  head(30) %>%
+  kable()
+```
