@@ -138,6 +138,17 @@ Update on 2026-07-21:
   `community_uv_response/uv_signature_gene_coverage_sample_summary.tsv`, and the
   all-gene MT expression table needed to reproduce legacy DE/expression logic.
 
+Host-phage linking is required before the full biological picture is complete.
+Use `docs/host_phage_linking_integration.md` as the integration contract for
+`https://github.com/shaman-narayanasamy/host_phage_linking`. The minimum
+required staged output is a manifest-backed MAG/rMAG-to-vOTU/phage edge table
+plus CRISPR-Cas host summaries.
+
+For future HPC-side Codex sessions, use
+`docs/hpc_job_agent_protocol.md`. Agents must not burn context with tight Slurm
+polling loops; they should use sentinels, logs, expected-output checks, GitHub
+issues/PR comments, and explicit failure debugging.
+
 ## Decisions
 
 - Keep project-specific configs and launchers in this analysis repository, not
