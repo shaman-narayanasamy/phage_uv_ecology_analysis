@@ -1,0 +1,10 @@
+outdir:
+  root: /scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569
+  subdir: host_phage_linking/full
+  spacepharer_db: /scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/host_phage_linking/full/crispr_links/spacepharer/dbs
+tmp_dir: /scratch/users/snarayanasamy/phage_uv_treatment/tmp/host_phage_linking
+phage_db_table: /scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/host_phage_linking/config/phage_db_table.tsv
+host_table: /scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/host_phage_linking/config/host_table.full.tsv
+crisprcasfinder:
+  enabled: false
+  executor_script_path: /scratch/users/snarayanasamy/phage_uv_treatment/repositories/host_phage_linking/scripts/run_crisprcasfinder.sh
