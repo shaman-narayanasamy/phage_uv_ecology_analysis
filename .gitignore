@@ -5,4 +5,5 @@ MGnifyR_cache/
 .Rproj.user/
 .quarto/
 logs
-
+__pycache__/
+*.pyc
