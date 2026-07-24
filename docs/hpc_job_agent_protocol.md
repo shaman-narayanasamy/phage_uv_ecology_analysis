@@ -43,8 +43,14 @@ Default monitoring cadence:
 - Immediately after submission: record job ID, paths, and expected outputs.
 - Next check: inspect logs/sentinels only after a useful interval, such as 30 to
   60 minutes for heavy jobs, unless the scheduler reports immediate failure.
-- If the user wants asynchronous notification, write a lightweight check command
-  or issue comment, not a polling loop.
+- For unattended jobs, passive sentinels are not enough. Attach an active
+  watcher, such as a Codex heartbeat automation or an explicit notification
+  command in the job wrapper, before ending the agent turn.
+- If the user wants asynchronous notification, use the active watcher to inspect
+  sentinels and report terminal state. Do not rely on a human remembering to run
+  a check command.
+- A check command in a GitHub issue is documentation, not a hook. Treat it as a
+  fallback for another agent, not as the primary monitoring mechanism.
 
 ## Completion Reaction
 
