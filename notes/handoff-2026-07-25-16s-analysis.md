@@ -64,7 +64,7 @@ The Iris scratch output tree is currently the authoritative HPC search location:
 
 `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
 
-A resumable Isilon copy exists at the path below, but it stopped after a storage-side `ENOSPC` before full transfer and verification. Global Isilon capacity is ample; a completed read-only inventory measured 5,960,062,214,144 allocated bytes in the `bioinformatics_platform` project tree, including 1,585,361,592,320 bytes for this partial archive. The exact assigned project hard limit is not user-visible. Do not treat the partial copy as a complete search space until a later handoff records a verified PASS:
+A resumable Isilon copy exists at the path below, but it stopped after a storage-side `ENOSPC` before full transfer and verification. Global Isilon capacity is ample: `df -h` on the exact target reports 505 T free, while the separate scratch quota is 9.452/10 T. Nevertheless, a fresh access-node resume was rejected with `ENOSPC` while creating its tiny `started.tsv` before `rsync` began, establishing a target/project SmartQuota or equivalent storage-side accounting limit. A completed read-only inventory measured 5,960,062,214,144 allocated bytes in the `bioinformatics_platform` project tree, including 1,585,361,592,320 bytes for this partial archive. Do not treat the partial copy as a complete search space until a later handoff records a verified PASS:
 
 `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
 
