@@ -44,7 +44,7 @@ SSH alias:
 
 ## Isilon Archive Status
 
-The full-output archive transfer was started from the Iris access node, following the HPC data-movement convention. It is safe and resumable, but it is **not complete or verified** because the `bioinformatics_platform` Isilon project returned `ENOSPC` at its quota.
+The full-output archive transfer was started from the Iris access node, following the HPC data-movement convention. It is safe and resumable, but it is **not complete or verified** because Isilon returned `ENOSPC`. The cause is under diagnosis; do not state that the project allocation is small or exhausted without storage-side confirmation.
 
 - Scratch source: `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
 - Partial Isilon destination: `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
@@ -57,9 +57,23 @@ Inventory at failure:
 
 - source: 106,645 regular files; 9,639 directories; 6,578 symlinks; 2,891,411,082,235 logical regular-file bytes
 - destination: 82,267 regular files; 7,157 directories; 2,211 symlinks; 1,992,919,510,119 logical regular-file bytes
-- remaining logical regular-file content: 898,491,572,116 bytes, plus filesystem/quota headroom
+- remaining logical regular-file content: 898,491,572,116 bytes, plus filesystem headroom
 
-The filesystem has ample global capacity; a 1.16 GB probe also failed under `/mnt/isilon/projects/bioinformatics_platform/raw`, confirming that this is a `bioinformatics_platform` project quota rather than a bad archive subdirectory. Request at least 1 TB additional quota (preferably enough to keep the project safely above 3 TB total usage), then rerun the launcher on the access node. It resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
+The filesystem has ample global capacity and the project is expected to have a large allocation. Diagnostic results on 2026-07-27:
+
+- the same large-write `ENOSPC` reproduced from both Iris and Aion access nodes, ruling out a stale Iris `access1` mount;
+- probes failed under both `${PLATFORM_BULK_ROOT}/raw` and `${PLATFORM_BULK_ROOT}/results`, ruling out the original `shared_references` subdirectory alone;
+- the failure persisted under `sg bioinformatics_platform`, ruling out the process's default `clusterusers` primary group;
+- the destination is visible in the current Isilon snapshot, but the dated weekly snapshot from before transfer does not contain it;
+- ULHPC documents that individual Isilon project quota/accounting is set storage-side and cannot currently be inspected with `df-ulhpc`, so client-side `df` is not proof of the assigned-project state.
+
+A detached, read-only project usage inventory is running on the Iris access node:
+
+- PID: `1478822`
+- log: `/scratch/users/snarayanasamy/phage_uv_treatment/logs/isilon_bioinformatics_platform_usage_20260727.log`
+- terminal sentinels: same basename with `.PASS` or `.FAIL`
+
+After that inventory completes, compare actual project usage with the expected allocation and ask ULHPC storage support to inspect the Isilon SmartQuota/accounting state if writes still fail. Then rerun the launcher on the access node. It resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
 
 Do not treat the partial destination as a complete archive. Do not delete or modify the scratch source. No scratch deletion has been performed.
 
@@ -248,7 +262,7 @@ Recommended next local work:
 - Do not copy BAM/FASTQ/raw inStrain profile data locally unless explicitly needed.
 - Do not burn agent context with tight Slurm polling. Use sentinels, logs, summaries, and GitHub issue comments.
 - Run bulk storage transfers on the Iris access node, not a Slurm compute node.
-- The current Isilon archive is partial and quota-blocked; use the scratch source until a later handoff records a verified PASS.
+- The current Isilon archive is partial and blocked by an unresolved storage-side `ENOSPC`; use the scratch source until a later handoff records a verified PASS.
 - Ask the user before assuming missing HPC/collaborator paths.
 - Preserve branch state and avoid destructive git commands.
 
