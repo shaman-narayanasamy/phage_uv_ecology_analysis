@@ -67,13 +67,30 @@ The filesystem has ample global capacity and the project is expected to have a l
 - the destination is visible in the current Isilon snapshot, but the dated weekly snapshot from before transfer does not contain it;
 - ULHPC documents that individual Isilon project quota/accounting is set storage-side and cannot currently be inspected with `df-ulhpc`, so client-side `df` is not proof of the assigned-project state.
 
-A detached, read-only project usage inventory is running on the Iris access node:
+A detached, read-only project usage inventory completed with PASS on the Iris access node:
 
-- PID: `1478822`
 - log: `/scratch/users/snarayanasamy/phage_uv_treatment/logs/isilon_bioinformatics_platform_usage_20260727.log`
-- terminal sentinels: same basename with `.PASS` or `.FAIL`
+- PASS sentinel: same basename with `.PASS`
+- measured allocated usage under `/mnt/isilon/projects/bioinformatics_platform`: 5,960,062,214,144 bytes
 
-After that inventory completes, compare actual project usage with the expected allocation and ask ULHPC storage support to inspect the Isilon SmartQuota/accounting state if writes still fail. Then rerun the launcher on the access node. It resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
+Top-level allocated usage:
+
+- `projects/`: 5,237,519,671,296 bytes
+- `ref/`: 327,937,687,552 bytes
+- `globdb/`: 285,781,475,328 bytes
+- `miniconda3_broken_openssl_20260618/`: 67,241,140,224 bytes
+- `cache/`: 37,036,204,032 bytes
+
+Breakdown under `projects/`:
+
+- `ONT_adaptive_sampling/`: 3,379,779,411,968 bytes
+- `shared_references/`: 1,851,233,533,952 bytes
+- partial PRJEB79569 archive within `shared_references/`: 1,585,361,592,320 bytes
+- `spatial_omics/`: 6,483,312,640 bytes
+
+This reconciles the apparently contradictory observations: Isilon has ample global capacity and the project can have a large allocation, while the project tree is already using 5.960 TB and server-side writes fail consistently. The assigned Isilon project limit is not exposed to users, so its exact hard limit still requires ULHPC storage-side confirmation.
+
+Do not delete or relocate `ONT_adaptive_sampling`, shared references, or any other unrelated data to make room. The safe completion routes are: storage support confirms/corrects the project accounting or extends the assigned limit, or the user identifies another authorized Isilon project for this archive. Then rerun the launcher on the access node; it resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
 
 Do not treat the partial destination as a complete archive. Do not delete or modify the scratch source. No scratch deletion has been performed.
 
