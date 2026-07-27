@@ -64,7 +64,7 @@ The Iris scratch output tree is currently the authoritative HPC search location:
 
 `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
 
-A resumable Isilon copy exists at the path below, but it stopped at the `bioinformatics_platform` project quota before full transfer and verification. Do not treat it as a complete search space until a later handoff records a verified PASS:
+A resumable Isilon copy exists at the path below, but it stopped after a storage-side `ENOSPC` before full transfer and verification. Global Isilon capacity is ample and the exact accounting cause remains under diagnosis; do not describe it as a confirmed small project quota. Do not treat the partial copy as a complete search space until a later handoff records a verified PASS:
 
 `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
 
