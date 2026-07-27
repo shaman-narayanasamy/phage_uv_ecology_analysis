@@ -90,6 +90,15 @@ Breakdown under `projects/`:
 
 This reconciles the apparently contradictory observations: Isilon has ample global capacity and the project can have a large allocation, while the project tree is already using 5.960 TB and server-side writes fail consistently. The assigned Isilon project limit is not exposed to users, so its exact hard limit still requires ULHPC storage-side confirmation.
 
+The storage checks were repeated exactly as required by the HPC knowledge base on 2026-07-27:
+
+- `df -h` on the exact Isilon target: 2.0 P total, 1.6 P used, 505 T available
+- `lfs quota -h -u snarayanasamy /scratch`: 9.452 T used, 10 T soft quota, 11 T hard limit
+
+Because Isilon reported free global space, a fresh access-node resume was launched under primary group `bioinformatics_platform`, with destination-default permissions and run ID `archive_PRJEB79569_access_20260727_resume2`. Before `rsync` began, Isilon rejected creation of the tiny `started.tsv` at the exact archive target with `No space left on device`. The process group was stopped cleanly and scratch remained present.
+
+That directly establishes the knowledge base's documented edge case: the Isilon volume is not full and the near-capacity 9.452 T figure belongs to scratch, but the target/project has a storage-side SmartQuota or equivalent accounting limit. Do not describe this as global Isilon exhaustion and do not keep retrying the same target until its target-level limit is corrected.
+
 Do not delete or relocate `ONT_adaptive_sampling`, shared references, or any other unrelated data to make room. The safe completion routes are: storage support confirms/corrects the project accounting or extends the assigned limit, or the user identifies another authorized Isilon project for this archive. Then rerun the launcher on the access node; it resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
 
 Do not treat the partial destination as a complete archive. Do not delete or modify the scratch source. No scratch deletion has been performed.
