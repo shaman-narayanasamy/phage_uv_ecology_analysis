@@ -11,9 +11,10 @@ repositories or chat history.
 - Multiomics pipeline repository: `/mnt/aiongpfs/users/snarayanasamy/repositories/multiomics_pipeline`
 - HPC project directory: `/scratch/users/snarayanasamy/phage_uv_treatment`
 - Metadata directory: `/scratch/users/snarayanasamy/phage_uv_treatment/metadata`
-- Output root to use for pipeline results: `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
+- Canonical archived output root: `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
 - Temporary directory to use for pipeline work: `/scratch/users/snarayanasamy/phage_uv_treatment/tmp`
-- ENA staged reads directory: `/scratch/users/snarayanasamy/phage_uv_treatment/staged_reads`
+- Historical ENA staged reads directory, deleted after archive completion:
+  `/scratch/users/snarayanasamy/phage_uv_treatment/staged_reads`
 - Shared reusable reference root: `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/multiomics_pipeline`
 - Implementation history: `CHANGELOG.md`
 
@@ -195,6 +196,8 @@ issues/PR comments, and explicit failure debugging.
    - `data_source.mode: ena_stage`
    - `data_source.stage_dir: /scratch/users/snarayanasamy/phage_uv_treatment/staged_reads`
    - `data_source.keep_staged: false`
+   - the recorded stage directory was deleted on 2026-07-28; recreate it only
+     if a deliberate pipeline rerun requires fresh ENA staging
 5. Prepare MT references before launching MT:
    - SortMeRNA rRNA FASTAs under the shared reference root
    - human mRNA FASTA under the shared reference root
