@@ -44,64 +44,42 @@ SSH alias:
 
 ## Isilon Archive Status
 
-The full-output archive transfer was started from the Iris access node, following the HPC data-movement convention. It is safe and resumable, but it is **not complete or verified** because Isilon returned `ENOSPC`. The cause is under diagnosis; do not state that the project allocation is small or exhausted without storage-side confirmation.
+The full-output archive is complete and the Isilon copy is now canonical.
 
-- Scratch source: `/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
-- Partial Isilon destination: `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
-- Access-node launcher: `/scratch/users/snarayanasamy/phage_uv_treatment/launchers/archive/archive_prjeb79569_access.sh`
-- Run log: `/scratch/users/snarayanasamy/phage_uv_treatment/logs/archive_PRJEB79569_access_20260726_resume1.log`
-- Failure evidence: `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/verification/archive_PRJEB79569_access_20260726_resume1.FAIL`
-- Exit-code evidence: same prefix with `.exitcode`; value `11` (`rsync` file I/O error)
+- Historical scratch source:
+  `/mnt/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
+- Canonical Isilon destination:
+  `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
+- Successful resume log:
+  `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/rsync_resume_20260728.log`
 
-Inventory at failure:
+On 2026-07-28, the user explicitly retired and removed the defunct, publicly
+recoverable `ONT_adaptive_sampling` Isilon project (approximately 3.1 TB). The
+PRJEB79569 archive was then resumed from Iris `access1` with a direct standard
+`rsync -a --info=progress2` command. The resume copied 898,748,998,548 bytes
+across 24,379 files and ended with `to-chk=0/122863`; the log contains no rsync
+errors.
 
-- source: 106,645 regular files; 9,639 directories; 6,578 symlinks; 2,891,411,082,235 logical regular-file bytes
-- destination: 82,267 regular files; 7,157 directories; 2,211 symlinks; 1,992,919,510,119 logical regular-file bytes
-- remaining logical regular-file content: 898,491,572,116 bytes, plus filesystem headroom
+Verification before scratch deletion:
 
-The filesystem has ample global capacity and the project is expected to have a large allocation. Diagnostic results on 2026-07-27:
+- the rsync metadata dry-run produced a zero-byte difference list;
+- source and Isilon both contained 106,645 regular files, 9,640 directories
+  including the `output` root, and 6,578 symlinks;
+- both contained 2,891,411,082,235 logical regular-file bytes;
+- `quantification` contained 398 files on both sides;
+- `viromics` contained 23,969 files on both sides;
+- one 257,426,432-byte `.contigs...v8VrZe` rsync temporary file left by the
+  failed transfer was identified as destination-only and removed.
 
-- the same large-write `ENOSPC` reproduced from both Iris and Aion access nodes, ruling out a stale Iris `access1` mount;
-- probes failed under both `${PLATFORM_BULK_ROOT}/raw` and `${PLATFORM_BULK_ROOT}/results`, ruling out the original `shared_references` subdirectory alone;
-- the failure persisted under `sg bioinformatics_platform`, ruling out the process's default `clusterusers` primary group;
-- the destination is visible in the current Isilon snapshot, but the dated weekly snapshot from before transfer does not contain it;
-- ULHPC documents that individual Isilon project quota/accounting is set storage-side and cannot currently be inspected with `df-ulhpc`, so client-side `df` is not proof of the assigned-project state.
+After these checks, the exact scratch tree
+`/mnt/scratch/users/snarayanasamy/phage_uv_treatment/output` was deleted and
+confirmed absent. Immediate Lustre quota usage fell from 9.449 T to 9.108 T;
+quota measures allocated blocks rather than the archive's logical byte total.
+Do not use the historical scratch paths in commands. Use the Isilon archive.
 
-A detached, read-only project usage inventory completed with PASS on the Iris access node:
-
-- log: `/scratch/users/snarayanasamy/phage_uv_treatment/logs/isilon_bioinformatics_platform_usage_20260727.log`
-- PASS sentinel: same basename with `.PASS`
-- measured allocated usage under `/mnt/isilon/projects/bioinformatics_platform`: 5,960,062,214,144 bytes
-
-Top-level allocated usage:
-
-- `projects/`: 5,237,519,671,296 bytes
-- `ref/`: 327,937,687,552 bytes
-- `globdb/`: 285,781,475,328 bytes
-- `miniconda3_broken_openssl_20260618/`: 67,241,140,224 bytes
-- `cache/`: 37,036,204,032 bytes
-
-Breakdown under `projects/`:
-
-- `ONT_adaptive_sampling/`: 3,379,779,411,968 bytes
-- `shared_references/`: 1,851,233,533,952 bytes
-- partial PRJEB79569 archive within `shared_references/`: 1,585,361,592,320 bytes
-- `spatial_omics/`: 6,483,312,640 bytes
-
-This reconciles the apparently contradictory observations: Isilon has ample global capacity and the project can have a large allocation, while the project tree is already using 5.960 TB and server-side writes fail consistently. The assigned Isilon project limit is not exposed to users, so its exact hard limit still requires ULHPC storage-side confirmation.
-
-The storage checks were repeated exactly as required by the HPC knowledge base on 2026-07-27:
-
-- `df -h` on the exact Isilon target: 2.0 P total, 1.6 P used, 505 T available
-- `lfs quota -h -u snarayanasamy /scratch`: 9.452 T used, 10 T soft quota, 11 T hard limit
-
-Because Isilon reported free global space, a fresh access-node resume was launched under primary group `bioinformatics_platform`, with destination-default permissions and run ID `archive_PRJEB79569_access_20260727_resume2`. Before `rsync` began, Isilon rejected creation of the tiny `started.tsv` at the exact archive target with `No space left on device`. The process group was stopped cleanly and scratch remained present.
-
-That directly establishes the knowledge base's documented edge case: the Isilon volume is not full and the near-capacity 9.452 T figure belongs to scratch, but the target/project has a storage-side SmartQuota or equivalent accounting limit. Do not describe this as global Isilon exhaustion and do not keep retrying the same target until its target-level limit is corrected.
-
-Do not delete or relocate `ONT_adaptive_sampling`, shared references, or any other unrelated data to make room. The safe completion routes are: storage support confirms/corrects the project accounting or extends the assigned limit, or the user identifies another authorized Isilon project for this archive. Then rerun the launcher on the access node; it resumes the partial copy and performs structural plus full SHA-256 source/destination verification.
-
-Do not treat the partial destination as a complete archive. Do not delete or modify the scratch source. No scratch deletion has been performed.
+The successful rsync provides its normal transfer-integrity checking, and the
+post-transfer structural/metadata comparison is recorded above. A separate
+persistent full-tree SHA-256 manifest was not generated.
 
 ## Existing Source Context
 
