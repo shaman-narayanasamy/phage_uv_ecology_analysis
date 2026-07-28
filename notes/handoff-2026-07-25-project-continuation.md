@@ -34,9 +34,9 @@ Community UV module repo:
 
 `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/repo_checkouts/community_uv_response`
 
-Active HPC source root on Iris:
+Canonical HPC archive root:
 
-`/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569`
+`/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569`
 
 SSH alias:
 
@@ -53,12 +53,10 @@ The full-output archive is complete and the Isilon copy is now canonical.
 - Successful resume log:
   `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/rsync_resume_20260728.log`
 
-On 2026-07-28, the user explicitly retired and removed the defunct, publicly
-recoverable `ONT_adaptive_sampling` Isilon project (approximately 3.1 TB). The
-PRJEB79569 archive was then resumed from Iris `access1` with a direct standard
-`rsync -a --info=progress2` command. The resume copied 898,748,998,548 bytes
-across 24,379 files and ended with `to-chk=0/122863`; the log contains no rsync
-errors.
+On 2026-07-28, the PRJEB79569 archive was resumed from Iris `access1` with a
+direct standard `rsync -a --info=progress2` command. The resume copied
+898,748,998,548 bytes across 24,379 files and ended with
+`to-chk=0/122863`; the log contains no rsync errors.
 
 Verification before scratch deletion:
 
@@ -266,7 +264,7 @@ Recommended next local work:
 - Do not copy BAM/FASTQ/raw inStrain profile data locally unless explicitly needed.
 - Do not burn agent context with tight Slurm polling. Use sentinels, logs, summaries, and GitHub issue comments.
 - Run bulk storage transfers on the Iris access node, not a Slurm compute node.
-- The current Isilon archive is partial and blocked by an unresolved storage-side `ENOSPC`; use the scratch source until a later handoff records a verified PASS.
+- The Isilon archive is complete and canonical. The historical scratch output tree was deleted after verification.
 - Ask the user before assuming missing HPC/collaborator paths.
 - Preserve branch state and avoid destructive git commands.
 
