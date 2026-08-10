@@ -291,18 +291,26 @@ manifest <- data.table(
     "sos-transcription-marker-effects",
     "community-rna-dna-temporal-response",
     "sos-mag-continuous-response-heatmap",
-    "population-genomics-pairwise-landscape"
+    "population-genomics-pairwise-landscape",
+    "full-de-condition-landscape",
+    "full-de-functional-category-enrichment",
+    "full-de-mag-condition-coherence",
+    "full-de-recurrent-gene-cell-effects"
   ),
   status = c(
     "candidate_unallocated",
     "deferred",
     "retired_wrong_inference",
     "candidate_unallocated",
-    "diagnostic_only",
-    "diagnostic_only",
-    "diagnostic_only",
-    "retired_no_supported_story",
-    "diagnostic_only",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "candidate_unallocated",
+    "candidate_unallocated",
+    "candidate_unallocated",
+    "candidate_unallocated",
     "candidate_unallocated"
   ),
   note = c(
@@ -310,12 +318,16 @@ manifest <- data.table(
     "Deduplicated host-vOTU degree for the 30 most connected MAGs",
     "SNV-distance context across condition, cycle, and phase comparisons",
     "Prevalence of UV-response potential across recurrent MAG phyla",
-    "Paired UV-response transcript abundance across six phase-cycle strata",
-    "Paired phage-UV treatment effects for eight UV-response categories",
-    "Paired phage-UV treatment effects for seven SOS-response markers",
-    "Retired abundance-corrected DNA-damage/SOS hypothesis panel; no supported damage story",
-    "Continuous abundance-corrected SOS response spectrum across eligible MAGs; no clusters imposed",
-    "Descriptive pairwise population-genomic heterogeneity for coverage-qualified MAGs; no damage or mutagenesis inference"
+    "Preselected UV-response CPM quick check; prohibited from manuscript or supplement",
+    "Preselected UV-response effect quick check; prohibited from manuscript or supplement",
+    "Preselected SOS-marker quick check; prohibited from manuscript or supplement",
+    "Preselected DNA-repair/SOS RNA:DNA quick check; prohibited from manuscript or supplement",
+    "Preselected SOS-module MAG quick check; prohibited from manuscript or supplement",
+    "Descriptive pairwise population-genomic heterogeneity for coverage-qualified MAGs; no damage or mutagenesis inference",
+    "Complete-universe adjusted condition landscape; condition is confounded with membrane identity",
+    "Post-model competitive tests for eight frozen functional categories",
+    "Post-model organism-resolved directional coherence across 340 eligible MAGs",
+    "Descriptive six-cell recurrence for complete-universe tested features"
   )
 )
 fwrite(manifest, file.path(out_root, "candidate_figure_manifest.tsv"), sep = "\t")

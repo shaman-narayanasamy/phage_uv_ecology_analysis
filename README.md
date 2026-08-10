@@ -8,10 +8,10 @@ project storage.
 
 ## Current analysis state
 
-The transcriptome-wide model and its functional, taxonomic, MAG-resolved, and
-six-cell recurrence interpretation are complete. The active objective is now
-GitHub issue #24: rebuild manuscript-facing figures, tables, and prose from
-those verified global results. No subset-first expression model is valid.
+The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
+six-cell recurrence interpretation, and the manuscript workflow rebuild are
+complete. A proposed manuscript and machine-readable claim audit are ready for
+scientific and voice review. No subset-first expression model is valid.
 
 The experimental design contains one control membrane and one treated membrane
 sampled across three cycles and two phases. Condition is therefore confounded
@@ -24,8 +24,13 @@ handoff.
 
 ## Start here
 
-- `notes/handoff-2026-08-10-full-de-interpretation.md`: controlling handoff and
-  manuscript-rebuild target;
+- `notes/handoff-2026-08-10-manuscript-rebuild.md`: controlling scientific
+  handoff and next decision;
+- `manuscript/manuscript_skeleton.md`: proposed manuscript draft for review;
+- `manuscript/claim_evidence_registry.tsv`: claim-by-claim evidence audit;
+- `manuscript/analysis_registry.tsv`: current, descriptive, delegated,
+  deferred, and prohibited workflow registry;
+- `analysis/phage_uv_ecology.qmd`: executable manuscript audit surface;
 - `docs/full_de_interpretation_results.md`: concise verified result summary;
 - `docs/full_de_interpretation_plan.md`: frozen #23 methods and thresholds;
 - `docs/expression_quarantine.md`: binding boundary around earlier subset-first

@@ -451,6 +451,17 @@ run_workflow <- function(args) {
     bytes = file.info(input_paths)$size,
     md5 = unname(tools::md5sum(input_paths))
   ), file.path(stage, "input_provenance.tsv"), sep = "\t")
+  fwrite(data.table(
+    software = c("R", "data.table", "edgeR", "ggplot2", "limma", "matrixStats"),
+    version = c(
+      as.character(getRversion()),
+      as.character(packageVersion("data.table")),
+      as.character(packageVersion("edgeR")),
+      as.character(packageVersion("ggplot2")),
+      as.character(packageVersion("limma")),
+      as.character(packageVersion("matrixStats"))
+    )
+  ), file.path(stage, "software_versions.tsv"), sep = "\t")
   write_checksums(stage)
 
   if (dir.exists(args$output_dir)) unlink(args$output_dir, recursive = TRUE)

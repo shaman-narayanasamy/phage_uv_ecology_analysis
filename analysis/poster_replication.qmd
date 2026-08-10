@@ -13,6 +13,10 @@ params:
   derived_root: "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/poster_replication"
 ---
 
+> **Provenance-only document.** This poster-era reconstruction predates the
+> complete transcriptome-wide model and is not a manuscript evidence source.
+> Use `analysis/phage_uv_ecology.qmd` for the verified current analysis surface.
+
 ```{r setup}
 library(readr)
 library(dplyr)
@@ -21,12 +25,9 @@ library(knitr)
 
 ## Scope
 
-This notebook starts the clean recreation of the poster-level analysis from the
+This notebook preserves the poster-level analysis from the
 tables already available locally. It currently covers the vOTU quality/taxonomy
 layer and UV/DNA-damage genome-potential summaries.
-
-Blocked until Iris returns: MAG taxonomy, BED-guided gene-level expression,
-legacy DE summaries, and host-phage link tables.
 
 ```{r load-derived}
 derived_root <- params$derived_root

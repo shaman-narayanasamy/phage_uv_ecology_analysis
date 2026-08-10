@@ -2,6 +2,10 @@
 
 Date: 2026-08-10
 
+> **Superseded for continuation by
+> `notes/handoff-2026-08-10-manuscript-rebuild.md`.** This file remains the
+> detailed scientific handoff for the completed #23 interpretation.
+
 This is the controlling scientific handoff. It supersedes the immediate-next-
 step sections of all earlier handoffs. Do not reconstruct the project from old
 chat, storage cleanup, HPC execution history, or quarantined subset analyses.
