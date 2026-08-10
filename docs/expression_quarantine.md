@@ -45,7 +45,7 @@ their builders.
 ## Replacement workflow
 
 - GitHub #22: full transcriptome-wide differential-expression analysis;
-- GitHub #23: functional and MAG-resolved subsets derived from #22;
+- GitHub #23: complete; functional and MAG-resolved subsets derived from #22;
 - GitHub #24: retire the SOS-first framing and rebuild manuscript materials.
 
 ## Outside quarantine

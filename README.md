@@ -8,11 +8,10 @@ project storage.
 
 ## Current analysis state
 
-The immediate objective is transcriptome-wide differential expression from the
-staged metatranscriptomic gene-count tables. Technical sequencing runs must be
-collapsed to the 12 physical samples before modeling. Functional, taxonomic,
-MAG-resolved, SOS/UV, or DNA-repair views are downstream interpretations of the
-full tested gene universe, not separate subset-first tests.
+The transcriptome-wide model and its functional, taxonomic, MAG-resolved, and
+six-cell recurrence interpretation are complete. The active objective is now
+GitHub issue #24: rebuild manuscript-facing figures, tables, and prose from
+those verified global results. No subset-first expression model is valid.
 
 The experimental design contains one control membrane and one treated membrane
 sampled across three cycles and two phases. Condition is therefore confounded
@@ -25,8 +24,10 @@ handoff.
 
 ## Start here
 
-- `notes/handoff-2026-08-10-full-transcriptome-de-reset.md`: controlling handoff
-  and next execution target;
+- `notes/handoff-2026-08-10-full-de-interpretation.md`: controlling handoff and
+  manuscript-rebuild target;
+- `docs/full_de_interpretation_results.md`: concise verified result summary;
+- `docs/full_de_interpretation_plan.md`: frozen #23 methods and thresholds;
 - `docs/expression_quarantine.md`: binding boundary around earlier subset-first
   exploratory analyses;
 - `docs/codex_context.md`: compact project orientation;

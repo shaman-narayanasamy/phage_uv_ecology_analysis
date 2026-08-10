@@ -7,7 +7,7 @@ repositories or chat history.
 ## Current Controlling Scientific Context
 
 For manuscript analysis, start with
-`notes/handoff-2026-08-10-full-transcriptome-de-reset.md`. It supersedes the
+`notes/handoff-2026-08-10-full-de-interpretation.md`. It supersedes the
 expression-analysis and next-step directions below, much of which records
 historical pipeline operations.
 
@@ -19,9 +19,9 @@ the manuscript or supplement.
 
 GitHub issue #22 is complete: the full transcriptome-wide edgeR workflow,
 tests, canonical result tables, diagnostics, annotation-match audit, and output
-checksums are recorded in the controlling handoff. The next executable task is
-#23, deriving functional and MAG-resolved views only from that complete result
-universe; manuscript rebuilding follows in #24.
+checksums are recorded in the controlling handoff. GitHub #23 is complete; the
+next executable task is #24, rebuilding manuscript materials only from the
+verified full-DE and full-universe interpretation outputs.
 
 ## Repositories And Paths
 
