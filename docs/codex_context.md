@@ -4,6 +4,25 @@ This file is the first stop for future Codex sessions. It records the stable
 paths, decisions, and next steps needed to resume without re-reading the full
 repositories or chat history.
 
+## Current Controlling Scientific Context
+
+For manuscript analysis, start with
+`notes/handoff-2026-08-10-full-transcriptome-de-reset.md`. It supersedes the
+expression-analysis and next-step directions below, much of which records
+historical pipeline operations.
+
+Binding decision: every preselected SOS, UV-response, DNA-repair, stress,
+RNA:DNA, module-temporal, and module-trajectory expression analysis was a quick
+check and is quarantined under `docs/expression_quarantine.md`. Do not report
+its numerical results, use it to select genes or MAGs, or place its figures in
+the manuscript or supplement.
+
+GitHub issue #22 is complete: the full transcriptome-wide edgeR workflow,
+tests, canonical result tables, diagnostics, annotation-match audit, and output
+checksums are recorded in the controlling handoff. The next executable task is
+#23, deriving functional and MAG-resolved views only from that complete result
+universe; manuscript rebuilding follows in #24.
+
 ## Repositories And Paths
 
 - Analysis repository: `/mnt/aiongpfs/users/snarayanasamy/repositories/phage_uv_ecology_analysis`
@@ -168,6 +187,12 @@ issues/PR comments, and explicit failure debugging.
   is absent, create it with conda.
 - Use Snakemake-managed per-rule conda environments under
   `/work/projects/bioinformatics_platform/cache/conda`.
+- Never create Conda or Mamba prefixes under the project scratch tree. This is
+  enforced by `scripts/validate_manifests.sh`; see
+  `docs/hpc_environment_lifecycle.md` for the cleanup record and lifecycle
+  policy.
+- Allow Snakemake to remove outputs declared with `temp()` after successful
+  downstream use. Use `--notemp` only for deliberate, time-limited debugging.
 - Reusable references should live under
   `/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/multiomics_pipeline`
   to avoid duplication across projects.

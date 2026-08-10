@@ -1,5 +1,11 @@
 # Handoff: PRJEB79569 Project Continuation
 
+> Historical data-staging handoff. The controlling scientific continuation is
+> `notes/handoff-2026-08-10-full-transcriptome-de-reset.md`. Any subset-first
+> SOS/UV/DNA-repair expression direction below is quarantined under
+> `docs/expression_quarantine.md`; retain this file only for staged-data paths
+> and provenance.
+
 Date: 2026-07-25
 
 This is the compact continuation context for the phage-UV ecology manuscript work. It is meant for a fresh Codex/agent session to resume without relying on chat history. Keep using repo documents and local staged tables as source of truth.

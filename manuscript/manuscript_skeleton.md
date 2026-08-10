@@ -1,5 +1,10 @@
 # Phage-UV ecology and strain-level adaptation in anaerobic membrane biofilms
 
+> Quarantined stale scaffold. Do not draft from the DNA-damage, adaptation,
+> SOS-first, or treatment-driven SNV framing below. Use
+> `notes/handoff-2026-08-10-full-transcriptome-de-reset.md`; rebuild this file
+> only after GitHub issues #22 and #23 are complete.
+
 ## Working title
 
 Repeated phage-UV treatment reveals linked viral, DNA-damage response, and strain-level adaptation signatures in anaerobic membrane biofilms
@@ -67,4 +72,3 @@ Code provenance will be reported from `manifests/code_manifest.tsv` after exact 
 - Fig. 3: UV/DNA-damage resistance potential and expression.
 - Fig. 4: inStrain SNV divergence.
 - Fig. 5: integrated prioritized taxa/phage panel.
-

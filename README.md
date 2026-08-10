@@ -1,88 +1,74 @@
-# Phage-UV membrane biofilm manuscript workspace
+# PRJEB79569 phage-UV ecology analysis
 
-This workspace organizes the manuscript-grade analysis for phage-UV ecology and strain-level adaptation in anaerobic membrane biofilms.
+Active manuscript-analysis workspace for the PRJEB79569 anaerobic membrane
+biofilm experiment (ENA secondary accession `ERP163720`). This repository owns
+analysis code, metadata contracts, provenance manifests, figures, and
+manuscript scaffolding; large primary and derived data remain in managed
+project storage.
 
-Canonical public dataset:
+## Current analysis state
 
-- ENA study accession: `PRJEB79569`
-- ENA secondary study accession: `ERP163720`
+The immediate objective is transcriptome-wide differential expression from the
+staged metatranscriptomic gene-count tables. Technical sequencing runs must be
+collapsed to the 12 physical samples before modeling. Functional, taxonomic,
+MAG-resolved, SOS/UV, or DNA-repair views are downstream interpretations of the
+full tested gene universe, not separate subset-first tests.
 
-The current implementation creates the reproducibility layer first:
+The experimental design contains one control membrane and one treated membrane
+sampled across three cycles and two phases. Condition is therefore confounded
+with membrane identity; contrasts are reported as system-specific comparisons,
+not general causal treatment effects.
 
-- `metadata/sample_metadata.tsv`: ENA-derived physical sample map with `condition`, `phase`, `cycle`, and `analysis_group`.
-- `resources/uv_resistance_signatures.tsv`: curated UV/DNA-damage resistance signature table.
-- `manifests/data_manifest.tsv`: data staging checklist for ENA, HPC/Isilon, local downstream, MGnify, and manuscript artifacts.
-- `manifests/code_manifest.tsv`: code provenance checklist for existing repositories, local QMDs, and new wrapper scripts.
-- `analysis/phage_uv_ecology.qmd`: downstream analysis scaffold that reads manifest-configured inputs.
-- `manuscript/manuscript_skeleton.md`: venue-neutral manuscript skeleton and claim hierarchy.
+Population-genomic variation is descriptive and coverage-qualified. The 16S
+workstream is delegated separately and is not managed from this repository
+handoff.
 
-MGnify checks use MGnifyR through `scripts/check_mgnify_prjeb79569.R` and the wrapper `scripts/check_mgnify_prjeb79569.sh`.
+## Start here
 
-Heavy primary workflows should run on HPC scratch. Durable derived outputs should be staged on Isilon and then consumed locally through the manifest paths.
+- `notes/handoff-2026-08-10-full-transcriptome-de-reset.md`: controlling handoff
+  and next execution target;
+- `docs/expression_quarantine.md`: binding boundary around earlier subset-first
+  exploratory analyses;
+- `docs/codex_context.md`: compact project orientation;
+- `manifests/data_manifest.tsv`: external data and derived-artifact provenance;
+- `manifests/code_manifest.tsv`: analysis code provenance and reuse status;
+- `metadata/sample_metadata.tsv`: physical-sample design metadata.
 
-## Codex handoff
+Older handoffs and subset-oriented scripts are retained for provenance where
+the quarantine document says so. They are not current manuscript evidence.
 
-Future Codex sessions should start with `docs/codex_context.md`. It records the
-project paths, current metadata state, preprocessing decisions, and next steps
-for launching the multiomics pipeline on ULHPC.
+## Repository layout
 
-Track implementation history in `CHANGELOG.md`.
-
-## Project setup
-
-HPC project directory:
-
-```sh
-/scratch/users/snarayanasamy/phage_uv_treatment
+```text
+R/            shared plotting and analysis helpers
+analysis/     reproducible analysis documents
+config/       project and HPC configuration
+docs/         scientific boundaries and analysis decisions
+hpc/          cluster-side integration assets
+launchers/    canonical project workflow entrypoints
+manifests/    data and code provenance
+manuscript/   manuscript scaffold
+metadata/     versioned sample metadata
+notes/        durable handoffs
+scripts/      reproducible analysis and validation scripts
 ```
 
-Create the project metadata directory:
+## Validation
+
+Validate manifest structure after changing tracked inputs or outputs:
 
 ```sh
-mkdir -p /scratch/users/snarayanasamy/phage_uv_treatment/metadata
+bash scripts/validate_manifests.sh
 ```
 
-Resolve ENA study metadata into the multiomics pipeline sample-sheet format:
+Use `git diff --check` before committing. Generated tables, figures, logs,
+caches, workflow state, and large datasets belong outside Git unless a manifest
+explicitly records a small versioned artifact.
 
-```sh
-python /mnt/aiongpfs/users/snarayanasamy/repositories/multiomics_pipeline/scripts/ena/resolve_ena_study.py PRJEB79569 /scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_multiomics_samples.tsv --metadata /scratch/users/snarayanasamy/phage_uv_treatment/metadata/sample_metadata.tsv --require-library-strategy WGS
-```
+## Related repositories
 
-Generated metadata file:
-
-```sh
-/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_multiomics_samples.tsv
-```
-
-The optional curated metadata file
-`/scratch/users/snarayanasamy/phage_uv_treatment/metadata/sample_metadata.tsv`
-was not present when this was generated, so condition, phase, cycle, and
-analysis group columns are empty. Amplicon runs were skipped by the
-`--require-library-strategy WGS` filter.
-
-## Preprocessing launch
-
-Project-specific ULHPC Snakemake config and launchers are kept in this
-repository:
-
-```sh
-config/PRJEB79569_ulhpc_config.yml
-config/ulhpc_cluster_config.yml
-launchers/sbatch_mg_preprocessing.sh
-launchers/sbatch_mt_preprocessing.sh
-```
-
-Run metagenomics preprocessing first:
-
-```sh
-bash launchers/sbatch_mg_preprocessing.sh --dry-run
-bash launchers/sbatch_mg_preprocessing.sh
-```
-
-Run metatranscriptomics preprocessing only after SortMeRNA and human mRNA
-references are present under the shared reference root:
-
-```sh
-bash launchers/sbatch_mt_preprocessing.sh --dry-run
-bash launchers/sbatch_mt_preprocessing.sh
-```
+- `multiomics_pipeline`: upstream MG/MT processing;
+- `host_phage_linking`: optional host-phage evidence;
+- `community_uv_response`: optional signature annotation and descriptive
+  population-genomics utilities;
+- `membrane_cleaning`: legacy provenance only.

@@ -48,12 +48,56 @@ awk -F '\t' '
 ' resources/uv_resistance_signatures.tsv || failures=$((failures + 1))
 
 printf '\nChecking available manifest paths...\n'
-awk -F '\t' '
-  NR == 1 { next }
-  $2 == "available" { print $4 }
-' manifests/data_manifest.tsv | while IFS= read -r path; do
-  [[ -f "$path" ]] && printf 'OK available path: %s\n' "$path" || printf 'MISSING available path: %s\n' "$path" >&2
+while IFS= read -r path; do
+  if [[ "$path" == *[\*\?\[]* ]]; then
+    if compgen -G "$path" > /dev/null; then
+      printf 'OK available path pattern: %s\n' "$path"
+    else
+      printf 'MISSING available path pattern: %s\n' "$path" >&2
+      failures=$((failures + 1))
+    fi
+  elif [[ -e "$path" ]]; then
+    printf 'OK available path: %s\n' "$path"
+  else
+    printf 'MISSING available path: %s\n' "$path" >&2
+    failures=$((failures + 1))
+  fi
+done < <(
+  awk -F '\t' '
+    NR == 1 { next }
+    $2 == "available" { print $4 }
+  ' manifests/data_manifest.tsv
+)
+
+printf '\nChecking HPC Conda-prefix policy...\n'
+scratch_conda_pattern='(CONDA_PREFIX_DIR|--conda-prefix|conda create|mamba create).*scratch/users/snarayanasamy/phage_uv_treatment'
+if rg -n --glob '*.sh' --glob '*.yml' --glob '*.yaml' \
+    "${scratch_conda_pattern}" launchers config; then
+  printf 'PROHIBITED: Conda environment or prefix under project scratch.\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'OK: no project-scratch Conda prefixes in launchers or config\n'
+fi
+
+expected_conda_prefix='CONDA_PREFIX_DIR="/work/projects/bioinformatics_platform/cache/conda"'
+for launcher in \
+  launchers/sbatch_mg_preprocessing.sh \
+  launchers/sbatch_mt_preprocessing.sh
+do
+  if grep -Fqx "${expected_conda_prefix}" "${launcher}"; then
+    printf 'OK shared Conda prefix: %s\n' "${launcher}"
+  else
+    printf 'INVALID shared Conda prefix: %s\n' "${launcher}" >&2
+    failures=$((failures + 1))
+  fi
 done
+
+if rg -n --fixed-strings -- '--notemp' launchers; then
+  printf 'PROHIBITED: routine launcher disables Snakemake temp cleanup.\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'OK: Snakemake temp cleanup is not disabled\n'
+fi
 
 if [[ "$failures" -ne 0 ]]; then
   printf '\nValidation failed with %s failure group(s).\n' "$failures" >&2

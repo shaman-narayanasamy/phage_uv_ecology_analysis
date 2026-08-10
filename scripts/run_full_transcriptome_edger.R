@@ -1,0 +1,766 @@
+#!/usr/bin/env Rscript
+
+# Transcriptome-wide edgeR quasi-likelihood analysis for PRJEB79569.
+#
+# This workflow deliberately starts from every feature in the staged, headerless
+# run-level count tables. Functional annotations are joined only after filtering
+# and model fitting; they never determine the tested universe.
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(edgeR)
+  library(ggplot2)
+})
+
+COUNT_COLUMNS <- c(
+  "contig", "start", "end", "gene_id", "score", "strand", "read_count",
+  "covered_bases", "gene_length", "covered_fraction"
+)
+FEATURE_COLUMNS <- c("contig", "start", "end", "gene_id", "strand")
+DEFAULT_MIN_COUNT <- 10
+DEFAULT_MIN_TOTAL_COUNT <- 15
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  script_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  if (length(script_arg)) {
+    return(normalizePath(file.path(dirname(sub("^--file=", "", script_arg[[1]])), "..")))
+  }
+  normalizePath(".")
+}
+
+default_data_root <- function(root = repo_root()) {
+  normalizePath(file.path(root, "..", ".."), mustWork = FALSE)
+}
+
+parse_cli <- function(args) {
+  root <- repo_root()
+  data_root <- default_data_root(root)
+  values <- list(
+    metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+    counts_dir = file.path(
+      data_root, "PRJEB79569", "quantification", "mags_votu", "gene_coverage",
+      "metatranscriptomics"
+    ),
+    output_dir = file.path(
+      data_root, "PRJEB79569", "derived", "full_transcriptome_de"
+    ),
+    annotations = NA_character_,
+    min_count = DEFAULT_MIN_COUNT,
+    min_total_count = DEFAULT_MIN_TOTAL_COUNT,
+    overwrite = FALSE
+  )
+
+  if ("--help" %in% args || "-h" %in% args) {
+    cat(paste(
+      "Usage: Rscript scripts/run_full_transcriptome_edger.R [options]",
+      "",
+      "Options:",
+      "  --metadata PATH          Physical-sample metadata TSV",
+      "  --counts-dir PATH        Directory containing 23 headerless count TSVs",
+      "  --output-dir PATH        Analysis output directory",
+      "  --annotations PATH       Optional full-gene annotation TSV",
+      "  --min-count INT          filterByExpr min.count (default 10)",
+      "  --min-total-count INT    filterByExpr min.total.count (default 15)",
+      "  --overwrite              Replace a pre-existing output directory",
+      sep = "\n"
+    ))
+    quit(status = 0)
+  }
+
+  i <- 1L
+  while (i <= length(args)) {
+    key <- args[[i]]
+    if (key == "--overwrite") {
+      values$overwrite <- TRUE
+      i <- i + 1L
+      next
+    }
+    if (!startsWith(key, "--") || i == length(args)) abort("Invalid argument: %s", key)
+    name <- gsub("-", "_", substring(key, 3L))
+    if (!name %in% names(values)) abort("Unknown argument: %s", key)
+    values[[name]] <- args[[i + 1L]]
+    i <- i + 2L
+  }
+  values$min_count <- as.integer(values$min_count)
+  values$min_total_count <- as.integer(values$min_total_count)
+  if (is.na(values$min_count) || values$min_count < 0L) abort("--min-count must be non-negative")
+  if (is.na(values$min_total_count) || values$min_total_count < 0L) {
+    abort("--min-total-count must be non-negative")
+  }
+  values
+}
+
+feature_id <- function(x) {
+  do.call(paste, c(x[, ..FEATURE_COLUMNS], sep = "|"))
+}
+
+derive_mag_id <- function(contig) {
+  matched <- grepl("^.*_MAGScoT_cleanbin_[0-9]+_", contig)
+  result <- rep(NA_character_, length(contig))
+  result[matched] <- sub(
+    "^((?:.*)_MAGScoT_cleanbin_[0-9]+)_.*$", "\\1", contig[matched], perl = TRUE
+  )
+  result
+}
+
+parse_run_accession <- function(path) {
+  name <- basename(path)
+  accession <- sub("^.*__MT__(ERR[0-9]+)_metatranscriptomics\\.tsv$", "\\1", name)
+  if (identical(accession, name)) abort("Cannot parse MT run accession from %s", name)
+  accession
+}
+
+audit_metadata <- function(metadata_path, count_paths) {
+  metadata <- fread(metadata_path, sep = "\t", header = TRUE, na.strings = c("", "NA"))
+  required <- c(
+    "sample_title", "condition", "phase", "cycle", "analysis_group",
+    "metatranscriptome_run_accessions"
+  )
+  missing <- setdiff(required, names(metadata))
+  if (length(missing)) abort("Metadata is missing columns: %s", paste(missing, collapse = ", "))
+  if (nrow(metadata) != 12L || uniqueN(metadata$sample_title) != 12L) {
+    abort("Expected exactly 12 unique physical samples; found %d rows and %d names", nrow(metadata), uniqueN(metadata$sample_title))
+  }
+  if (!setequal(metadata$condition, c("control", "treatment"))) abort("Condition must contain control and treatment")
+  if (!setequal(metadata$phase, c("initial", "backflush"))) abort("Phase must contain initial and backflush")
+  if (!setequal(as.integer(metadata$cycle), 1:3)) abort("Cycle must contain 1, 2, and 3")
+
+  run_map <- metadata[, .(
+    run_accession = strsplit(metatranscriptome_run_accessions, ";", fixed = TRUE)[[1]]
+  ), by = .(sample_title, condition, phase, cycle, analysis_group)]
+  if (nrow(run_map) != 23L || uniqueN(run_map$run_accession) != 23L) {
+    abort("Expected 23 unique run accessions in metadata; found %d rows and %d unique", nrow(run_map), uniqueN(run_map$run_accession))
+  }
+
+  file_map <- data.table(
+    path = normalizePath(count_paths),
+    run_accession = vapply(count_paths, parse_run_accession, character(1))
+  )
+  if (uniqueN(file_map$run_accession) != nrow(file_map)) abort("Count filenames contain duplicate run accessions")
+  missing_files <- setdiff(run_map$run_accession, file_map$run_accession)
+  unexpected_files <- setdiff(file_map$run_accession, run_map$run_accession)
+  if (length(missing_files) || length(unexpected_files)) {
+    abort(
+      "Run/file mismatch. Missing: %s. Unexpected: %s",
+      paste(missing_files, collapse = ","), paste(unexpected_files, collapse = ",")
+    )
+  }
+  run_map <- merge(run_map, file_map, by = "run_accession", all.x = TRUE, sort = FALSE)
+  run_map[, sample_order := match(sample_title, metadata$sample_title)]
+  setorder(run_map, sample_order, run_accession)
+  run_map[, sample_order := NULL]
+
+  metadata[, condition := factor(condition, levels = c("control", "treatment"))]
+  metadata[, phase := factor(phase, levels = c("initial", "backflush"))]
+  metadata[, cycle := factor(as.character(cycle), levels = c("1", "2", "3"))]
+  list(metadata = metadata, run_map = run_map)
+}
+
+read_count_file <- function(path) {
+  x <- fread(
+    path,
+    sep = "\t",
+    header = FALSE,
+    colClasses = list(
+      character = c(1L, 4L, 6L),
+      integer = c(2L, 3L, 5L, 7L, 8L, 9L),
+      numeric = 10L
+    ),
+    showProgress = interactive()
+  )
+  setnames(x, COUNT_COLUMNS)
+  if (!nrow(x)) abort("Count table is empty: %s", path)
+  if (anyNA(x[, .(contig, start, end, gene_id, strand, read_count, gene_length)])) {
+    abort("Count table contains missing required values: %s", path)
+  }
+  if (any(x$read_count < 0L)) abort("Count table contains negative counts: %s", path)
+  x[, feature_id := feature_id(.SD)]
+  duplicate_rows <- x[duplicated(feature_id) | duplicated(feature_id, fromLast = TRUE)]
+  conflicting <- duplicate_rows[, .(
+    n_distinct_records = uniqueN(.SD)
+  ), by = feature_id, .SDcols = COUNT_COLUMNS][n_distinct_records > 1L]
+  if (nrow(conflicting)) {
+    abort("Count table has %d feature IDs with conflicting duplicate records: %s", nrow(conflicting), path)
+  }
+  duplicate_record_count <- nrow(x) - uniqueN(x$feature_id)
+  if (duplicate_record_count) x <- unique(x, by = "feature_id")
+  list(data = x, duplicate_record_count = duplicate_record_count)
+}
+
+build_collapsed_matrix <- function(run_map, sample_order) {
+  first <- read_count_file(run_map$path[[1]])
+  features <- first$data[, .(
+    feature_id, contig, start, end, gene_id, strand, gene_length,
+    MAG_ID = derive_mag_id(contig)
+  )]
+  setkey(features, feature_id)
+  counts <- matrix(
+    0L,
+    nrow = nrow(features),
+    ncol = length(sample_order),
+    dimnames = list(features$feature_id, sample_order)
+  )
+  audits <- vector("list", nrow(run_map))
+
+  for (i in seq_len(nrow(run_map))) {
+    current <- if (i == 1L) first else read_count_file(run_map$path[[i]])
+    x <- current$data
+    if (nrow(x) != nrow(features) || !setequal(x$feature_id, features$feature_id)) {
+      abort("Feature universe differs in run %s", run_map$run_accession[[i]])
+    }
+    idx <- match(features$feature_id, x$feature_id)
+    if (anyNA(idx)) abort("Internal feature alignment failure for %s", run_map$run_accession[[i]])
+    if (any(features$gene_length != x$gene_length[idx])) {
+      abort("Gene lengths differ in run %s", run_map$run_accession[[i]])
+    }
+    sample_idx <- match(run_map$sample_title[[i]], sample_order)
+    counts[, sample_idx] <- counts[, sample_idx] + x$read_count[idx]
+    audits[[i]] <- data.table(
+      run_accession = run_map$run_accession[[i]],
+      sample_title = run_map$sample_title[[i]],
+      path = run_map$path[[i]],
+      raw_rows = nrow(x) + current$duplicate_record_count,
+      unique_features = nrow(x),
+      exact_duplicate_records_removed = current$duplicate_record_count,
+      library_size_before_technical_collapse = sum(x$read_count)
+    )
+    rm(x, current)
+    if (i %% 4L == 0L) gc(FALSE)
+  }
+  list(features = features, counts = counts, run_audit = rbindlist(audits))
+}
+
+build_designs <- function(metadata) {
+  main <- model.matrix(~phase + cycle + condition, data = metadata)
+  interaction <- model.matrix(~phase + cycle * condition, data = metadata)
+  rownames(main) <- metadata$sample_title
+  rownames(interaction) <- metadata$sample_title
+  if (qr(main)$rank != ncol(main)) abort("Main design is not full rank")
+  if (qr(interaction)$rank != ncol(interaction)) abort("Interaction design is not full rank")
+  expected_main <- "conditiontreatment"
+  expected_interaction <- c("cycle2:conditiontreatment", "cycle3:conditiontreatment")
+  if (!expected_main %in% colnames(main)) abort("Main condition coefficient was not constructed")
+  if (!all(expected_interaction %in% colnames(interaction))) {
+    abort("Expected condition-by-cycle coefficients were not constructed")
+  }
+  list(
+    main = main,
+    interaction = interaction,
+    main_coefficient = expected_main,
+    interaction_coefficients = expected_interaction
+  )
+}
+
+read_annotations <- function(path, features) {
+  empty <- copy(features[, .(feature_id, MAG_ID, gene_id)])
+  empty[, `:=`(
+    gene_symbol = NA_character_,
+    annotation = NA_character_,
+    annotation_type = NA_character_,
+    dbxrefs = NA_character_,
+    annotation_source = "not_available",
+    annotation_match_status = fifelse(
+      is.na(MAG_ID), "unmatched_non_MAG_feature", "annotation_file_not_provided"
+    )
+  )]
+  annotation_fields <- c(
+    "feature_id", "gene_symbol", "annotation", "annotation_type", "dbxrefs",
+    "annotation_source", "annotation_match_status"
+  )
+  if (is.na(path) || !nzchar(path)) return(empty[, ..annotation_fields])
+  annotation <- fread(path, sep = "\t", header = TRUE, na.strings = c("", "NA"))
+  annotation_candidates <- intersect(
+    c("annotation", "gene_function", "product", "description", "gene_symbol"),
+    names(annotation)
+  )
+  if (!length(annotation_candidates)) abort("Annotation table has no recognized annotation column")
+  annotation[, annotation := do.call(fcoalesce, lapply(.SD, as.character)), .SDcols = annotation_candidates]
+  coalesce_optional <- function(x, candidates) {
+    present <- intersect(candidates, names(x))
+    if (!length(present)) return(rep(NA_character_, nrow(x)))
+    do.call(fcoalesce, lapply(x[, ..present], as.character))
+  }
+  gene_symbol_values <- coalesce_optional(
+    annotation, c("gene_symbol", "gene", "symbol", "Gene")
+  )
+  annotation_type_values <- coalesce_optional(
+    annotation, c("annotation_type", "feature_type", "type", "Type")
+  )
+  dbxref_values <- coalesce_optional(
+    annotation, c("dbxrefs", "db_xrefs", "DbXrefs", "dbxref")
+  )
+  annotation[, `:=`(
+    gene_symbol = gene_symbol_values,
+    annotation_type = annotation_type_values,
+    dbxrefs = dbxref_values
+  )]
+  source_name <- basename(path)
+
+  if ("feature_id" %in% names(annotation)) {
+    annotation <- unique(annotation[, .(
+      feature_id, gene_symbol, annotation, annotation_type, dbxrefs
+    )])
+    if (anyDuplicated(annotation$feature_id)) abort("Annotation feature_id has conflicting records")
+    annotation[, annotation_record_present := TRUE]
+    joined <- merge(
+      features[, .(feature_id, MAG_ID)], annotation, by = "feature_id", all.x = TRUE, sort = FALSE
+    )
+  } else if (all(c("MAG_ID", "gene_id") %in% names(annotation))) {
+    annotation <- unique(annotation[, .(
+      MAG_ID, gene_id, gene_symbol, annotation, annotation_type, dbxrefs
+    )])
+    if (anyDuplicated(annotation, by = c("MAG_ID", "gene_id"))) {
+      abort("Annotation MAG_ID + gene_id key has conflicting records")
+    }
+    annotation[, annotation_record_present := TRUE]
+    joined <- merge(
+      features[, .(feature_id, MAG_ID, gene_id)], annotation,
+      by = c("MAG_ID", "gene_id"), all.x = TRUE, sort = FALSE
+    )
+  } else {
+    if (!"gene_id" %in% names(annotation)) abort("Annotation table needs feature_id or MAG_ID + gene_id")
+    annotation <- unique(annotation[, .(
+      gene_id, gene_symbol, annotation, annotation_type, dbxrefs
+    )])
+    if (anyDuplicated(annotation$gene_id)) abort("Gene-only annotation key has conflicting records")
+    unique_feature_gene <- features[, .N, by = gene_id][N == 1L]
+    annotation <- annotation[unique_feature_gene, on = "gene_id", nomatch = 0L]
+    annotation[, annotation_record_present := TRUE]
+    joined <- merge(
+      features[, .(feature_id, MAG_ID, gene_id)], annotation,
+      by = "gene_id", all.x = TRUE, sort = FALSE
+    )
+  }
+  joined[, annotation_source := fifelse(
+    !is.na(annotation_record_present), source_name, "not_available"
+  )]
+  joined[, annotation_match_status := fcase(
+    !is.na(annotation_record_present), "matched",
+    is.na(MAG_ID), "unmatched_non_MAG_feature",
+    default = "unmatched_MAG_gene"
+  )]
+  joined[, ..annotation_fields]
+}
+
+result_table <- function(test, features, detection, coefficient, model, annotation) {
+  result <- as.data.table(topTags(test, n = Inf, sort.by = "none")$table, keep.rownames = "feature_id")
+  setnames(result, c("PValue", "FDR"), c("p_value", "FDR"), skip_absent = TRUE)
+  result <- merge(result, features, by = "feature_id", all.x = TRUE, sort = FALSE)
+  result <- merge(result, annotation, by = "feature_id", all.x = TRUE, sort = FALSE)
+  result <- merge(result, detection, by = "feature_id", all.x = TRUE, sort = FALSE)
+  result[, `:=`(
+    coefficient = coefficient,
+    model = model,
+    experimental_unit_caveat = paste(
+      "Condition is confounded with membrane identity; this coefficient describes",
+      "the observed two-membrane longitudinal system and is not a population-level causal treatment effect."
+    )
+  )]
+  preferred <- c(
+    "feature_id", "gene_id", "MAG_ID", "contig", "start", "end", "strand",
+    "gene_length", "gene_symbol", "annotation", "annotation_type", "dbxrefs",
+    "annotation_source", "annotation_match_status", "model", "coefficient",
+    "logFC", "logCPM", "F", "p_value", "FDR", "total_count",
+    "n_samples_detected", "mean_CPM", "median_CPM", "experimental_unit_caveat"
+  )
+  setcolorder(result, c(intersect(preferred, names(result)), setdiff(names(result), preferred)))
+  result[]
+}
+
+write_design <- function(design, path) {
+  output <- as.data.table(design, keep.rownames = "sample_title")
+  fwrite(output, path, sep = "\t", quote = FALSE, na = "NA")
+}
+
+write_collapsed_count_matrix <- function(features, counts, path) {
+  matrix_table <- cbind(
+    features[, .(feature_id, gene_id, MAG_ID, gene_length)],
+    as.data.table(counts)
+  )
+  fwrite(matrix_table, path, sep = "\t", quote = FALSE, na = "NA")
+  invisible(nrow(matrix_table))
+}
+
+place_mds_labels <- function(x, y) {
+  x_span <- max(diff(range(x)), 1)
+  y_span <- max(diff(range(y)), 1)
+  points <- cbind((x - min(x)) / x_span, (y - min(y)) / y_span)
+  candidate_offsets <- rbind(
+    c(-0.075, 0), c(0.075, 0), c(0, 0.085), c(0, -0.085),
+    c(-0.065, 0.07), c(0.065, 0.07), c(-0.065, -0.07), c(0.065, -0.07)
+  )
+  labels <- matrix(NA_real_, nrow = length(x), ncol = 2L)
+  for (i in seq_along(x)) {
+    candidates <- sweep(candidate_offsets, 2L, points[i, ], "+")
+    other_points <- if (length(x) > 1L) points[-i, , drop = FALSE] else matrix(numeric(), 0L, 2L)
+    prior_labels <- labels[seq_len(i - 1L), , drop = FALSE]
+    obstacles <- rbind(other_points, prior_labels[complete.cases(prior_labels), , drop = FALSE])
+    score <- apply(candidates, 1L, function(candidate) {
+      min(sqrt(rowSums(sweep(obstacles, 2L, candidate, "-")^2)))
+    })
+    labels[i, ] <- candidates[which.max(score), ]
+  }
+  data.table(
+    label_x = labels[, 1L] * x_span + min(x),
+    label_y = labels[, 2L] * y_span + min(y)
+  )
+}
+
+write_figures <- function(y, metadata, dispersed_main, fit_main, qlf_main, condition_results, output_dir, root) {
+  figure_dir <- file.path(output_dir, "figures")
+  dir.create(figure_dir, recursive = TRUE, showWarnings = FALSE)
+  style_path <- file.path(root, "R", "figure_style.R")
+  if (file.exists(style_path)) source(style_path)
+
+  mds <- plotMDS(y, plot = FALSE)
+  mds_data <- data.table(
+    sample_title = colnames(y),
+    MDS1 = mds$x,
+    MDS2 = mds$y
+  )[metadata, on = "sample_title"]
+  label_positions <- place_mds_labels(mds_data$MDS1, mds_data$MDS2)
+  mds_data[, `:=`(
+    cycle_label = paste0("C", cycle),
+    label_x = label_positions$label_x,
+    label_y = label_positions$label_y
+  )]
+  condition_colours <- if (exists("phage_uv_condition_colours")) {
+    phage_uv_condition_colours[c("control", "treatment")]
+  } else c(control = "#8FCB8A", treatment = "#7E57C2")
+  phase_shapes <- if (exists("phage_uv_phase_shapes")) {
+    phage_uv_phase_shapes
+  } else c(initial = 16, backflush = 17)
+  plot_theme <- if (exists("theme_phage_uv")) theme_phage_uv() else theme_classic()
+
+  p_mds <- ggplot(mds_data, aes(MDS1, MDS2, colour = condition, shape = phase)) +
+    geom_point(size = 2.8) +
+    geom_text(
+      data = mds_data,
+      aes(x = label_x, y = label_y, label = cycle_label, colour = condition),
+      inherit.aes = FALSE,
+      size = 2.7,
+      show.legend = FALSE
+    ) +
+    scale_colour_manual(values = condition_colours) +
+    scale_shape_manual(values = phase_shapes) +
+    guides(
+      colour = guide_legend(order = 1),
+      shape = guide_legend(order = 2)
+    ) +
+    labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2") +
+    plot_theme
+  ggsave(file.path(figure_dir, "sample_mds.pdf"), p_mds, width = 5.5, height = 4.2)
+
+  pdf(file.path(figure_dir, "dispersion_diagnostics.pdf"), width = 8.5, height = 4.2)
+  par(mfrow = c(1, 2))
+  # Vector PDFs become enormous with >300,000 points. Use an evenly spaced,
+  # deterministic diagnostic sample unrelated to significance.
+  diagnostic_index <- unique(round(seq(1, nrow(y), length.out = min(20000L, nrow(y)))))
+  plotBCV(dispersed_main[diagnostic_index, ], main = "Biological coefficient of variation")
+  plotQLDisp(fit_main[diagnostic_index, ], main = "Quasi-likelihood dispersion")
+  dev.off()
+
+  effect_path <- file.path(figure_dir, "condition_effect_landscape.pdf")
+  pdf(effect_path, width = 5.5, height = 4.2)
+  smoothScatter(
+    condition_results$logCPM,
+    condition_results$logFC,
+    xlab = "Average log2 CPM",
+    ylab = "Treatment - control log2 fold change",
+    nrpoints = 0,
+    colramp = colorRampPalette(c("#F4F4F4", "#7E57C2", "#25143D"))
+  )
+  abline(h = 0, lty = 2, col = "#444444")
+  dev.off()
+}
+
+dispersion_diagnostics <- function(model_name, formula, design, dispersed, fit) {
+  quantile_row <- function(metric, values, source_field = metric) {
+    if (is.null(values) || !length(values) || !any(is.finite(values))) {
+      return(data.table(
+        model = model_name, formula = formula, metric = metric,
+        source_field = paste0(source_field, " (unavailable)"),
+        minimum = NA_real_, q25 = NA_real_, median = NA_real_,
+        q75 = NA_real_, maximum = NA_real_
+      ))
+    }
+    quantiles <- quantile(values, c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE, names = FALSE)
+    data.table(
+      model = model_name,
+      formula = formula,
+      metric = metric,
+      source_field = source_field,
+      minimum = quantiles[[1]],
+      q25 = quantiles[[2]],
+      median = quantiles[[3]],
+      q75 = quantiles[[4]],
+      maximum = quantiles[[5]]
+    )
+  }
+  scalar_row <- function(metric, value, source_field = metric) {
+    data.table(
+      model = model_name, formula = formula, metric = metric,
+      source_field = source_field,
+      minimum = value, q25 = value, median = value, q75 = value, maximum = value
+    )
+  }
+  ql_posterior <- if (!is.null(fit$s2.post)) fit$s2.post else fit$var.post
+  ql_posterior_field <- if (!is.null(fit$s2.post)) "s2.post" else "var.post"
+  residual_adjusted <- if (!is.null(fit$df.residual.adj)) {
+    fit$df.residual.adj
+  } else {
+    fit$df.residual.zeros
+  }
+  residual_adjusted_field <- if (!is.null(fit$df.residual.adj)) {
+    "df.residual.adj"
+  } else {
+    "df.residual.zeros"
+  }
+  rbindlist(list(
+    scalar_row("n_samples", nrow(design)),
+    scalar_row("design_columns", ncol(design)),
+    scalar_row("design_rank", qr(design)$rank),
+    scalar_row("residual_df_nominal", nrow(design) - qr(design)$rank),
+    scalar_row("common_dispersion", dispersed$common.dispersion),
+    quantile_row("trended_dispersion", dispersed$trended.dispersion),
+    quantile_row("tagwise_dispersion", dispersed$tagwise.dispersion),
+    quantile_row("ql_posterior_variance", ql_posterior, ql_posterior_field),
+    quantile_row("ql_prior_df", fit$df.prior, "df.prior"),
+    quantile_row("residual_df", fit$df.residual, "df.residual"),
+    quantile_row(
+      "residual_df_after_zero_adjustment", residual_adjusted, residual_adjusted_field
+    ),
+    scalar_row("dispersion_figure_deterministic_features", min(20000L, nrow(fit))),
+    scalar_row("robust_prior_df_below_maximum", sum(fit$df.prior < max(fit$df.prior, na.rm = TRUE)))
+  ), use.names = TRUE)
+}
+
+write_provenance <- function(
+    output_dir, args, metadata, run_audit, features, keep, y,
+    collapsed_library_sizes, designs, dispersed_main, fit_main,
+    dispersed_interaction, fit_interaction, annotation, results) {
+  tables_dir <- file.path(output_dir, "tables")
+  library_table <- data.table(
+    sample_title = colnames(y$counts),
+    collapsed_library_size_before_filtering = as.numeric(collapsed_library_sizes[colnames(y$counts)]),
+    retained_library_size_after_filtering = y$samples$lib.size,
+    effective_library_size = y$samples$lib.size * y$samples$norm.factors,
+    normalization_factor = y$samples$norm.factors
+  )[metadata[, .(sample_title, condition, phase, cycle)], on = "sample_title"]
+  fwrite(library_table, file.path(tables_dir, "library_sizes_and_normalization.tsv"), sep = "\t", quote = FALSE)
+  fwrite(run_audit, file.path(tables_dir, "run_file_audit.tsv"), sep = "\t", quote = FALSE)
+  fwrite(metadata, file.path(tables_dir, "sample_metadata_audit.tsv"), sep = "\t", quote = FALSE, na = "NA")
+  write_design(designs$main, file.path(tables_dir, "design_matrix_main.tsv"))
+  write_design(designs$interaction, file.path(tables_dir, "design_matrix_condition_cycle.tsv"))
+
+  filtering <- data.table(
+    input_features = nrow(features),
+    retained_features = sum(keep),
+    removed_features = sum(!keep),
+    min_count = args$min_count,
+    min_total_count = args$min_total_count,
+    filter_method = "edgeR::filterByExpr using the phase- and cycle-adjusted main design",
+    normalization_method = "edgeR TMM"
+  )
+  fwrite(filtering, file.path(tables_dir, "filtering_summary.tsv"), sep = "\t", quote = FALSE)
+
+  model_registry <- data.table(
+    model = c("main", "condition_cycle_interaction"),
+    formula = c("~ phase + cycle + condition", "~ phase + cycle * condition"),
+    tested = c(
+      designs$main_coefficient,
+      paste(c(designs$interaction_coefficients, "2-df omnibus"), collapse = ";")
+    ),
+    interpretation = c(
+      "Phase- and cycle-adjusted treatment-minus-control coefficient",
+      "Condition-by-cycle departures, with cycle 1 as reference"
+    )
+  )
+  fwrite(model_registry, file.path(tables_dir, "predeclared_models.tsv"), sep = "\t", quote = FALSE)
+
+  annotation_audit <- annotation[, .(
+    features = .N,
+    features_with_nonempty_annotation = sum(!is.na(annotation) & nzchar(annotation))
+  ), by = annotation_match_status]
+  annotation_audit[, annotation_file := if (is.na(args$annotations)) "not_provided" else normalizePath(args$annotations)]
+  fwrite(annotation_audit, file.path(tables_dir, "annotation_match_audit.tsv"), sep = "\t", quote = FALSE)
+
+  parameters <- data.table(
+    parameter = c(
+      "metadata", "counts_dir", "annotations", "feature_id_definition",
+      "duplicate_rule", "technical_run_collapse", "filtering", "normalization"
+    ),
+    value = c(
+      normalizePath(args$metadata), normalizePath(args$counts_dir),
+      if (is.na(args$annotations)) "not_provided" else normalizePath(args$annotations),
+      "contig|start|end|gene_id|strand",
+      "Within each run, remove only records identical across all 10 source columns; abort on conflicting duplicate feature IDs",
+      "Sum read_count across run accessions mapped to each of 12 physical samples exactly once",
+      sprintf("edgeR::filterByExpr min.count=%d min.total.count=%d using main design", args$min_count, args$min_total_count),
+      "edgeR TMM"
+    )
+  )
+  fwrite(parameters, file.path(tables_dir, "analysis_parameters.tsv"), sep = "\t", quote = FALSE)
+  packages <- c("R", "edgeR", "data.table", "ggplot2")
+  versions <- data.table(
+    software = packages,
+    version = c(
+      as.character(getRversion()),
+      vapply(packages[-1], function(x) as.character(packageVersion(x)), character(1))
+    )
+  )
+  fwrite(versions, file.path(tables_dir, "software_versions.tsv"), sep = "\t", quote = FALSE)
+
+  diagnostics <- rbindlist(list(
+    dispersion_diagnostics(
+      "main", "~ phase + cycle + condition", designs$main, dispersed_main, fit_main
+    ),
+    dispersion_diagnostics(
+      "condition_cycle_interaction", "~ phase + cycle * condition",
+      designs$interaction, dispersed_interaction, fit_interaction
+    )
+  ))
+  fwrite(diagnostics, file.path(tables_dir, "model_fit_diagnostics.tsv"), sep = "\t", quote = FALSE)
+
+  deterministic <- rbindlist(lapply(names(results), function(name) {
+    x <- results[[name]]
+    data.table(
+      result = name,
+      rows = nrow(x),
+      unique_features = uniqueN(x$feature_id),
+      finite_p_values = sum(is.finite(x$p_value)),
+      min_p_value = min(x$p_value, na.rm = TRUE),
+      sum_logFC = if ("logFC" %in% names(x)) sum(x$logFC, na.rm = TRUE) else NA_real_
+    )
+  }))
+  fwrite(deterministic, file.path(tables_dir, "deterministic_result_summary.tsv"), sep = "\t", quote = FALSE)
+
+  caveat <- paste(
+    "One control membrane and one phage-UV-treated membrane were observed longitudinally.",
+    "Condition is therefore confounded with membrane identity. The fitted coefficients describe",
+    "this two-membrane system and do not estimate a population-level causal treatment effect."
+  )
+  writeLines(caveat, file.path(output_dir, "EXPERIMENTAL_UNIT_CAVEAT.txt"))
+
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
+  files <- files[file.info(files)$isdir %in% FALSE]
+  checksum_table <- data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  )
+  fwrite(checksum_table, file.path(output_dir, "output_checksums.md5.tsv"), sep = "\t", quote = FALSE)
+}
+
+run_workflow <- function(args) {
+  root <- repo_root()
+  if (!dir.exists(args$counts_dir)) abort("Count directory does not exist: %s", args$counts_dir)
+  count_paths <- sort(Sys.glob(file.path(args$counts_dir, "*_metatranscriptomics.tsv")))
+  if (length(count_paths) != 23L) abort("Expected 23 count tables; found %d", length(count_paths))
+  audited <- audit_metadata(args$metadata, count_paths)
+  metadata <- audited$metadata
+
+  if (dir.exists(args$output_dir)) {
+    if (!args$overwrite) abort("Output directory exists; use --overwrite: %s", args$output_dir)
+    unlink(args$output_dir, recursive = TRUE)
+  }
+  dir.create(file.path(args$output_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+
+  message("Building the whole-transcriptome count matrix and collapsing technical runs...")
+  built <- build_collapsed_matrix(audited$run_map, metadata$sample_title)
+  write_collapsed_count_matrix(
+    built$features,
+    built$counts,
+    file.path(args$output_dir, "tables", "collapsed_raw_count_matrix.tsv")
+  )
+  designs <- build_designs(metadata)
+  collapsed_library_sizes <- colSums(built$counts)
+  # Gene metadata is joined after model fitting. Keeping it outside DGEList
+  # prevents edgeR from silently duplicating feature columns in topTags output.
+  y <- DGEList(counts = built$counts)
+  keep <- filterByExpr(
+    y,
+    design = designs$main,
+    min.count = args$min_count,
+    min.total.count = args$min_total_count
+  )
+  if (!any(keep)) abort("No features passed expression filtering")
+  y <- y[keep, , keep.lib.sizes = FALSE]
+  y <- calcNormFactors(y, method = "TMM")
+
+  feature_context <- built$features[keep]
+  cpm_values <- cpm(y)
+  detection <- data.table(
+    feature_id = rownames(y$counts),
+    total_count = rowSums(y$counts),
+    n_samples_detected = rowSums(y$counts > 0),
+    mean_CPM = rowMeans(cpm_values),
+    median_CPM = apply(cpm_values, 1L, median)
+  )
+  annotation <- read_annotations(args$annotations, feature_context)
+
+  message("Fitting predeclared edgeR quasi-likelihood models...")
+  dispersed_main <- estimateDisp(y, designs$main, robust = TRUE)
+  fit_main <- glmQLFit(dispersed_main, designs$main, robust = TRUE)
+  qlf_main <- glmQLFTest(fit_main, coef = designs$main_coefficient)
+  condition_results <- result_table(
+    qlf_main, feature_context, detection, designs$main_coefficient,
+    "~ phase + cycle + condition", annotation
+  )
+
+  dispersed_interaction <- estimateDisp(y, designs$interaction, robust = TRUE)
+  fit_interaction <- glmQLFit(dispersed_interaction, designs$interaction, robust = TRUE)
+  interaction_results <- lapply(designs$interaction_coefficients, function(coef_name) {
+    result_table(
+      glmQLFTest(fit_interaction, coef = coef_name), feature_context, detection,
+      coef_name, "~ phase + cycle * condition", annotation
+    )
+  })
+  names(interaction_results) <- designs$interaction_coefficients
+  interaction_coefficients <- rbindlist(interaction_results, use.names = TRUE)
+  interaction_omnibus <- result_table(
+    glmQLFTest(fit_interaction, coef = designs$interaction_coefficients),
+    feature_context, detection, "condition-by-cycle omnibus (2 df)",
+    "~ phase + cycle * condition", annotation
+  )
+
+  tables_dir <- file.path(args$output_dir, "tables")
+  fwrite(condition_results, file.path(tables_dir, "de_condition_adjusted.tsv"), sep = "\t", quote = FALSE, na = "NA")
+  fwrite(
+    interaction_coefficients,
+    file.path(tables_dir, "de_condition_cycle_interaction_coefficients.tsv"),
+    sep = "\t", quote = FALSE, na = "NA"
+  )
+  fwrite(
+    interaction_omnibus,
+    file.path(tables_dir, "de_condition_cycle_interaction_omnibus.tsv"),
+    sep = "\t", quote = FALSE, na = "NA"
+  )
+
+  write_figures(
+    y, metadata, dispersed_main, fit_main, qlf_main, condition_results,
+    args$output_dir, root
+  )
+  write_provenance(
+    args$output_dir, args, metadata, built$run_audit, built$features, keep, y,
+    collapsed_library_sizes, designs, dispersed_main, fit_main,
+    dispersed_interaction, fit_interaction, annotation,
+    c(
+      list(condition_adjusted = condition_results),
+      interaction_results,
+      list(condition_cycle_omnibus = interaction_omnibus)
+    )
+  )
+  message("Completed full-transcriptome DE workflow: ", normalizePath(args$output_dir))
+  invisible(list(
+    features = built$features,
+    filtered = sum(keep),
+    output_dir = args$output_dir
+  ))
+}
+
+main <- function() run_workflow(parse_cli(commandArgs(trailingOnly = TRUE)))
+
+if (sys.nframe() == 0L) main()
