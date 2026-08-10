@@ -1,5 +1,8 @@
 # Handoff: PRJEB79569 Scientific Continuation
 
+Status: superseded by `notes/handoff-2026-08-10-full-de-interpretation.md`.
+Retain this file only for scientific boundary provenance.
+
 Date: 2026-08-04
 
 > Superseded for expression analysis and immediate next steps by

@@ -1,10 +1,12 @@
 # Handoff: PRJEB79569 full-transcriptome DE reset
 
+Status: superseded by `notes/handoff-2026-08-10-full-de-interpretation.md`.
+Retain this file as #22 completion provenance; do not use its next-step section.
+
 Date: 2026-08-10
 
-This is the controlling handoff for the next session. It supersedes the
-expression-analysis and immediate-next-step sections of older handoffs. Retain
-the August 4 scientific boundaries where they do not conflict with this reset.
+This was the controlling handoff for the #22-to-#23 transition. Retain it as
+completion provenance and use the superseding handoff for active work.
 
 ## Next-session objective
 
