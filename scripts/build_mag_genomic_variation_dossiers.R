@@ -1,0 +1,796 @@
+#!/usr/bin/env Rscript
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+data_root <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_DATA_ROOT")
+out_root <- if (length(args) >= 2L) args[[2L]] else file.path(data_root, "derived", "manuscript_candidates")
+
+if (!nzchar(data_root) || !dir.exists(data_root)) {
+  stop("Provide the PRJEB79569 data root as the first argument or PHAGE_UV_DATA_ROOT.")
+}
+
+script_arg <- grep("^--file=", commandArgs(), value = TRUE)
+script_path <- normalizePath(sub("^--file=", "", script_arg[[1L]]))
+repo_root <- dirname(dirname(script_path))
+source(file.path(repo_root, "R", "figure_style.R"))
+
+tables_dir <- file.path(out_root, "tables")
+figures_dir <- file.path(out_root, "figures")
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+profile_root <- file.path(
+  data_root,
+  "community_uv_response",
+  "variant_analysis",
+  "instrain_priority_20",
+  "per_site_staging"
+)
+pair_qc_path <- file.path(tables_dir, "population_genomics_pair_qc.tsv")
+mag_qc_path <- file.path(tables_dir, "population_genomics_mag_qc.tsv")
+taxonomy_path <- file.path(tables_dir, "mag_taxonomy_crosswalk.tsv")
+cluster_path <- file.path(
+  data_root,
+  "community_uv_response",
+  "variant_analysis",
+  "instrain_priority_20",
+  "compare",
+  "all_samples",
+  "output",
+  "all_samples_strain_clusters.tsv"
+)
+metadata_path <- file.path(repo_root, "metadata", "sample_metadata.tsv")
+
+required_paths <- c(
+  profile_root,
+  pair_qc_path,
+  mag_qc_path,
+  taxonomy_path,
+  cluster_path,
+  metadata_path
+)
+missing_paths <- required_paths[!file.exists(required_paths) & !dir.exists(required_paths)]
+if (length(missing_paths)) {
+  stop("Missing required inputs:\n", paste(missing_paths, collapse = "\n"))
+}
+
+# Fixed before inspecting organism-level variant patterns.
+sample_min_mean_coverage <- 5
+sample_min_callable_breadth <- 0.50
+site_min_coverage <- 10
+site_min_variant_frequency <- 0.05
+site_min_recurrent_samples <- 2L
+max_recurrent_sites_per_dossier <- 24L
+
+sample_order <- c(
+  "CI1", "CI2", "CI3", "CBF1", "CBF2", "CBF3",
+  "TI1", "TI2", "TI3", "TBF1", "TBF2", "TBF3"
+)
+sample_labels <- c(
+  CI1 = "C I1", CI2 = "C I2", CI3 = "C I3",
+  CBF1 = "C BF1", CBF2 = "C BF2", CBF3 = "C BF3",
+  TI1 = "P I1", TI2 = "P I2", TI3 = "P I3",
+  TBF1 = "P BF1", TBF2 = "P BF2", TBF3 = "P BF3"
+)
+
+metadata <- fread(metadata_path)
+metadata[, sample_id := paste0(
+  fifelse(condition == "control", "C", "T"),
+  fifelse(phase == "initial", "I", "BF"),
+  cycle
+)]
+metadata[, sample_label := unname(sample_labels[sample_id])]
+metadata[, condition := factor(condition, levels = c("control", "treatment"))]
+metadata[, phase := factor(phase, levels = c("initial", "backflush"))]
+metadata[, sample_id := factor(sample_id, levels = sample_order)]
+setorder(metadata, sample_id)
+
+mag_qc <- fread(mag_qc_path)
+eligible_mags <- mag_qc[eligible_for_descriptive_panel == TRUE]$MAG_ID
+if (!length(eligible_mags)) {
+  stop("No MAGs pass the predeclared descriptive-panel criteria.")
+}
+
+taxonomy <- fread(taxonomy_path)[, .(MAG_ID, phylum, genus, species)]
+taxonomy[, taxon_label := fifelse(
+  !is.na(species) & species != "",
+  species,
+  fifelse(!is.na(genus) & genus != "", genus, phylum)
+)]
+taxonomy[, mag_short := sub("_MAGScoT_cleanbin_", " bin ", MAG_ID)]
+taxonomy[, panel_label := paste0(mag_short, " - ", taxon_label)]
+taxon_map <- taxonomy[MAG_ID %chin% eligible_mags]
+
+weighted_mean_safe <- function(x, w) {
+  keep <- is.finite(x) & is.finite(w) & w > 0
+  if (!any(keep)) return(NA_real_)
+  weighted.mean(x[keep], w[keep])
+}
+
+assign_mag <- function(scaffold, mags) {
+  out <- rep(NA_character_, length(scaffold))
+  for (mag in mags) {
+    out[startsWith(scaffold, paste0(mag, "_"))] <- mag
+  }
+  out
+}
+
+sample_summaries <- vector("list", length(sample_order))
+site_tables <- vector("list", length(sample_order))
+
+for (sample_id in sample_order) {
+  scaffold_path <- file.path(
+    profile_root,
+    sample_id,
+    "output",
+    paste0(sample_id, "_scaffold_info.tsv")
+  )
+  snv_path <- file.path(
+    profile_root,
+    sample_id,
+    "output",
+    paste0(sample_id, "_SNVs.tsv")
+  )
+  if (!file.exists(scaffold_path) || !file.exists(snv_path)) {
+    stop("Missing staged profile tables for ", sample_id)
+  }
+
+  scaffold <- fread(scaffold_path)
+  scaffold[, MAG_ID := assign_mag(scaffold, eligible_mags)]
+  scaffold <- scaffold[!is.na(MAG_ID)]
+
+  scaffold_summary <- scaffold[, {
+    total_length <- sum(length, na.rm = TRUE)
+    callable_bases <- sum(length * breadth_minCov, na.rm = TRUE)
+    .(
+      genome_length = total_length,
+      callable_bases = callable_bases,
+      callable_breadth = callable_bases / total_length,
+      mean_coverage = weighted_mean_safe(coverage, length),
+      nucleotide_diversity = weighted_mean_safe(
+        nucl_diversity,
+        length * breadth_minCov
+      ),
+      consensus_divergent_sites = sum(consensus_divergent_sites, na.rm = TRUE),
+      population_divergent_sites = sum(population_divergent_sites, na.rm = TRUE)
+    )
+  }, by = MAG_ID]
+
+  snvs <- fread(
+    snv_path,
+    select = c(
+      "scaffold", "position", "position_coverage", "allele_count",
+      "ref_base", "con_base", "var_base", "ref_freq", "con_freq",
+      "var_freq", "cryptic", "class"
+    )
+  )
+  snvs[, MAG_ID := assign_mag(scaffold, eligible_mags)]
+  snvs <- snvs[!is.na(MAG_ID)]
+  snvs[, cryptic_flag := as.logical(cryptic)]
+  high_confidence <- snvs[
+    class == "SNV" &
+      !is.na(cryptic_flag) & !cryptic_flag &
+      position_coverage >= site_min_coverage &
+      var_freq >= site_min_variant_frequency
+  ]
+
+  snv_summary <- high_confidence[, .(
+    high_confidence_snv_sites = .N,
+    median_position_coverage = as.numeric(median(position_coverage, na.rm = TRUE)),
+    median_variant_frequency = as.numeric(median(var_freq, na.rm = TRUE)),
+    upper_quartile_variant_frequency = as.numeric(
+      quantile(var_freq, 0.75, na.rm = TRUE)
+    ),
+    consensus_nonreference_fraction = mean(con_base != ref_base, na.rm = TRUE)
+  ), by = MAG_ID]
+
+  complete_summary <- data.table(MAG_ID = eligible_mags)
+  complete_summary <- scaffold_summary[complete_summary, on = "MAG_ID"]
+  complete_summary <- snv_summary[complete_summary, on = "MAG_ID"]
+  complete_summary[is.na(high_confidence_snv_sites), `:=`(
+    high_confidence_snv_sites = 0L,
+    consensus_nonreference_fraction = 0
+  )]
+  complete_summary[, sample_id := sample_id]
+  complete_summary[, snv_sites_per_callable_mbp :=
+    high_confidence_snv_sites / callable_bases * 1e6]
+  complete_summary[, sample_passes_qc :=
+    mean_coverage >= sample_min_mean_coverage &
+      callable_breadth >= sample_min_callable_breadth]
+  sample_summaries[[match(sample_id, sample_order)]] <- complete_summary
+
+  if (nrow(high_confidence)) {
+    high_confidence[, sample_id := sample_id]
+    site_tables[[match(sample_id, sample_order)]] <- high_confidence[, .(
+      MAG_ID, sample_id, scaffold, position, position_coverage,
+      ref_base, con_base, var_base, ref_freq, con_freq, var_freq
+    )]
+  }
+}
+
+sample_summary <- rbindlist(sample_summaries, use.names = TRUE, fill = TRUE)
+sample_summary <- metadata[, .(
+  sample_id = as.character(sample_id),
+  sample_label,
+  condition,
+  phase,
+  cycle,
+  analysis_group
+)][sample_summary, on = "sample_id"]
+sample_summary <- taxon_map[sample_summary, on = "MAG_ID"]
+sample_summary[, sample_order_index := match(sample_id, sample_order)]
+setorder(sample_summary, MAG_ID, sample_order_index)
+
+sites <- rbindlist(site_tables, use.names = TRUE, fill = TRUE)
+sites <- sample_summary[, .(MAG_ID, sample_id, sample_passes_qc)][
+  sites,
+  on = .(MAG_ID, sample_id)
+]
+sites_qc <- sites[sample_passes_qc == TRUE]
+sites_qc[, allele_key := paste(scaffold, position, ref_base, var_base, sep = "|")]
+
+site_recurrence <- sites_qc[, .(
+  n_samples_reported = uniqueN(sample_id),
+  samples_reported = paste(
+    sample_order[sample_order %chin% unique(sample_id)],
+    collapse = ";"
+  ),
+  minimum_variant_frequency = min(var_freq, na.rm = TRUE),
+  maximum_variant_frequency = max(var_freq, na.rm = TRUE),
+  variant_frequency_range = diff(range(var_freq, na.rm = TRUE)),
+  median_variant_frequency = median(var_freq, na.rm = TRUE),
+  median_position_coverage = as.numeric(median(position_coverage, na.rm = TRUE))
+), by = .(MAG_ID, allele_key, scaffold, position, ref_base, var_base)]
+site_recurrence <- site_recurrence[
+  n_samples_reported >= site_min_recurrent_samples
+]
+
+annotation_tables <- lapply(eligible_mags, function(mag) {
+  annotation_path <- file.path(data_root, "annotation", "bakta", mag, paste0(mag, ".tsv"))
+  if (!file.exists(annotation_path)) return(NULL)
+  annotation <- fread(annotation_path, skip = 5L, header = TRUE)
+  setnames(
+    annotation,
+    names(annotation)[seq_len(9L)],
+    c(
+      "scaffold", "feature_type", "start", "end", "strand",
+      "locus_tag", "gene", "product", "dbxrefs"
+    )
+  )
+  annotation <- annotation[feature_type == "cds"]
+  annotation[, MAG_ID := mag]
+  annotation[, .(
+    MAG_ID, scaffold, start = as.integer(start), end = as.integer(end),
+    locus_tag, gene, product
+  )]
+})
+annotations <- rbindlist(annotation_tables, use.names = TRUE, fill = TRUE)
+
+site_points <- unique(site_recurrence[, .(
+  MAG_ID, allele_key, scaffold,
+  start = as.integer(position),
+  end = as.integer(position)
+)])
+setkey(annotations, scaffold, start, end)
+setkey(site_points, scaffold, start, end)
+overlaps <- foverlaps(
+  site_points,
+  annotations,
+  by.x = c("scaffold", "start", "end"),
+  by.y = c("scaffold", "start", "end"),
+  nomatch = NA
+)
+site_annotations <- overlaps[, .(
+  locus_tag = paste(unique(na.omit(locus_tag)), collapse = ";"),
+  gene = paste(unique(na.omit(gene[gene != ""])), collapse = ";"),
+  product = paste(unique(na.omit(product[product != ""])), collapse = ";")
+), by = .(MAG_ID = i.MAG_ID, allele_key)]
+site_recurrence <- site_annotations[site_recurrence, on = .(MAG_ID, allele_key)]
+site_recurrence[is.na(locus_tag) | locus_tag == "", locus_tag := "intergenic"]
+site_recurrence[is.na(gene), gene := ""]
+site_recurrence[is.na(product), product := ""]
+setorder(
+  site_recurrence,
+  MAG_ID,
+  -n_samples_reported,
+  -variant_frequency_range,
+  -maximum_variant_frequency,
+  scaffold,
+  position
+)
+
+strain_clusters <- fread(cluster_path)
+strain_clusters[, sample_id := sub("__.*$", "", sample)]
+strain_clusters <- strain_clusters[
+  genome %chin% eligible_mags & sample_id %chin% sample_order
+]
+strain_clusters[, MAG_ID := genome]
+strain_clusters[, strain_cluster := paste0("S", sub("^[^_]+_", "", cluster))]
+strain_clusters <- metadata[, .(
+  sample_id = as.character(sample_id),
+  sample_label,
+  condition,
+  phase,
+  cycle
+)][
+  strain_clusters[, .(MAG_ID, sample_id, strain_cluster)],
+  on = "sample_id"
+]
+strain_clusters <- taxon_map[strain_clusters, on = "MAG_ID"]
+strain_clusters[, sample_order_index := match(sample_id, sample_order)]
+setorder(strain_clusters, MAG_ID, sample_order_index)
+
+strain_summary <- strain_clusters[, {
+  cluster_counts <- sort(table(strain_cluster), decreasing = TRUE)
+  dominant_cluster <- names(cluster_counts)[[1L]]
+  dominant_count <- unname(cluster_counts[[1L]])
+  n_observed <- .N
+  n_clusters <- length(cluster_counts)
+  pattern_class <- if (n_clusters == 1L) {
+    "one_cluster_across_observed_samples"
+  } else if (dominant_count / n_observed >= 0.75) {
+    "dominant_cluster_with_isolates"
+  } else {
+    "multiple_clusters"
+  }
+  .(
+    observed_samples = n_observed,
+    strain_clusters = n_clusters,
+    dominant_cluster = dominant_cluster,
+    dominant_cluster_fraction = dominant_count / n_observed,
+    pattern_class = pattern_class,
+    cluster_membership = paste(
+      paste0(sample_id, "=", strain_cluster),
+      collapse = ";"
+    )
+  )
+}, by = MAG_ID]
+strain_summary <- taxon_map[strain_summary, on = "MAG_ID"]
+
+spearman_summary <- function(x, y) {
+  keep <- is.finite(x) & is.finite(y)
+  if (sum(keep) < 4L || uniqueN(x[keep]) < 2L || uniqueN(y[keep]) < 2L) {
+    return(list(rho = NA_real_, p_value = NA_real_))
+  }
+  test <- suppressWarnings(cor.test(x[keep], y[keep], method = "spearman", exact = FALSE))
+  list(rho = unname(test$estimate), p_value = test$p.value)
+}
+
+coverage_sensitivity <- sample_summary[sample_passes_qc == TRUE, {
+  pi_test <- spearman_summary(log10(mean_coverage), nucleotide_diversity)
+  snv_test <- spearman_summary(log10(mean_coverage), snv_sites_per_callable_mbp)
+  .(
+    qualified_samples = .N,
+    nucleotide_diversity_coverage_rho = pi_test$rho,
+    nucleotide_diversity_coverage_p = pi_test$p_value,
+    snv_density_coverage_rho = snv_test$rho,
+    snv_density_coverage_p = snv_test$p_value
+  )
+}, by = MAG_ID]
+coverage_sensitivity <- taxon_map[coverage_sensitivity, on = "MAG_ID"]
+
+pair_qc <- fread(pair_qc_path)[
+  MAG_ID %chin% eligible_mags & pair_passes_qc == TRUE
+]
+cluster_map <- strain_clusters[, .(MAG_ID, sample_id, strain_cluster)]
+pair_clusters <- merge(
+  pair_qc,
+  cluster_map,
+  by.x = c("MAG_ID", "sample_a"),
+  by.y = c("MAG_ID", "sample_id"),
+  all.x = TRUE
+)
+setnames(pair_clusters, "strain_cluster", "strain_cluster_a")
+pair_clusters <- merge(
+  pair_clusters,
+  cluster_map,
+  by.x = c("MAG_ID", "sample_b"),
+  by.y = c("MAG_ID", "sample_id"),
+  all.x = TRUE
+)
+setnames(pair_clusters, "strain_cluster", "strain_cluster_b")
+pair_clusters[, cluster_relationship := fifelse(
+  is.na(strain_cluster_a) | is.na(strain_cluster_b),
+  "cluster_unavailable",
+  fifelse(strain_cluster_a == strain_cluster_b, "same_cluster", "different_cluster")
+)]
+cluster_pair_summary <- pair_clusters[, .(
+  qualified_pairs = .N,
+  median_consensus_differences_per_mbp = median(
+    consensus_differences_per_mbp,
+    na.rm = TRUE
+  ),
+  minimum_consensus_differences_per_mbp = min(
+    consensus_differences_per_mbp,
+    na.rm = TRUE
+  ),
+  maximum_consensus_differences_per_mbp = max(
+    consensus_differences_per_mbp,
+    na.rm = TRUE
+  ),
+  median_popANI = median(popANI, na.rm = TRUE),
+  median_conANI = median(conANI, na.rm = TRUE)
+), by = .(MAG_ID, cluster_relationship)]
+cluster_pair_summary <- taxon_map[cluster_pair_summary, on = "MAG_ID"]
+
+fwrite(
+  sample_summary,
+  file.path(tables_dir, "mag_genomic_variation_sample_qc.tsv"),
+  sep = "\t"
+)
+fwrite(
+  sites_qc,
+  file.path(tables_dir, "mag_genomic_variation_high_confidence_snvs.tsv.gz"),
+  sep = "\t"
+)
+fwrite(
+  site_recurrence,
+  file.path(tables_dir, "mag_genomic_variation_recurrent_sites.tsv"),
+  sep = "\t"
+)
+fwrite(
+  strain_clusters,
+  file.path(tables_dir, "mag_genomic_variation_strain_clusters.tsv"),
+  sep = "\t"
+)
+fwrite(
+  strain_summary,
+  file.path(tables_dir, "mag_genomic_variation_pattern_summary.tsv"),
+  sep = "\t"
+)
+fwrite(
+  coverage_sensitivity,
+  file.path(tables_dir, "mag_genomic_variation_coverage_sensitivity.tsv"),
+  sep = "\t"
+)
+fwrite(
+  cluster_pair_summary,
+  file.path(tables_dir, "mag_genomic_variation_cluster_pair_summary.tsv"),
+  sep = "\t"
+)
+
+save_candidate <- function(path_stem, plot, width, height) {
+  ggsave(
+    file.path(figures_dir, paste0(path_stem, ".pdf")),
+    plot,
+    width = width,
+    height = height,
+    units = "in",
+    device = grDevices::pdf,
+    useDingbats = FALSE
+  )
+  ggsave(
+    file.path(figures_dir, paste0(path_stem, ".png")),
+    plot,
+    width = width,
+    height = height,
+    units = "in",
+    dpi = 220,
+    bg = "white"
+  )
+}
+
+sample_summary[, sample_label := factor(sample_label, levels = sample_labels)]
+strain_clusters[, sample_label := factor(sample_label, levels = sample_labels)]
+
+cluster_overview <- ggplot(
+  strain_clusters,
+  aes(x = sample_label, y = factor(panel_label, levels = rev(unique(taxon_map$panel_label))))
+) +
+  geom_tile(aes(fill = condition), colour = "white", linewidth = 0.7) +
+  geom_text(aes(label = strain_cluster), size = 2.7) +
+  scale_fill_manual(values = phage_uv_condition_colours, drop = FALSE) +
+  labs(x = "Sample", y = NULL, fill = "Condition") +
+  theme_phage_uv(base_size = 8.5) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom"
+  )
+save_candidate(
+  "mag-genomic-variation-strain-clusters",
+  cluster_overview,
+  9.2,
+  4.5
+)
+
+overview_points <- sample_summary[sample_passes_qc == TRUE]
+overview_lines <- overview_points[
+  , if (.N >= 2L) .SD,
+  by = .(MAG_ID, panel_label, condition, phase)
+]
+microdiversity_overview <- ggplot(
+  overview_points,
+  aes(
+    x = cycle,
+    y = nucleotide_diversity,
+    colour = condition,
+    shape = phase,
+    group = interaction(condition, phase)
+  )
+) +
+  geom_line(data = overview_lines, linewidth = 0.45, alpha = 0.75) +
+  geom_point(size = 2.2) +
+  facet_wrap(vars(panel_label), scales = "free_y", ncol = 2L) +
+  scale_colour_manual(values = phage_uv_condition_colours, drop = FALSE) +
+  scale_shape_manual(values = phage_uv_phase_shapes, drop = FALSE) +
+  scale_x_continuous(breaks = 1:3) +
+  labs(
+    x = "Cycle",
+    y = "Coverage-weighted nucleotide diversity",
+    colour = "Condition",
+    shape = "Phase"
+  ) +
+  theme_phage_uv(base_size = 8.5) +
+  theme(legend.position = "bottom")
+save_candidate(
+  "mag-genomic-variation-microdiversity",
+  microdiversity_overview,
+  8.2,
+  8.5
+)
+
+make_dossier <- function(mag) {
+  mag_label <- taxon_map[MAG_ID == mag]$panel_label
+  mag_samples <- copy(sample_summary[MAG_ID == mag])
+  mag_clusters <- copy(strain_clusters[MAG_ID == mag])
+  mag_pairs <- copy(pair_qc[MAG_ID == mag])
+
+  metric_long <- melt(
+    mag_samples,
+    id.vars = c(
+      "MAG_ID", "sample_id", "condition", "phase", "cycle",
+      "sample_passes_qc", "panel_label"
+    ),
+    measure.vars = c(
+      "mean_coverage",
+      "callable_breadth",
+      "nucleotide_diversity",
+      "snv_sites_per_callable_mbp"
+    ),
+    variable.name = "metric",
+    value.name = "value"
+  )
+  metric_long[, metric := factor(
+    metric,
+    levels = c(
+      "mean_coverage",
+      "callable_breadth",
+      "nucleotide_diversity",
+      "snv_sites_per_callable_mbp"
+    ),
+    labels = c(
+      "Mean coverage (x)",
+      "Callable breadth",
+      "Nucleotide diversity",
+      "High-confidence SNVs per callable Mbp"
+    )
+  )]
+
+  metric_points <- metric_long[sample_passes_qc == TRUE]
+  metric_lines <- metric_points[
+    , if (.N >= 2L) .SD,
+    by = .(metric, phase, condition)
+  ]
+  p_metrics <- ggplot(
+    metric_points,
+    aes(
+      x = cycle,
+      y = value,
+      colour = condition,
+      group = condition
+    )
+  ) +
+    geom_line(data = metric_lines, linewidth = 0.45) +
+    geom_point(aes(shape = phase), size = 1.9) +
+    geom_point(
+      data = metric_long[sample_passes_qc == FALSE],
+      colour = "#8A8A8A",
+      shape = 4,
+      size = 1.7,
+      stroke = 0.6
+    ) +
+    facet_grid(metric ~ phase, scales = "free_y") +
+    scale_colour_manual(values = phage_uv_condition_colours, drop = FALSE) +
+    scale_shape_manual(values = phage_uv_phase_shapes, drop = FALSE) +
+    scale_x_continuous(breaks = 1:3) +
+    labs(
+      x = "Cycle",
+      y = NULL,
+      colour = "Condition",
+      shape = "Phase"
+    ) +
+    theme_phage_uv(base_size = 7.4) +
+    theme(legend.position = "bottom")
+
+  cluster_grid <- data.table(sample_id = sample_order)
+  cluster_grid <- metadata[, .(
+    sample_id = as.character(sample_id),
+    sample_label,
+    condition
+  )][cluster_grid, on = "sample_id"]
+  cluster_grid <- mag_clusters[, .(sample_id, strain_cluster)][
+    cluster_grid,
+    on = "sample_id"
+  ]
+  cluster_grid[, panel_label := mag_label]
+  cluster_grid[, sample_label := factor(sample_label, levels = sample_labels)]
+  p_clusters <- ggplot(cluster_grid, aes(x = sample_label, y = panel_label)) +
+    geom_tile(aes(fill = condition), colour = "white", linewidth = 0.5) +
+    geom_text(aes(label = fifelse(is.na(strain_cluster), "-", strain_cluster)), size = 2.5) +
+    scale_fill_manual(values = phage_uv_condition_colours, drop = FALSE) +
+    labs(x = NULL, y = NULL, fill = "Condition") +
+    theme_phage_uv(base_size = 7.4) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.y = element_text(size = 7),
+      legend.position = "none"
+    )
+
+  mirrored_pairs <- rbindlist(list(
+    mag_pairs[, .(
+      sample_x = sample_a,
+      sample_y = sample_b,
+      consensus_differences_per_mbp
+    )],
+    mag_pairs[, .(
+      sample_x = sample_b,
+      sample_y = sample_a,
+      consensus_differences_per_mbp
+    )]
+  ))
+  pair_grid <- CJ(sample_x = sample_order, sample_y = sample_order, unique = TRUE)
+  pair_grid <- mirrored_pairs[pair_grid, on = .(sample_x, sample_y)]
+  pass_samples <- mag_samples[sample_passes_qc == TRUE]$sample_id
+  pair_grid[sample_x == sample_y & sample_x %chin% pass_samples,
+    consensus_differences_per_mbp := 0]
+  pair_grid[, display_value := log10(consensus_differences_per_mbp + 1)]
+  pair_grid[, sample_x := factor(sample_x, levels = sample_order, labels = sample_labels)]
+  pair_grid[, sample_y := factor(sample_y, levels = rev(sample_order), labels = rev(sample_labels))]
+  legend_values <- c(0, 10, 100, 1000, 10000)
+  p_pairs <- ggplot(pair_grid, aes(x = sample_x, y = sample_y)) +
+    geom_tile(fill = "#EEEEEE", colour = "white", linewidth = 0.15) +
+    geom_tile(
+      data = pair_grid[!is.na(display_value)],
+      aes(fill = display_value),
+      colour = "white",
+      linewidth = 0.15
+    ) +
+    scale_fill_gradientn(
+      colours = c("#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B"),
+      breaks = log10(legend_values + 1),
+      labels = label_number(big.mark = ",")(legend_values),
+      limits = range(log10(c(0, 10000) + 1)),
+      oob = squish
+    ) +
+    labs(
+      x = "Sample",
+      y = "Sample",
+      fill = "Consensus SNP differences\nper callable Mbp"
+    ) +
+    theme_phage_uv(base_size = 7.4) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = "bottom"
+    )
+
+  top_sites <- site_recurrence[MAG_ID == mag][
+    seq_len(min(.N, max_recurrent_sites_per_dossier))
+  ]
+
+  if (nrow(top_sites)) {
+    top_sites[, feature_label := fifelse(
+      gene != "",
+      gene,
+      fifelse(locus_tag != "intergenic", locus_tag, "intergenic")
+    )]
+    top_sites[, site_label := paste0(feature_label, " | ", position, " ", ref_base, ">", var_base)]
+    site_levels <- rev(top_sites$site_label)
+    allele_grid <- CJ(
+      allele_key = top_sites$allele_key,
+      sample_id = sample_order,
+      unique = TRUE
+    )
+    allele_grid <- sites_qc[MAG_ID == mag, .(
+      allele_key, sample_id, var_freq, position_coverage
+    )][allele_grid, on = .(allele_key, sample_id)]
+    allele_grid <- top_sites[, .(allele_key, site_label)][allele_grid, on = "allele_key"]
+    allele_grid[, sample_label := factor(
+      unname(sample_labels[sample_id]),
+      levels = sample_labels
+    )]
+    allele_grid[, site_label := factor(site_label, levels = site_levels)]
+
+    p_sites <- ggplot(allele_grid, aes(x = sample_label, y = site_label)) +
+      geom_tile(fill = "#EEEEEE", colour = "white", linewidth = 0.15) +
+      geom_tile(
+        data = allele_grid[!is.na(var_freq)],
+        aes(fill = var_freq),
+        colour = "white",
+        linewidth = 0.15
+      ) +
+      scale_fill_gradientn(
+        colours = c("#F7FBFF", "#9ECAE1", "#4292C6", "#084594"),
+        limits = c(0, 0.5),
+        oob = squish,
+        labels = label_percent(accuracy = 1)
+      ) +
+      labs(
+        x = "Sample",
+        y = "Recurrently reported high-confidence SNV",
+        fill = "Variant allele\nfrequency"
+      ) +
+      theme_phage_uv(base_size = 7.2) +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(size = 6.2),
+        legend.position = "bottom"
+      )
+  } else {
+    p_sites <- ggplot() +
+      annotate(
+        "text",
+        x = 0,
+        y = 0,
+        label = "No recurrent high-confidence SNVs",
+        size = 3
+      ) +
+      xlim(-1, 1) +
+      ylim(-1, 1) +
+      theme_void()
+  }
+
+  dossier <- p_metrics / p_clusters / (p_pairs | p_sites) +
+    plot_layout(heights = c(4.8, 1.1, 4.7))
+
+  slug <- tolower(gsub("_", "-", sub("_MAGScoT_cleanbin_", "-bin-", mag)))
+  save_candidate(paste0("mag-genomic-variation-dossier-", slug), dossier, 12.0, 12.2)
+}
+
+invisible(lapply(eligible_mags, make_dossier))
+
+candidate_manifest_path <- file.path(out_root, "candidate_figure_manifest.tsv")
+candidate_manifest <- if (file.exists(candidate_manifest_path)) {
+  fread(candidate_manifest_path)
+} else {
+  data.table(artifact = character(), status = character(), note = character())
+}
+dossier_artifacts <- paste0(
+  "mag-genomic-variation-dossier-",
+  tolower(gsub("_", "-", sub("_MAGScoT_cleanbin_", "-bin-", eligible_mags)))
+)
+new_candidates <- rbindlist(list(
+  data.table(
+    artifact = "mag-genomic-variation-strain-clusters",
+    status = "candidate_unallocated",
+    note = "Coverage-qualified MAG-specific consensus strain-cluster membership; descriptive only"
+  ),
+  data.table(
+    artifact = "mag-genomic-variation-microdiversity",
+    status = "diagnostic_only",
+    note = "Coverage-weighted within-population nucleotide diversity across qualified MAG-sample observations"
+  ),
+  data.table(
+    artifact = dossier_artifacts,
+    status = "candidate_unallocated",
+    note = "MAG-specific QC, consensus-distance, strain-cluster, and recurrent-allele dossier; descriptive only"
+  )
+))
+candidate_manifest <- candidate_manifest[!artifact %chin% new_candidates$artifact]
+candidate_manifest <- rbindlist(
+  list(candidate_manifest, new_candidates),
+  use.names = TRUE,
+  fill = TRUE
+)
+fwrite(candidate_manifest, candidate_manifest_path, sep = "\t")
+
+message(
+  "Wrote MAG-by-MAG variation summaries and dossiers for ",
+  length(eligible_mags),
+  " coverage-qualified MAGs."
+)

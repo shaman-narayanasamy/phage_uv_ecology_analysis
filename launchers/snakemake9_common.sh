@@ -39,7 +39,6 @@ CMD+=(
     --configfile "${SMK_CONFIG}"
     --conda-prefix "${CONDA_PREFIX_DIR}"
     --jobs "${SMK_JOBS}"
-    --notemp
     --snakefile "${SMK_FILE}"
 )
 
