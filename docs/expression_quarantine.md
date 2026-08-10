@@ -35,18 +35,19 @@ their builders.
 - Do not use quarantined genes, MAGs, categories, or apparent directions to
   seed or narrow the full transcriptome-wide analysis.
 - Do not allocate quarantined panels to the main manuscript or supplement.
-- Do not delete the artifacts yet. Preserve them as clearly labelled
-  provenance and pipeline-debugging material until the replacement workflow is
-  reproduced and verified.
-- After the global model, subsets may be regenerated from its full result table
-  under the plan in GitHub issue #23. Agreement with a quarantined quick check
-  may be noted only as a validation diagnostic, not as independent evidence.
+- Preserve the artifacts as clearly labelled provenance and pipeline-debugging
+  material. The verified replacement workflow is complete.
+- Functional subsets may be generated only from the global result table and
+  its complete tested-feature universe. Agreement with a quarantined quick
+  check is not independent evidence.
 
 ## Replacement workflow
 
-- GitHub #22: full transcriptome-wide differential-expression analysis;
-- GitHub #23: complete; functional and MAG-resolved subsets derived from #22;
-- GitHub #24: retire the SOS-first framing and rebuild manuscript materials.
+- GitHub #22: complete full transcriptome-wide differential-expression analysis;
+- GitHub #23: complete functional and MAG-resolved interpretation derived from
+  the #22 tested universe;
+- GitHub #24: complete retirement of the SOS-first framing and manuscript
+  workflow rebuild.
 
 ## Outside quarantine
 
