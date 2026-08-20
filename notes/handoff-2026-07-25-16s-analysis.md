@@ -1,5 +1,10 @@
 # Handoff: PRJEB79569 16S Analysis
 
+> **Superseded on 2026-08-20.** Use
+> `notes/handoff-2026-08-20-16s-collaborator.md`. The newer handoff supplies the
+> exact verified ENA manifests and corrects the obsolete scratch-search advice
+> retained below for provenance.
+
 Date: 2026-07-25
 
 This handoff is for a high-competence microbiome/bioinformatics analyst and their agents. Treat it as context, constraints, and known paths, not as a locked implementation recipe. The analyst has autonomy to choose the statistically and biologically defensible route.
@@ -208,4 +213,7 @@ The 16S analysis should eventually be integrated with:
 
 ## First Practical Step
 
-The delegated collaborator should start by opening `metadata/sample_metadata.tsv`, extracting the 12 `amplicon_run_accession` values, and checking whether corresponding processed 16S artifacts already exist on Iris or in collaborator outputs. Search the intact scratch source rather than relying on the incomplete Isilon copy. If artifacts are not found, create a small reproducible 16S processing branch in `phage_uv_ecology_analysis` and process/fetch from ENA with clear provenance.
+The delegated collaborator should use the superseding 2026-08-20 handoff. The
+historical scratch source no longer exists; the canonical Isilon archive was
+verified complete, contains no processed 16S artifacts, and the exact ENA raw-read
+substrate is now committed as checksum-addressed manifests.

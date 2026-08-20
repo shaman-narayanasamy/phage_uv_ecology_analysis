@@ -14,6 +14,8 @@ require_file() {
 }
 
 require_file "metadata/sample_metadata.tsv"
+require_file "metadata/16s_ena_run_manifest.tsv"
+require_file "metadata/16s_ena_fastq_manifest.tsv"
 require_file "resources/uv_resistance_signatures.tsv"
 require_file "manifests/data_manifest.tsv"
 require_file "manifests/code_manifest.tsv"
@@ -33,6 +35,9 @@ awk -F '\t' '
     if (bad_rows + bad_condition + bad_phase + bad_cycle + bad_group > 0) exit 1
   }
 ' metadata/sample_metadata.tsv || failures=$((failures + 1))
+
+printf '\nChecking delegated 16S input contract...\n'
+Rscript tests/test_16s_handoff.R || failures=$((failures + 1))
 
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '

@@ -19,13 +19,15 @@ with membrane identity; contrasts are reported as system-specific comparisons,
 not general causal treatment effects.
 
 Population-genomic variation is descriptive and coverage-qualified. The 16S
-workstream is delegated separately and is not managed from this repository
-handoff.
+workstream is delegated separately; this repository provides its verified input
+contract and expert handoff without absorbing it into the manuscript workstream.
 
 ## Start here
 
 - `notes/handoff-2026-08-10-manuscript-rebuild.md`: controlling scientific
   handoff and next decision;
+- `notes/handoff-2026-08-20-16s-collaborator.md`: delegated expert 16S package,
+  including exact ENA input manifests and analytical boundaries;
 - `manuscript/manuscript_skeleton.md`: proposed manuscript draft for review;
 - `manuscript/claim_evidence_registry.tsv`: claim-by-claim evidence audit;
 - `manuscript/analysis_registry.tsv`: current, descriptive, delegated,

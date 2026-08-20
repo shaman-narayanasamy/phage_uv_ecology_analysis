@@ -58,7 +58,8 @@ DE entry point.
 
 ## Integration boundaries
 
-- 16S is owned by a separate collaborator and remains outside this workstream.
+- 16S is owned by a separate collaborator and remains outside this workstream;
+  its verified input package is `notes/handoff-2026-08-20-16s-collaborator.md`.
 - Host-phage linking is verified but deferred unless it materially clarifies a
   supported global result.
 - Population genomics remains descriptive and coverage-qualified.
