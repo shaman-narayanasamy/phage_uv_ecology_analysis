@@ -116,7 +116,17 @@ funnel <- data.table(
     ]
   )
 )
-funnel[, label_hjust := fifelse(features > 100000, 1.12, -0.12)]
+funnel[, `:=`(
+  step = rev(seq_len(.N)),
+  count_label = format(features, big.mark = ","),
+  stage_short = c(
+    "Complete tested universe",
+    "BH FDR < 0.05 and |log2FC| >= 1",
+    "Detected in >= 6 samples",
+    "Non-empty gene annotation",
+    "Recurrent in >= 5 of 6 cells"
+  )
+)]
 
 expected_funnel <- c(361907L, 7699L, 7603L, 7141L, 6985L)
 if (!identical(as.integer(funnel$features), expected_funnel)) {
@@ -209,22 +219,31 @@ condition_values <- c(
   `Phage-UV` = phage_uv_condition_colours[["treatment"]]
 )
 
-p_funnel <- ggplot(funnel, aes(features, stage)) +
-  geom_segment(aes(x = 1000, xend = features, yend = stage), colour = "#B8B8B8", linewidth = 0.55) +
-  geom_point(shape = 21, size = 3.1, stroke = 0.45, fill = "#555555", colour = "#222222") +
+p_funnel <- ggplot(funnel, aes(y = step)) +
+  geom_segment(
+    data = funnel[step > 1],
+    aes(x = 0.78, xend = 0.78, y = step - 0.28, yend = step - 0.72),
+    colour = "#8A8A8A", linewidth = 0.45,
+    arrow = grid::arrow(length = grid::unit(0.08, "inches"), type = "closed")
+  ) +
+  geom_label(
+    aes(x = 0.78, label = count_label),
+    size = 3.0, linewidth = 0.22, label.padding = grid::unit(0.15, "lines"),
+    fill = "#F5F5F5", colour = "#222222"
+  ) +
   geom_text(
-    aes(label = format(features, big.mark = ","), hjust = label_hjust),
-    size = 2.8, colour = "#222222"
+    aes(x = 1.48, label = stage_short),
+    hjust = 0, size = 2.75, colour = "#222222"
   ) +
-  scale_x_log10(
-    limits = c(1000, 700000),
-    breaks = c(1000, 10000, 100000),
-    labels = scales::label_number(big.mark = ","),
-    expand = expansion(mult = c(0.01, 0.04))
-  ) +
-  labs(x = "Features retained (log scale)", y = NULL, tag = "A") +
+  coord_cartesian(xlim = c(0.2, 4.9), ylim = c(0.55, 5.45), clip = "off") +
+  labs(x = NULL, y = NULL, tag = "A") +
   theme_phage_uv(base_size = 8.5) +
-  theme(plot.tag = element_text(face = "bold", size = 11))
+  theme(
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    plot.tag = element_text(face = "bold", size = 11)
+  )
 
 p_concordance <- ggplot(
   concordance,
@@ -268,54 +287,59 @@ p_heat <- ggplot(heat, aes(cell, gene_label, fill = log2cpm_difference)) +
     plot.tag = element_text(face = "bold", size = 11)
   )
 
-top_row <- p_funnel | p_concordance
+top_row <- (p_funnel | p_concordance) +
+  plot_layout(widths = c(0.82, 1.18))
 figure_recurrence <- top_row / p_heat +
   plot_layout(heights = c(0.72, 1.72))
 
-stage_dir <- file.path(output_dir, sprintf(".recurrent-gene-staging-%s", Sys.getpid()))
-dir.create(file.path(stage_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
-dir.create(file.path(stage_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
-on.exit(if (dir.exists(stage_dir)) unlink(stage_dir, recursive = TRUE), add = TRUE)
+write_recurrence_outputs <- function() {
+  stage_dir <- file.path(output_dir, sprintf(".recurrent-gene-staging-%s", Sys.getpid()))
+  dir.create(file.path(stage_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(stage_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(stage_dir)) unlink(stage_dir, recursive = TRUE), add = TRUE)
 
-figure_name <- "recurrent-gene-structure.pdf"
-figure_stage <- file.path(stage_dir, "figures", figure_name)
-ggsave(figure_stage, figure_recurrence, width = 11, height = 9, device = grDevices::pdf)
-if (!file.exists(figure_stage) || file.info(figure_stage)$size == 0) abort("Recurrence PDF was not rendered")
+  figure_name <- "recurrent-gene-structure.pdf"
+  figure_stage <- file.path(stage_dir, "figures", figure_name)
+  ggsave(figure_stage, figure_recurrence, width = 11, height = 9, device = grDevices::pdf)
+  if (!file.exists(figure_stage) || file.info(figure_stage)$size == 0) abort("Recurrence PDF was not rendered")
 
-fwrite(funnel, file.path(stage_dir, "tables", "recurrence_selection_funnel.tsv"), sep = "\t")
-fwrite(concordance, file.path(stage_dir, "tables", "recurrence_direction_concordance.tsv"), sep = "\t")
-fwrite(selected, file.path(stage_dir, "tables", "recurrent_gene_heatmap_selection.tsv"), sep = "\t")
-fwrite(heat, file.path(stage_dir, "tables", "recurrent_gene_heatmap_cells.tsv"), sep = "\t")
+  fwrite(funnel, file.path(stage_dir, "tables", "recurrence_selection_funnel.tsv"), sep = "\t")
+  fwrite(concordance, file.path(stage_dir, "tables", "recurrence_direction_concordance.tsv"), sep = "\t")
+  fwrite(selected, file.path(stage_dir, "tables", "recurrent_gene_heatmap_selection.tsv"), sep = "\t")
+  fwrite(heat, file.path(stage_dir, "tables", "recurrent_gene_heatmap_cells.tsv"), sep = "\t")
 
-dir.create(file.path(output_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
-dir.create(file.path(output_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
-files_to_promote <- list.files(stage_dir, recursive = TRUE, full.names = TRUE)
-files_to_promote <- files_to_promote[file.info(files_to_promote)$isdir %in% FALSE]
-relative_paths <- substring(files_to_promote, nchar(stage_dir) + 2L)
-destinations <- file.path(output_dir, relative_paths)
-if (!all(file.copy(files_to_promote, destinations, overwrite = TRUE))) {
-  abort("Failed to promote one or more recurrence artifacts")
+  dir.create(file.path(output_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(output_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+  files_to_promote <- list.files(stage_dir, recursive = TRUE, full.names = TRUE)
+  files_to_promote <- files_to_promote[file.info(files_to_promote)$isdir %in% FALSE]
+  relative_paths <- substring(files_to_promote, nchar(stage_dir) + 2L)
+  destinations <- file.path(output_dir, relative_paths)
+  if (!all(file.copy(files_to_promote, destinations, overwrite = TRUE))) {
+    abort("Failed to promote one or more recurrence artifacts")
+  }
+
+  registry <- fread(paths$registry)
+  registry <- registry[artifact != figure_name]
+  registry <- rbind(
+    registry,
+    data.table(
+      artifact = figure_name,
+      status = "candidate_unallocated",
+      panels = paste(
+        "sequential selection provenance; recurrence direction and cell concordance;",
+        "balanced top-gene six-cell effect heatmap"
+      ),
+      boundary = paste(
+        "Descriptive recurrence only; one membrane per condition;",
+        "12 genes per direction selected deterministically by FDR then absolute log2FC"
+      )
+    ),
+    fill = TRUE
+  )
+  fwrite(registry, paths$registry, sep = "\t")
+  write_output_checksums(output_dir)
+
+  cat(sprintf("Created unnumbered recurrence candidate in %s\n", file.path(output_dir, "figures", figure_name)))
 }
 
-registry <- fread(paths$registry)
-registry <- registry[artifact != figure_name]
-registry <- rbind(
-  registry,
-  data.table(
-    artifact = figure_name,
-    status = "candidate_unallocated",
-    panels = paste(
-      "sequential selection provenance; recurrence direction and cell concordance;",
-      "balanced top-gene six-cell effect heatmap"
-    ),
-    boundary = paste(
-      "Descriptive recurrence only; one membrane per condition;",
-      "12 genes per direction selected deterministically by FDR then absolute log2FC"
-    )
-  ),
-  fill = TRUE
-)
-fwrite(registry, paths$registry, sep = "\t")
-write_output_checksums(output_dir)
-
-cat(sprintf("Created unnumbered recurrence candidate in %s\n", file.path(output_dir, "figures", figure_name)))
+write_recurrence_outputs()

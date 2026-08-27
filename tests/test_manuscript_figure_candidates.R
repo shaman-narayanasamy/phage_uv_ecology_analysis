@@ -31,6 +31,8 @@ required <- c(
 required_paths <- file.path(output_dir, required)
 expect(all(file.exists(required_paths)), "all candidate artifacts exist")
 expect(all(file.info(required_paths)$size > 0), "all candidate artifacts are non-empty")
+expect(length(Sys.glob(file.path(output_dir, ".recurrent-gene-staging-*"))) == 0L,
+       "recurrence builder leaves no hidden staging directories")
 
 mds <- read_tsv(file.path(output_dir, "tables", "mds_coordinates.tsv"))
 summary <- read_tsv(file.path(output_dir, "tables", "figure_summary.tsv"))
