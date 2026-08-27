@@ -10,8 +10,12 @@ project storage.
 
 The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
 six-cell recurrence interpretation, and the manuscript workflow rebuild are
-complete. A proposed manuscript and machine-readable claim audit are ready for
-scientific and voice review. No subset-first expression model is valid.
+complete. Four unnumbered manuscript candidates and five supplementary
+candidates are built and visually verified; the delegated 16S figure remains
+the only reserved external insertion. A complete venue-neutral first draft,
+descriptive legend set, Zotero-importable bibliography, and machine-readable
+claim audit are ready for scientific and voice review. No subset-first
+expression model is valid.
 
 The experimental design contains one control membrane and one treated membrane
 sampled across three cycles and two phases. Condition is therefore confounded
@@ -24,11 +28,13 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 
 ## Start here
 
-- `notes/handoff-2026-08-10-manuscript-rebuild.md`: controlling scientific
-  handoff and next decision;
+- `notes/handoff-2026-08-27-full-manuscript-draft.md`: controlling scientific
+  handoff and current author-review state;
 - `notes/handoff-2026-08-20-16s-collaborator.md`: delegated expert 16S package,
   including exact ENA input manifests and analytical boundaries;
-- `manuscript/manuscript_skeleton.md`: proposed manuscript draft for review;
+- `manuscript/manuscript_skeleton.md`: complete working manuscript draft;
+- `manuscript/figure_legends.md`: descriptive main and supplementary legends;
+- `manuscript/references.bib`: bibliography for import into Zotero;
 - `manuscript/claim_evidence_registry.tsv`: claim-by-claim evidence audit;
 - `manuscript/analysis_registry.tsv`: current, descriptive, delegated,
   deferred, and prohibited workflow registry;
@@ -66,18 +72,24 @@ scripts/      reproducible analysis and validation scripts
 ## Validation
 
 Build the first three unnumbered manuscript candidates into a fresh external
-output directory, then validate their exact counts, tables, registry, and
-checksums:
+output directory, add the population-genomics and supplementary suite, then
+validate the exact counts, tables, registry, and checksums:
 
 ```sh
 Rscript scripts/build_manuscript_figure_candidates.R /path/to/fresh/output
 Rscript scripts/build_recurrent_gene_candidate.R /path/to/fresh/output
+Rscript scripts/build_remaining_manuscript_figures.R /path/to/fresh/output
 Rscript tests/test_manuscript_figure_candidates.R /path/to/fresh/output
 ```
 
 The recurrence builder adds only its own vector PDF and source tables to an
 existing candidate directory. It does not refit the differential-expression
 model or change the frozen recurrence thresholds.
+
+The remaining-figure builder adds one coverage-qualified population-genomics
+candidate and five supplementary vector PDFs from canonical result tables. It
+uses staged promotion and refreshes the registry and checksum inventory only
+after all six PDFs render successfully.
 
 Validate manifest structure after changing tracked inputs or outputs:
 

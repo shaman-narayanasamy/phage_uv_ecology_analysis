@@ -1,7 +1,7 @@
 # Codex context: PRJEB79569 phage-UV ecology
 
 This is a science-first orientation for future agents. Start with
-`notes/handoff-2026-08-10-manuscript-rebuild.md`. Do not reconstruct the
+`notes/handoff-2026-08-27-full-manuscript-draft.md`. Do not reconstruct the
 project from chat, storage-cleanup history, old issue descriptions, or the
 quarantined subset analyses.
 
@@ -51,10 +51,14 @@ evidence of DNA damage, mutagenesis, or adaptation.
   `PRJEB79569/derived/full_transcriptome_de/`
 - Full-universe interpretation:
   `PRJEB79569/derived/full_de_interpretation/`
-- Candidate figure registry:
-  `PRJEB79569/derived/manuscript_candidates/candidate_figure_manifest.tsv`
-- Proposed manuscript:
+- Complete figure suite and registry:
+  `PRJEB79569/derived/manuscript_figure_candidates/`
+- Working manuscript:
   `manuscript/manuscript_skeleton.md`
+- Descriptive legends:
+  `manuscript/figure_legends.md`
+- Zotero-importable bibliography:
+  `manuscript/references.bib`
 - Claim audit:
   `manuscript/claim_evidence_registry.tsv`
 - Analysis-use registry:
@@ -73,12 +77,24 @@ evidence of DNA damage, mutagenesis, or adaptation.
   this workstream.
 - Host-phage integration is deferred. Use it only if it materially clarifies a
   supported global result.
-- Candidate figures are unnumbered and unallocated. Use the fixed mappings in
-  `docs/figure_visual_grammar.md` across both manuscript and supplementary
-  materials once allocation is decided.
+- Canonical figure filenames remain unnumbered. The working draft provisionally
+  calls the four complete main candidates Figures 1-4, reserves Figure 5 for
+  delegated 16S, and calls the five supplements S1-S5. Use the fixed mappings in
+  `docs/figure_visual_grammar.md` throughout.
+
+## Current manuscript state
+
+The complete venue-neutral first draft, all current-evidence main and
+supplementary figures, descriptive legends, bibliography, and claim audit are
+ready for author review. The argument is fixed provisionally around cycle-led
+global geometry, a broad bidirectional adjusted membrane coefficient, narrow
+functional support, widespread organism-level coherence, recurrent gene-level
+structure, and descriptive population-genomic heterogeneity.
 
 ## Next decision
 
-The draft and evidence registries are ready for scientific and voice review.
-The next manuscript step is to decide the argument and select candidate
-figures before assigning numbers or main-versus-supplement placement.
+Move the complete draft into the existing Google Doc after browser
+transmission is confirmed, import `manuscript/references.bib` into Zotero, and
+begin author revision. Once the user edits accepted prose, use Suggesting mode.
+Do not wait for or manage the delegated 16S analysis; preserve its Figure 5
+insertion point.
