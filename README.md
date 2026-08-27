@@ -35,6 +35,8 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `analysis/phage_uv_ecology.qmd`: executable manuscript audit surface;
 - `docs/full_de_interpretation_results.md`: concise verified result summary;
 - `docs/full_de_interpretation_plan.md`: frozen #23 methods and thresholds;
+- `docs/manuscript_figure_plan.md`: unnumbered candidate architecture and
+  manuscript-use boundaries;
 - `docs/expression_quarantine.md`: binding boundary around earlier subset-first
   exploratory analyses;
 - `docs/codex_context.md`: compact project orientation;
