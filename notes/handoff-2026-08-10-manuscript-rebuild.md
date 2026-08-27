@@ -2,6 +2,10 @@
 
 Date: 2026-08-10
 
+> **Superseded for continuation by
+> `notes/handoff-2026-08-27-full-manuscript-draft.md`.** This file remains the
+> handoff for the initial manuscript rebuild.
+
 This is the controlling scientific handoff. GitHub issues #22, #23, and #24 are
 complete. Do not reconstruct the project from chat, storage cleanup, HPC
 history, the quarantined SOS-first scaffold, or subset-first expression

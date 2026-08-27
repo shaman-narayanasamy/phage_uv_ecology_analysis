@@ -17,6 +17,12 @@ required <- c(
   "figures/global-transcriptome-structure.pdf",
   "figures/functional-organism-restructuring.pdf",
   "figures/recurrent-gene-structure.pdf",
+  "figures/population-genomic-heterogeneity.pdf",
+  "figures/supplementary-model-diagnostics.pdf",
+  "figures/supplementary-cycle-interaction-landscape.pdf",
+  "figures/supplementary-functional-coefficients.pdf",
+  "figures/supplementary-mag-coherence.pdf",
+  "figures/supplementary-population-genomics.pdf",
   "tables/mds_coordinates.tsv",
   "tables/figure_summary.tsv",
   "tables/functional_condition_panel.tsv",
@@ -25,6 +31,14 @@ required <- c(
   "tables/recurrence_direction_concordance.tsv",
   "tables/recurrent_gene_heatmap_selection.tsv",
   "tables/recurrent_gene_heatmap_cells.tsv",
+  "tables/population_genomics_cluster_panel.tsv",
+  "tables/population_genomics_summary_panel.tsv",
+  "tables/population_genomics_propionicimonas_panel.tsv",
+  "tables/supplementary_model_diagnostics.tsv",
+  "tables/supplementary_interaction_feature_counts.tsv",
+  "tables/supplementary_functional_coefficients.tsv",
+  "tables/supplementary_mag_coherence_counts.tsv",
+  "tables/supplementary_population_genomics_cells.tsv",
   "candidate_figure_registry.tsv",
   "output_checksums.md5.tsv"
 )
@@ -33,6 +47,8 @@ expect(all(file.exists(required_paths)), "all candidate artifacts exist")
 expect(all(file.info(required_paths)$size > 0), "all candidate artifacts are non-empty")
 expect(length(Sys.glob(file.path(output_dir, ".recurrent-gene-staging-*"))) == 0L,
        "recurrence builder leaves no hidden staging directories")
+expect(length(Sys.glob(file.path(dirname(output_dir), ".remaining-figure-staging-*"))) == 0L,
+       "remaining-figure builder leaves no hidden staging directories")
 
 mds <- read_tsv(file.path(output_dir, "tables", "mds_coordinates.tsv"))
 summary <- read_tsv(file.path(output_dir, "tables", "figure_summary.tsv"))
@@ -42,6 +58,14 @@ funnel <- read_tsv(file.path(output_dir, "tables", "recurrence_selection_funnel.
 concordance <- read_tsv(file.path(output_dir, "tables", "recurrence_direction_concordance.tsv"))
 heatmap_selection <- read_tsv(file.path(output_dir, "tables", "recurrent_gene_heatmap_selection.tsv"))
 heatmap_cells <- read_tsv(file.path(output_dir, "tables", "recurrent_gene_heatmap_cells.tsv"))
+population_clusters <- read_tsv(file.path(output_dir, "tables", "population_genomics_cluster_panel.tsv"))
+population_summary <- read_tsv(file.path(output_dir, "tables", "population_genomics_summary_panel.tsv"))
+propionicimonas <- read_tsv(file.path(output_dir, "tables", "population_genomics_propionicimonas_panel.tsv"))
+model_diagnostics <- read_tsv(file.path(output_dir, "tables", "supplementary_model_diagnostics.tsv"))
+interaction_counts <- read_tsv(file.path(output_dir, "tables", "supplementary_interaction_feature_counts.tsv"))
+functional_all <- read_tsv(file.path(output_dir, "tables", "supplementary_functional_coefficients.tsv"))
+mag_counts <- read_tsv(file.path(output_dir, "tables", "supplementary_mag_coherence_counts.tsv"))
+population_cells <- read_tsv(file.path(output_dir, "tables", "supplementary_population_genomics_cells.tsv"))
 registry <- read_tsv(file.path(output_dir, "candidate_figure_registry.tsv"))
 checksums <- read_tsv(file.path(output_dir, "output_checksums.md5.tsv"))
 
@@ -91,13 +115,50 @@ expect(all(heatmap_selection$FDR < 0.05 & abs(heatmap_selection$logFC) >= 1),
 expect(all(heatmap_selection$n_samples_detected >= 6L & heatmap_selection$dominant_direction_cells >= 5L),
        "every heatmap gene passes detection and recurrence criteria")
 
-expect(nrow(registry) == 3L && all(registry$status == "candidate_unallocated"),
-       "all three PDFs remain unnumbered and unallocated")
+expect(nrow(population_clusters) == 60L,
+       "population-genomics strain panel spans five MAGs and twelve samples")
+expect(nrow(population_summary) == 5L && all(population_summary$valid_pairs >= 10L) &&
+         all(population_summary$observed_samples >= 6L),
+       "population-genomics summary retains exactly the five coverage-qualified MAGs")
+expect(nrow(propionicimonas) == 64L && sum(propionicimonas$diagonal) == 8L,
+       "Propionicimonas panel is an eight-sample square matrix")
+expect(nrow(model_diagnostics) == 8L && all(c("filtering", "dispersion") %in% model_diagnostics$panel),
+       "model supplement records filtering and both-model dispersion summaries")
+observed_interactions <- setNames(interaction_counts$supported_features, interaction_counts$coefficient)
+expect(identical(
+  as.integer(observed_interactions[c(
+    "cycle2:conditiontreatment", "cycle3:conditiontreatment", "condition_cycle_omnibus"
+  )]),
+  c(1L, 11L, 357L)
+), "interaction supplement matches the verified feature counts")
+expect(nrow(functional_all) == 32L && sum(functional_all$supported) == 2L,
+       "functional supplement retains the frozen 8 by 4 comparison family")
+observed_mag_counts <- setNames(mag_counts$MAGs, paste(mag_counts$coefficient, mag_counts$Direction, sep = ":"))
+expect(identical(
+  as.integer(observed_mag_counts[c(
+    "condition_adjusted:Down", "condition_adjusted:Up",
+    "cycle2_interaction:Down", "cycle2_interaction:Up",
+    "cycle3_interaction:Down", "cycle3_interaction:Up"
+  )]),
+  c(75L, 100L, 65L, 68L, 59L, 73L)
+), "MAG supplement preserves all verified coefficient-by-direction counts")
+expect(nrow(population_cells) == 720L,
+       "population-genomics supplement contains five complete 12 by 12 display grids")
+
+expect(nrow(registry) == 9L && sum(registry$status == "candidate_unallocated") == 4L &&
+         sum(registry$status == "supplementary_unallocated") == 5L,
+       "registry contains four main candidates and five supplementary candidates")
 expect(identical(registry$artifact, c(
   "global-transcriptome-structure.pdf",
   "functional-organism-restructuring.pdf",
-  "recurrent-gene-structure.pdf"
-)), "candidate registry contains the expected three PDFs in build order")
+  "recurrent-gene-structure.pdf",
+  "population-genomic-heterogeneity.pdf",
+  "supplementary-model-diagnostics.pdf",
+  "supplementary-cycle-interaction-landscape.pdf",
+  "supplementary-functional-coefficients.pdf",
+  "supplementary-mag-coherence.pdf",
+  "supplementary-population-genomics.pdf"
+)), "candidate registry contains the expected PDFs in build order")
 
 for (i in seq_len(nrow(checksums))) {
   path <- file.path(output_dir, checksums$path[[i]])

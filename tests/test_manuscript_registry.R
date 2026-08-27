@@ -16,7 +16,17 @@ manifest_path <- function(id) {
 stopifnot(
   !anyDuplicated(analysis_registry$analysis_id),
   !anyDuplicated(claim_registry$claim_id),
-  all(claim_registry$allocation == "unallocated"),
+  identical(
+    claim_registry[claim_id %chin% c("C03", "C04"), unique(allocation)],
+    "working_Figure_1"
+  ),
+  identical(
+    claim_registry[claim_id %chin% c("C05", "C06", "C08"), unique(allocation)],
+    "working_Figure_2"
+  ),
+  claim_registry[claim_id == "C09", allocation] == "working_Figure_3",
+  claim_registry[claim_id == "C10", allocation] == "working_Figure_4",
+  claim_registry[claim_id == "C12", allocation] == "working_Figure_5_reserved",
   all(
     analysis_registry[status == "deprecated_superseded", manuscript_use] ==
       "provenance_only"
