@@ -1,0 +1,424 @@
+#!/usr/bin/env Rscript
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(edgeR)
+  library(ggplot2)
+  library(ggrepel)
+  library(patchwork)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  root <- normalizePath(getwd(), mustWork = TRUE)
+  if (!file.exists(file.path(root, "R", "figure_style.R"))) {
+    abort("Run this script from the phage_uv_ecology_analysis repository root")
+  }
+  root
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+root <- repo_root()
+project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+de_root <- file.path(project_data, "derived", "full_transcriptome_de")
+interpretation_root <- file.path(project_data, "derived", "full_de_interpretation")
+output_dir <- if (length(args)) args[[1L]] else file.path(
+  project_data, "derived", "manuscript_figure_candidates"
+)
+
+if (dir.exists(output_dir)) {
+  abort("Output directory already exists: %s", output_dir)
+}
+
+required_packages <- c("data.table", "edgeR", "ggplot2", "ggrepel", "patchwork")
+missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages)) abort("Missing R packages: %s", paste(missing_packages, collapse = ", "))
+
+source(file.path(root, "R", "figure_style.R"))
+
+paths <- list(
+  metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+  counts = file.path(de_root, "tables", "collapsed_raw_count_matrix.tsv"),
+  de = file.path(de_root, "tables", "de_condition_adjusted.tsv"),
+  filtering = file.path(de_root, "tables", "filtering_summary.tsv"),
+  functional_enrichment = file.path(interpretation_root, "tables", "functional_category_enrichment.tsv"),
+  functional_effects = file.path(interpretation_root, "tables", "functional_category_effect_summary.tsv"),
+  mag = file.path(interpretation_root, "tables", "mag_coherence.tsv")
+)
+missing_inputs <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing_inputs)) abort("Missing inputs: %s", paste(missing_inputs, collapse = ", "))
+
+dir.create(file.path(output_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+
+metadata <- fread(paths$metadata)
+metadata[, `:=`(
+  condition = factor(condition, levels = c("control", "treatment")),
+  phase = factor(phase, levels = c("initial", "backflush")),
+  cycle = factor(cycle, levels = c(1, 2, 3))
+)]
+if (nrow(metadata) != 12L || any(table(metadata$condition, metadata$phase, metadata$cycle) != 1L)) {
+  abort("Expected one sample in each condition-phase-cycle cell")
+}
+
+message("Reconstructing the exact filtered expression object for MDS...")
+sample_names <- metadata$sample_title
+counts <- as.matrix(fread(paths$counts, select = sample_names, check.names = FALSE))
+storage.mode(counts) <- "integer"
+colnames(counts) <- sample_names
+main_design <- model.matrix(~ phase + cycle + condition, data = metadata)
+y <- DGEList(counts = counts)
+keep <- filterByExpr(y, design = main_design, min.count = 10, min.total.count = 15)
+y <- y[keep, , keep.lib.sizes = FALSE]
+y <- calcNormFactors(y, method = "TMM")
+rm(counts)
+invisible(gc())
+
+mds <- plotMDS(y, plot = FALSE)
+mds_data <- data.table(
+  sample_title = colnames(y),
+  MDS1 = mds$x,
+  MDS2 = mds$y
+)[metadata, on = "sample_title"]
+mds_data[, cycle_label := as.character(cycle)]
+fwrite(mds_data, file.path(output_dir, "tables", "mds_coordinates.tsv"), sep = "\t")
+
+filtering <- fread(paths$filtering)
+de <- fread(paths$de, select = c("feature_id", "logFC", "logCPM", "FDR"))
+de[, supported := FDR < 0.05]
+de[, higher_in := factor(
+  fifelse(logFC >= 0, "Phage-UV", "Control"),
+  levels = c("Control", "Phage-UV")
+)]
+non_supported <- de[supported == FALSE]
+sample_index <- unique(round(seq(1, nrow(non_supported), length.out = min(20000L, nrow(non_supported)))))
+landscape <- rbindlist(list(
+  non_supported[sample_index][, display_class := "Deterministic context sample"],
+  de[supported == TRUE][, display_class := "BH FDR < 0.05"]
+), use.names = TRUE)
+landscape[, display_class := factor(
+  display_class,
+  levels = c("Deterministic context sample", "BH FDR < 0.05")
+)]
+
+design_plot_data <- copy(metadata)
+design_plot_data[, cycle_number := as.numeric(as.character(cycle))]
+design_plot_data[, membrane_y := fifelse(condition == "control", 2, 1)]
+design_plot_data[, phase_offset := fifelse(phase == "initial", 0.09, -0.09)]
+design_plot_data[, plot_y := membrane_y + phase_offset]
+
+condition_values <- c(Control = phage_uv_condition_colours[["control"]],
+                      `Phage-UV` = phage_uv_condition_colours[["treatment"]])
+condition_lower_values <- c(control = phage_uv_condition_colours[["control"]],
+                            treatment = phage_uv_condition_colours[["treatment"]])
+
+p_design <- ggplot(
+  design_plot_data,
+  aes(cycle_number, plot_y, colour = condition, shape = phase,
+      group = interaction(condition, phase))
+) +
+  geom_line(linewidth = 0.45, alpha = 0.75) +
+  geom_point(size = 3.1) +
+  scale_colour_manual(
+    values = condition_lower_values,
+    labels = c(control = "Control", treatment = "Phage-UV"),
+    name = "Membrane"
+  ) +
+  scale_shape_manual(
+    values = phage_uv_phase_shapes,
+    labels = c(initial = "Initial", backflush = "Backflush"),
+    name = "Phase"
+  ) +
+  scale_x_continuous(breaks = 1:3, labels = paste("Cycle", 1:3), limits = c(0.7, 3.3)) +
+  scale_y_continuous(
+    breaks = c(1, 2),
+    labels = c("Phage-UV membrane", "Control membrane"),
+    limits = c(0.65, 2.35)
+  ) +
+  annotate("text", x = 2, y = 2.28, label = "One membrane per condition; 12 physical samples", size = 3) +
+  labs(x = NULL, y = NULL, tag = "A") +
+  theme_phage_uv(base_size = 9) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    legend.position = "none",
+    plot.tag = element_text(face = "bold", size = 11)
+  )
+
+p_mds <- ggplot(mds_data, aes(MDS1, MDS2, colour = condition, shape = phase)) +
+  geom_point(size = 3.0) +
+  geom_text_repel(
+    aes(label = cycle_label),
+    size = 2.7,
+    show.legend = FALSE,
+    box.padding = 0.35,
+    point.padding = 0.25,
+    min.segment.length = 0,
+    seed = 79569
+  ) +
+  scale_colour_manual(
+    values = condition_lower_values,
+    labels = c(control = "Control", treatment = "Phage-UV"),
+    name = "Membrane"
+  ) +
+  scale_shape_manual(
+    values = phage_uv_phase_shapes,
+    labels = c(initial = "Initial", backflush = "Backflush"),
+    name = "Phase"
+  ) +
+  labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2", tag = "B") +
+  theme_phage_uv(base_size = 9) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
+
+supported_counts <- de[supported == TRUE, .(
+  supported_features = .N,
+  supported_abs_logFC_1 = sum(abs(logFC) >= 1),
+  control_higher_fdr = sum(logFC < 0),
+  phage_uv_higher_fdr = sum(logFC > 0),
+  control_higher_fdr_abs_logFC_1 = sum(logFC <= -1),
+  phage_uv_higher_fdr_abs_logFC_1 = sum(logFC >= 1)
+)]
+
+p_landscape <- ggplot() +
+  geom_point(
+    data = landscape[display_class == "Deterministic context sample"],
+    aes(logCPM, logFC),
+    shape = 1,
+    colour = "#A8A8A8",
+    size = 0.55,
+    stroke = 0.25,
+    alpha = 0.35
+  ) +
+  geom_point(
+    data = landscape[display_class == "BH FDR < 0.05"],
+    aes(logCPM, logFC, colour = higher_in),
+    shape = 16,
+    size = 0.65,
+    alpha = 0.48
+  ) +
+  geom_hline(yintercept = 0, linewidth = 0.35, colour = "#555555") +
+  geom_hline(yintercept = c(-1, 1), linewidth = 0.3, linetype = "dotted", colour = "#777777") +
+  annotate(
+    "label",
+    x = Inf, y = Inf,
+    hjust = 1.05, vjust = 1.15,
+    label = sprintf(
+      "%s tested features\n%s at BH FDR < 0.05\n%s also |log2FC| >= 1",
+      format(filtering$retained_features, big.mark = ","),
+      format(supported_counts$supported_features, big.mark = ","),
+      format(supported_counts$supported_abs_logFC_1, big.mark = ",")
+    ),
+    size = 2.9,
+    linewidth = 0.25,
+    colour = "#222222",
+    fill = "white"
+  ) +
+  scale_colour_manual(values = condition_values, name = "Higher expression") +
+  labs(
+    x = "Average log2 CPM",
+    y = "Phage-UV - control log2 fold-change",
+    tag = "C"
+  ) +
+  theme_phage_uv(base_size = 9) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
+
+global_top <- p_design | p_mds
+figure_global <- global_top / p_landscape +
+  plot_layout(heights = c(1, 1.2))
+
+global_path <- file.path(output_dir, "figures", "global-transcriptome-structure.pdf")
+ggsave(global_path, figure_global, width = 10.5, height = 7.5, device = grDevices::pdf)
+
+functional_enrichment <- fread(paths$functional_enrichment)[coefficient == "condition_adjusted"]
+functional_effects <- fread(paths$functional_effects)[coefficient == "condition_adjusted"]
+functional <- merge(
+  functional_enrichment,
+  functional_effects,
+  by.x = c("set_id", "coefficient", "label"),
+  by.y = c("category", "coefficient", "label"),
+  all.x = TRUE,
+  suffixes = c("", "_effect")
+)
+functional[, signed_log10_fdr := -log10(pmax(FDR, .Machine$double.xmin)) * fifelse(Direction == "Down", -1, 1)]
+functional[, supported := FDR < 0.05]
+functional[, higher_in := factor(
+  fifelse(Direction == "Up", "Phage-UV", "Control"),
+  levels = c("Control", "Phage-UV")
+)]
+functional[, label := factor(label, levels = rev(functional[order(tier, set_id), as.character(label)]))]
+
+p_functional <- ggplot(functional, aes(signed_log10_fdr, label)) +
+  geom_vline(xintercept = 0, colour = "#555555", linewidth = 0.35) +
+  geom_vline(xintercept = c(-log10(0.05), log10(0.05)), colour = "#888888", linewidth = 0.3, linetype = "dotted") +
+  geom_point(
+    data = functional[supported == FALSE],
+    shape = 1,
+    colour = "#777777",
+    size = 2.7,
+    stroke = 0.65
+  ) +
+  geom_point(
+    data = functional[supported == TRUE],
+    aes(fill = higher_in),
+    shape = 21,
+    colour = "#222222",
+    size = 3.1,
+    stroke = 0.45
+  ) +
+  geom_text(
+    data = functional[supported == TRUE],
+    aes(label = sprintf("BH FDR = %.2g", FDR)),
+    hjust = -0.08,
+    size = 2.8,
+    colour = "#222222"
+  ) +
+  scale_fill_manual(values = condition_values, name = "Higher-ranked genes") +
+  scale_x_continuous(expand = expansion(mult = c(0.08, 0.28))) +
+  labs(
+    x = "Signed -log10(BH FDR)\nControl higher-ranked (negative); phage-UV higher-ranked (positive)",
+    y = NULL,
+    tag = "A"
+  ) +
+  theme_phage_uv(base_size = 9) +
+  theme(legend.position = "none", plot.tag = element_text(face = "bold", size = 11))
+
+mag <- fread(paths$mag)[coefficient == "condition_adjusted" & eligible == TRUE]
+supported_mag <- mag[FDR < 0.05]
+mag_counts <- supported_mag[, .(MAGs = .N), by = Direction]
+mag_counts[, higher_in := factor(
+  fifelse(Direction == "Up", "Phage-UV", "Control"),
+  levels = c("Control", "Phage-UV")
+)]
+
+p_mag_counts <- ggplot(mag_counts, aes(higher_in, MAGs, fill = higher_in)) +
+  geom_col(width = 0.62, colour = "#222222", linewidth = 0.3) +
+  geom_text(aes(label = MAGs), vjust = -0.45, size = 3.2) +
+  scale_fill_manual(values = condition_values, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.14))) +
+  labs(x = "Higher-ranked genes", y = "Supported MAGs", tag = "B") +
+  theme_phage_uv(base_size = 9) +
+  theme(
+    axis.text.x = element_text(angle = 20, hjust = 1),
+    plot.tag = element_text(face = "bold", size = 11)
+  )
+
+supported_mag[, absolute_median_logFC := abs(median_logFC)]
+setorder(supported_mag, FDR, -absolute_median_logFC)
+top_mag <- rbindlist(list(
+  head(supported_mag[Direction == "Up"], 12L),
+  head(supported_mag[Direction == "Down"], 12L)
+))
+setorder(top_mag, median_logFC)
+top_mag[, short_mag := sub("_MAGScoT_cleanbin_", "-", MAG_ID, fixed = TRUE)]
+top_mag[, display_taxon := fifelse(
+  !is.na(genus) & nzchar(genus),
+  paste0(genus, " (", short_mag, ")"),
+  short_mag
+)]
+top_mag[, display_taxon := make.unique(display_taxon)]
+top_mag[, display_taxon := factor(display_taxon, levels = rev(display_taxon))]
+top_mag[, higher_in := factor(
+  fifelse(Direction == "Up", "Phage-UV", "Control"),
+  levels = c("Control", "Phage-UV")
+)]
+top_mag[, phylum_group := fifelse(
+  is.na(phylum) | !nzchar(phylum),
+  "Unclassified",
+  fifelse(phylum %chin% names(phage_uv_phylum_colours), phylum, "Other")
+)]
+strip_x <- min(top_mag$median_logFC) - 0.28
+phylum_values <- phage_uv_phylum_colours[unique(top_mag$phylum_group)]
+
+p_mag <- ggplot(top_mag, aes(median_logFC, display_taxon)) +
+  geom_vline(xintercept = 0, colour = "#555555", linewidth = 0.35) +
+  geom_point(
+    aes(x = strip_x, colour = phylum_group),
+    shape = 15,
+    size = 3.0,
+    show.legend = TRUE
+  ) +
+  geom_point(
+    aes(fill = higher_in),
+    shape = 21,
+    colour = "#222222",
+    size = 3.0,
+    stroke = 0.4
+  ) +
+  scale_colour_manual(values = phylum_values, name = "Phylum") +
+  scale_fill_manual(values = condition_values, name = "Higher-ranked genes") +
+  scale_x_continuous(expand = expansion(mult = c(0.06, 0.05))) +
+  scale_y_discrete(expand = expansion(add = c(0.5, 0.8))) +
+  labs(x = "Median gene-level phage-UV - control log2 fold-change", y = NULL, tag = "C") +
+  theme_phage_uv(base_size = 8.5) +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    plot.tag = element_text(face = "bold", size = 11)
+  ) +
+  guides(
+    fill = guide_legend(order = 1),
+    colour = guide_legend(order = 2, nrow = 2, byrow = TRUE)
+  )
+
+organism_top <- (p_functional | p_mag_counts) +
+  plot_layout(widths = c(2.1, 1))
+figure_organism <- organism_top / p_mag +
+  plot_layout(heights = c(0.72, 1.55))
+
+organism_path <- file.path(output_dir, "figures", "functional-organism-restructuring.pdf")
+ggsave(organism_path, figure_organism, width = 11, height = 8.7, device = grDevices::pdf)
+
+required_figures <- c(global_path, organism_path)
+if (any(!file.exists(required_figures)) || any(file.info(required_figures)$size == 0)) {
+  abort("One or more manuscript candidate PDFs were not rendered")
+}
+
+fwrite(
+  data.table(
+    metric = c(
+      "input_features", "retained_features", "supported_features",
+      "supported_abs_logFC_1", "control_higher_fdr_features", "phage_uv_higher_fdr_features",
+      "control_higher_fdr_abs_logFC_1_features", "phage_uv_higher_fdr_abs_logFC_1_features",
+      "eligible_MAGs", "supported_MAGs", "control_higher_MAGs", "phage_uv_higher_MAGs"
+    ),
+    value = c(
+      filtering$input_features, filtering$retained_features,
+      supported_counts$supported_features, supported_counts$supported_abs_logFC_1,
+      supported_counts$control_higher_fdr, supported_counts$phage_uv_higher_fdr,
+      supported_counts$control_higher_fdr_abs_logFC_1,
+      supported_counts$phage_uv_higher_fdr_abs_logFC_1,
+      nrow(mag), nrow(supported_mag),
+      supported_mag[Direction == "Down", .N], supported_mag[Direction == "Up", .N]
+    )
+  ),
+  file.path(output_dir, "tables", "figure_summary.tsv"),
+  sep = "\t"
+)
+fwrite(functional, file.path(output_dir, "tables", "functional_condition_panel.tsv"), sep = "\t")
+fwrite(top_mag, file.path(output_dir, "tables", "top_mag_condition_panel.tsv"), sep = "\t")
+
+registry <- data.table(
+  artifact = basename(c(global_path, organism_path)),
+  status = "candidate_unallocated",
+  panels = c(
+    "experimental design; sample MDS; adjusted-condition expression landscape",
+    "condition functional enrichment; supported MAG direction counts; top organism effects"
+  ),
+  boundary = c(
+    "One membrane per condition; global coefficient is system-specific",
+    "Competitive tests describe rank coherence; SOS transcription is not direct DNA-damage evidence"
+  )
+)
+fwrite(registry, file.path(output_dir, "candidate_figure_registry.tsv"), sep = "\t")
+
+files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
+files <- files[file.info(files)$isdir %in% FALSE]
+checksum_table <- data.table(
+  path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+  bytes = file.info(files)$size,
+  md5 = unname(tools::md5sum(files))
+)
+fwrite(checksum_table, file.path(output_dir, "output_checksums.md5.tsv"), sep = "\t")
+
+cat(sprintf("Created two unnumbered figure candidates in %s\n", output_dir))
