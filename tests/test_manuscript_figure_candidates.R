@@ -16,10 +16,15 @@ output_dir <- if (length(commandArgs(trailingOnly = TRUE))) {
 required <- c(
   "figures/global-transcriptome-structure.pdf",
   "figures/functional-organism-restructuring.pdf",
+  "figures/recurrent-gene-structure.pdf",
   "tables/mds_coordinates.tsv",
   "tables/figure_summary.tsv",
   "tables/functional_condition_panel.tsv",
   "tables/top_mag_condition_panel.tsv",
+  "tables/recurrence_selection_funnel.tsv",
+  "tables/recurrence_direction_concordance.tsv",
+  "tables/recurrent_gene_heatmap_selection.tsv",
+  "tables/recurrent_gene_heatmap_cells.tsv",
   "candidate_figure_registry.tsv",
   "output_checksums.md5.tsv"
 )
@@ -31,6 +36,10 @@ mds <- read_tsv(file.path(output_dir, "tables", "mds_coordinates.tsv"))
 summary <- read_tsv(file.path(output_dir, "tables", "figure_summary.tsv"))
 functional <- read_tsv(file.path(output_dir, "tables", "functional_condition_panel.tsv"))
 top_mag <- read_tsv(file.path(output_dir, "tables", "top_mag_condition_panel.tsv"))
+funnel <- read_tsv(file.path(output_dir, "tables", "recurrence_selection_funnel.tsv"))
+concordance <- read_tsv(file.path(output_dir, "tables", "recurrence_direction_concordance.tsv"))
+heatmap_selection <- read_tsv(file.path(output_dir, "tables", "recurrent_gene_heatmap_selection.tsv"))
+heatmap_cells <- read_tsv(file.path(output_dir, "tables", "recurrent_gene_heatmap_cells.tsv"))
 registry <- read_tsv(file.path(output_dir, "candidate_figure_registry.tsv"))
 checksums <- read_tsv(file.path(output_dir, "output_checksums.md5.tsv"))
 
@@ -64,8 +73,29 @@ expect(abs(functional$FDR[functional$set_id == "SOS_response"] - 0.0020679546924
 expect(nrow(top_mag) == 24L, "organism panel contains 12 MAGs per direction")
 expect(all(top_mag$FDR < 0.05), "all displayed MAGs pass the declared BH threshold")
 expect(all(table(top_mag$Direction) == 12L), "displayed MAG directions are balanced by construction")
-expect(nrow(registry) == 2L && all(registry$status == "candidate_unallocated"),
-       "both PDFs remain unnumbered and unallocated")
+
+expect(identical(funnel$features, c(361907L, 7699L, 7603L, 7141L, 6985L)),
+       "recurrence selection funnel matches the predeclared sequential criteria")
+direction_totals <- aggregate(features ~ higher_in, concordance, sum)
+observed_direction_totals <- setNames(direction_totals$features, direction_totals$higher_in)
+expect(identical(as.integer(observed_direction_totals[c("Control", "Phage-UV")]), c(3651L, 3334L)),
+       "recurrent candidate directions match the verified result")
+expect(nrow(heatmap_selection) == 24L && all(table(heatmap_selection$higher_in) == 12L),
+       "heatmap contains 12 deterministically selected genes per direction")
+expect(nrow(heatmap_cells) == 144L && all(table(heatmap_cells$feature_id) == 6L),
+       "each selected gene contributes all six phase-by-cycle effects")
+expect(all(heatmap_selection$FDR < 0.05 & abs(heatmap_selection$logFC) >= 1),
+       "every heatmap gene passes the complete-universe effect criteria")
+expect(all(heatmap_selection$n_samples_detected >= 6L & heatmap_selection$dominant_direction_cells >= 5L),
+       "every heatmap gene passes detection and recurrence criteria")
+
+expect(nrow(registry) == 3L && all(registry$status == "candidate_unallocated"),
+       "all three PDFs remain unnumbered and unallocated")
+expect(identical(registry$artifact, c(
+  "global-transcriptome-structure.pdf",
+  "functional-organism-restructuring.pdf",
+  "recurrent-gene-structure.pdf"
+)), "candidate registry contains the expected three PDFs in build order")
 
 for (i in seq_len(nrow(checksums))) {
   path <- file.path(output_dir, checksums$path[[i]])
