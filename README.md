@@ -65,6 +65,20 @@ scripts/      reproducible analysis and validation scripts
 
 ## Validation
 
+Build the first three unnumbered manuscript candidates into a fresh external
+output directory, then validate their exact counts, tables, registry, and
+checksums:
+
+```sh
+Rscript scripts/build_manuscript_figure_candidates.R /path/to/fresh/output
+Rscript scripts/build_recurrent_gene_candidate.R /path/to/fresh/output
+Rscript tests/test_manuscript_figure_candidates.R /path/to/fresh/output
+```
+
+The recurrence builder adds only its own vector PDF and source tables to an
+existing candidate directory. It does not refit the differential-expression
+model or change the frozen recurrence thresholds.
+
 Validate manifest structure after changing tracked inputs or outputs:
 
 ```sh

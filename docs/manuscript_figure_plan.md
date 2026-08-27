@@ -18,8 +18,13 @@ been reviewed together. Every candidate and supplementary figure must use
    - supported MAGs in both expression directions;
    - the strongest organism-level effects with taxonomic context.
 3. Six-cell recurrent gene differences:
-   - balanced treatment-higher and control-higher recurrence;
-   - a smaller, legible gene-by-cell display with explicit selection provenance.
+   - built as `recurrent-gene-structure.pdf` and visually checked;
+   - sequential provenance from 361,907 tested features to 6,985 recurrent
+     predeclared candidates;
+   - balanced phage-UV-higher and control-higher recurrence with five-of-six
+     versus six-of-six cell concordance visible;
+   - 12 genes per direction selected deterministically by condition FDR, then
+     absolute condition log2 fold-change, for a legible six-cell heatmap.
 4. Descriptive population-genomic heterogeneity:
    - coverage-qualified structure for the five scoped MAGs;
    - no damage, mutagenesis, adaptation, accumulation, or treatment-effect inference.
