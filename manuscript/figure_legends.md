@@ -68,11 +68,14 @@ membrane ring uses the complete tested gene universe and post-model MAG-level
 rank tests. (B) Relative abundance of the 15 fixed, most abundant classified
 families, unclassified MAGs, and all remaining families among MAG-mapped
 metagenomic reads in the 12 physical samples. C1-C3 denote cleaning cycles 1-3;
-I denotes the initial sample and B the backflush sample. Family colours are
-fixed across figures. The dendrogram represents taxonomic classification rather
-than sequence-derived evolutionary distance, and membrane identity remains
-confounded with condition. The community profile is descriptive and is not a
-replicated treatment-effect analysis.
+I denotes the initial sample and B the backflush sample. Control is shown above
+phage-UV with the six cycle-phase positions aligned vertically. `Other
+classified families` combines the 147 classified families outside the fixed 15,
+whereas `Unclassified at family level` denotes MAGs without a family assignment.
+Family colours are fixed across figures. The dendrogram represents taxonomic
+classification rather than sequence-derived evolutionary distance, and
+membrane identity remains confounded with condition. The community profile is
+descriptive and is not a replicated treatment-effect analysis.
 
 **vOTU taxonomic context.** (A) Taxonomy-derived cladogram of 607 deduplicated
 high-quality viral operational taxonomic units (vOTUs) with an assigned

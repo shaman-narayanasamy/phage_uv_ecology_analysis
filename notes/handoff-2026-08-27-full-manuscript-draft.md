@@ -71,7 +71,9 @@ Two additional candidates remain deliberately unallocated:
 - `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with rings
   ordered as completeness, contamination, current full-universe post-model MAG
   coherence, and recurrent-gene balance, alongside a descriptive family-level
-  community profile based on MAG-mapped metagenomic reads;
+  community profile based on MAG-mapped metagenomic reads. The community panel
+  aligns control above phage-UV at the same six cycle-phase positions and
+  distinguishes missing family assignments from collapsed classified families;
 - `votu-taxonomic-context.pdf`: taxonomy-derived cladogram of 607 current
   high-quality vOTUs in 45 taxonomy groups plus realm composition.
 
@@ -122,6 +124,15 @@ change. A fresh Markdown export verified 4,092 words, the unchanged manuscript
 title and editorial note, exactly 11 image references, and both taxonomic
 candidates at the gallery end. This state was preserved as `Manuscript draft
 v1 with revised MAG family profile - 2026-08-28`.
+
+The MAG preview was then replaced once more after aligning control directly
+above phage-UV at the same six cycle-phase positions and explicitly relabelling
+the two grey components as `Unclassified at family level` and `Other classified
+families`. The unchanged vOTU preview was restored beside it. A fresh Markdown
+export verified 4,092 words, the unchanged manuscript title and editorial note,
+exactly 11 unique image references, and both taxonomic candidates at the gallery
+end. This state was preserved as `Manuscript draft v1 with vertically aligned
+MAG profile - 2026-08-28`.
 
 The agent authored this draft, so regular editing mode is appropriate while the
 user begins commenting and suggesting. If the user supplies revised or accepted

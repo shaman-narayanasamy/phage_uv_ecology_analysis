@@ -65,8 +65,8 @@ phage_uv_family_colours <- c(
   UBA1135 = "#7570B3",
   UBA4823 = "#E7298A",
   `CAG-138` = "#66A61E",
-  Unclassified = "#969696",
-  Other = "#D9D9D9"
+  `Unclassified at family level` = "#969696",
+  `Other classified families` = "#D9D9D9"
 )
 
 phage_uv_viral_realm_colours <- c(

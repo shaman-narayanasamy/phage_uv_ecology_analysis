@@ -102,12 +102,14 @@ legends, bibliography, and claim audit are ready for author review. The
 versioned Google Doc contains the complete draft and all 11 figure previews,
 including the two taxonomic-context candidates at the end of the gallery. The
 MAG preview now includes the family-level metagenomic community profile and
-the quality-first ring order. The pre-replacement, nine-preview, initial
-11-preview, and revised-MAG states are named in version history. The argument is
-fixed provisionally around cycle-led global geometry, a broad bidirectional
-adjusted membrane coefficient, narrow functional support, widespread
-organism-level coherence, recurrent gene-level structure, and descriptive
-population-genomic heterogeneity.
+the quality-first ring order. Its control and phage-UV profiles are vertically
+aligned at the same six cycle-phase positions, and missing family assignments
+are explicitly distinguished from collapsed classified families. The
+pre-replacement, nine-preview, initial 11-preview, revised-MAG, and aligned-MAG
+states are named in version history. The argument is fixed provisionally around
+cycle-led global geometry, a broad bidirectional adjusted membrane coefficient,
+narrow functional support, widespread organism-level coherence, recurrent
+gene-level structure, and descriptive population-genomic heterogeneity.
 
 ## Next decision
 

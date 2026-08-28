@@ -387,10 +387,15 @@ build_taxonomic_context <- function(root, output_dir) {
     sort = FALSE
   )
   mag_sample_counts[is.na(family) | !nzchar(family), family := "Unclassified"]
-  fixed_families <- setdiff(names(phage_uv_family_colours), c("Unclassified", "Other"))
+  unclassified_family_label <- "Unclassified at family level"
+  other_family_label <- "Other classified families"
+  fixed_families <- setdiff(
+    names(phage_uv_family_colours),
+    c(unclassified_family_label, other_family_label)
+  )
   mag_sample_counts[, family_display := fifelse(
-    family == "Unclassified", "Unclassified",
-    fifelse(family %chin% fixed_families, family, "Other")
+    family == "Unclassified", unclassified_family_label,
+    fifelse(family %chin% fixed_families, family, other_family_label)
   )]
   family_profile <- mag_sample_counts[, .(reads = sum(reads)), by = .(
     sample_title, condition, phase, cycle, family_display
@@ -442,7 +447,7 @@ build_taxonomic_context <- function(root, output_dir) {
     aes(x = sample_label, y = relative_abundance, fill = family_display)
   ) +
     geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
-    facet_grid(. ~ condition_label, scales = "free_x", space = "free_x") +
+    facet_grid(condition_label ~ ., scales = "fixed") +
     scale_fill_manual(
       values = phage_uv_family_colours,
       breaks = family_levels,
@@ -501,7 +506,7 @@ build_taxonomic_context <- function(root, output_dir) {
       element = c(
         "phylum tip point", "completeness", "contamination",
         "adjusted membrane coherence", "recurrent-gene balance",
-        "family-level metagenomic community profile"
+        "family-level metagenomic community profile; control above phage-UV with aligned cycle-phase positions"
       ),
       radial_order = c(0L, 1L, 2L, 3L, 4L, NA_integer_)
     ),
