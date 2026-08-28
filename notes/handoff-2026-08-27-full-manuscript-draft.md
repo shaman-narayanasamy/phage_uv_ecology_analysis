@@ -146,7 +146,7 @@ that plain author-year text is a live Zotero citation.
 
 ## Quarto execution contract
 
-All 17 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 18 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -162,6 +162,17 @@ The runner purls the notebook to a disposable temporary directory, sets
 `PHAGE_UV_NOTEBOOK_PATH` for repository discovery, runs the extracted source
 with `Rscript`, and removes it. The reusable files in `R/` and automated files
 in `tests/` remain `.R`; they are modules and tests, not analysis notebooks.
+
+### Taxonomic-resolution exploration
+
+`scripts/explore_taxonomic_resolution_figures.qmd` builds a separate, versioned
+exploration under `PRJEB79569/derived/taxonomic_resolution_exploration/`; it does
+not replace the canonical MAG candidate. The top-25 semantic unnamed fraction
+is 47.2% at family, 58.6% at genus, and 70.6% at species. The microshades-style
+profiles retain stacked bars but colour remaining or unresolved taxa by their
+known phylum, reducing the literal global-grey share to 16.5%, 18.7%, and 13.4%,
+respectively. The output also contains a rank-retention audit and a common-layout
+family heat-tree across the two aligned six-position longitudinal series.
 
 ## Validation completed
 

@@ -68,7 +68,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 17 standalone analysis entrypoints are canonical Quarto notebooks under
+The 18 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -93,6 +93,11 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 - Two additional unallocated descriptive candidates provide MAG and vOTU
   taxonomic context. They are taxonomy-derived dendrograms, not sequence
   phylogenies, and do not broaden the treatment or host-phage claims.
+- A separate taxonomic-resolution exploration compares top-25 family, genus,
+  and species stacked profiles using phylum-hued microshades remainders. It also
+  contains an information-retention audit and a family heat-tree time-series
+  diagnostic. These files are exploratory and do not replace the current MAG
+  manuscript candidate until the authors choose a resolution.
 
 ## Current manuscript state
 

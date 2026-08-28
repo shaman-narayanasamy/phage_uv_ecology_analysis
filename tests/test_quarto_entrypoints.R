@@ -25,6 +25,7 @@ expected <- sort(c(
   "build_votu_replication_inputs.qmd",
   "check_mgnify_prjeb79569.qmd",
   "evaluate_temporal_cluster_stability.qmd",
+  "explore_taxonomic_resolution_figures.qmd",
   "interpret_full_transcriptome_de.qmd",
   "run_full_transcriptome_edger.qmd",
   "run_sos_edger_sensitivity.qmd"
