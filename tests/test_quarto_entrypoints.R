@@ -18,6 +18,7 @@ expected <- sort(c(
   "build_population_genomics_descriptive.qmd",
   "build_recurrent_gene_candidate.qmd",
   "build_remaining_manuscript_figures.qmd",
+  "build_story_reorganized_figures.qmd",
   "build_sos_activity_candidates.qmd",
   "build_taxonomic_context_figures.qmd",
   "build_temporal_response_analysis.qmd",

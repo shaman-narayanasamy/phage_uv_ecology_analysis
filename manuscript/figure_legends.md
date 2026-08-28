@@ -6,25 +6,30 @@ main and supplementary figures.
 
 ## Main figures
 
-**Figure 1. Experimental design and complete-transcriptome structure.** (A) One
+**Figure 1. Experimental system, community trajectory, and transcriptome
+geometry.** (A) One
 control membrane and one phage-UV membrane sampled during the initial and
 backflush phases of three cleaning cycles, giving 12 physical samples. (B)
-Leading log-fold-change dimensions calculated from the TMM-normalised filtered
-expression matrix. Point colour denotes membrane, point shape denotes phase,
-and labels denote cycle. (C) Average log2 counts per million and
-phage-UV-minus-control log2 fold-change for the phase- and cycle-adjusted edgeR
-coefficient. Filled points passed BH FDR < 0.05 and are coloured by the direction
-of higher expression; open grey points are a deterministic context sample of
-the remaining features. Dotted horizontal lines mark log2 fold-changes of -1
-and 1. Full statistics are provided in the complete differential-expression
-tables.
+Relative abundance among MAG-mapped metagenomic reads for the top 25 classified
+families across the same six aligned cycle-phase positions. Named families use
+phylum-linked microshades; pale shades pool remaining or unresolved families
+within the same phylum, and grey denotes phyla outside the displayed set. The
+profile is descriptive and does not constitute a replicated treatment test.
+(C) Leading log-fold-change dimensions calculated from the TMM-normalised
+filtered expression matrix. Point colour denotes membrane, point shape denotes
+phase, and labels denote cycle.
 
-**Figure 2. Functional and organism-resolved transcriptional structure.** (A)
+**Figure 2. Transcriptome-wide, functional, and organism-resolved structure.**
+(A) Average log2 counts per million and phage-UV-minus-control log2 fold-change
+for the phase- and cycle-adjusted edgeR coefficient. Filled points passed BH FDR
+< 0.05 and are coloured by the direction of higher expression; open grey points
+are a deterministic context sample. Dotted horizontal lines mark log2
+fold-changes of -1 and 1. (B)
 Competitive rank tests for eight predefined repair and stress categories in the
 adjusted membrane coefficient. Values are signed -log10(BH FDR), with negative
 values denoting control-higher and positive values denoting phage-UV-higher gene
-ranks. Filled points passed BH FDR < 0.05. (B) Number of eligible MAG gene sets
-passing BH FDR < 0.05 in each rank direction. (C) Median gene-level adjusted
+ranks. Filled points passed BH FDR < 0.05. (C) Number of eligible MAG gene sets
+passing BH FDR < 0.05 in each rank direction. (D) Median gene-level adjusted
 membrane log2 fold-change for the 12 strongest supported MAGs in each direction,
 selected by FDR and then absolute median log2 fold-change. Squares denote GTDB
 phylum and circles denote the direction of higher-ranked genes. Full functional

@@ -1,7 +1,7 @@
 # Manuscript figure plan
 
-Status: complete candidate architecture. Artifact filenames remain unnumbered;
-the manuscript uses provisional numbering for review.
+Status: story-reorganized candidate architecture. Artifact filenames remain
+unnumbered; the manuscript uses provisional numbering for review.
 
 Figures are being built before the manuscript argument is frozen. Main-text versus
 supplementary placement and panel assignments remain open until the candidates have
@@ -14,8 +14,8 @@ The working draft uses the following labels so that every quantitative claim has
 an explicit destination. These labels can change during author review without
 renaming the canonical artifacts.
 
-1. Figure 1: `global-transcriptome-structure.pdf`.
-2. Figure 2: `functional-organism-restructuring.pdf`.
+1. Figure 1: `community-transcriptome-trajectory.pdf`.
+2. Figure 2: `transcriptome-response-architecture.pdf`.
 3. Figure 3: `recurrent-gene-structure.pdf`.
 4. Figure 4: `population-genomic-heterogeneity.pdf`.
 5. Figure 5: reserved for the delegated 16S result.
@@ -25,11 +25,12 @@ renaming the canonical artifacts.
 
 ## Current candidate set
 
-1. Experimental design and global transcriptome structure:
+1. Experimental system, community trajectory, and transcriptome geometry:
    - one membrane per condition across three cycles and two phases;
-   - sample-level expression geometry;
-   - complete-universe adjusted-condition effect landscape.
-2. Functional and organism-resolved restructuring:
+   - aligned top-25 family profiles from MAG-mapped metagenomic reads;
+   - sample-level expression geometry after the community has been shown.
+2. Transcriptome-wide, functional, and organism-resolved restructuring:
+   - complete-universe adjusted-condition effect landscape;
    - competitive tests for all eight frozen functional categories;
    - supported MAGs in both expression directions;
    - the strongest organism-level effects with taxonomic context.
@@ -51,7 +52,17 @@ renaming the canonical artifacts.
 5. Delegated 16S community structure:
    - reserved until the external collaborator returns the verified analysis;
    - expected to contribute community composition and ordination, without blocking
-     the current figure work.
+     the current figure work;
+   - expected to validate or extend the community layer introduced in Figure 1,
+     not to postpone all community context until the end of the story.
+
+## Preserved earlier layouts
+
+1. `global-transcriptome-structure.pdf` and
+   `functional-organism-restructuring.pdf` remain checksum-governed as the
+   analysis-led v1 layouts. Their panels have been recomposed into Figures 1
+   and 2 above; they are retained for provenance, not proposed as additional
+   manuscript figures.
 
 ## Additional unallocated candidates
 
@@ -60,10 +71,9 @@ renaming the canonical artifacts.
    - concentric rings ordered from the tree outwards as completeness,
      contamination, current adjusted-membrane coherence, and recurrent-gene
      balance;
-   - accompanying 12-sample family-level relative-abundance profile from
-     MAG-mapped metagenomic reads, using a fixed 15-family colour key plus
-     explicitly distinguished unclassified-at-family-level and other-classified
-     categories;
+   - accompanying legacy 12-sample family-level relative-abundance profile from
+     MAG-mapped metagenomic reads; the clearer top-25 microshades version is now
+     displayed prominently in Figure 1;
    - control above phage-UV with the six cycle-phase positions aligned on a
      shared horizontal axis;
    - descriptive taxonomic context, not a marker-gene or genome sequence

@@ -8,8 +8,8 @@ cleanup, old tickets, or quarantined subset-first expression analyses.
 
 ## Current state
 
-The full current-evidence figure suite and a complete venue-neutral manuscript
-draft are ready for author review.
+The full current-evidence figure suite, two story-reorganized opening figures,
+and a complete venue-neutral manuscript draft are ready for author review.
 
 - Working manuscript: `manuscript/manuscript_skeleton.md`.
 - Descriptive legends: `manuscript/figure_legends.md`.
@@ -33,20 +33,23 @@ work in Suggesting mode.
 The main result is heterogeneous organism-resolved transcriptional
 restructuring between the two repeatedly sampled membranes.
 
-1. Cleaning cycle dominates the leading expression geometry. The two membranes
+1. The top-25 family profile now establishes the longitudinal community before
+   transcriptional interpretation; it is descriptive MAG-mapped metagenomic
+   context, not a replicated treatment test.
+2. Cleaning cycle dominates the leading expression geometry. The two membranes
    do not show a simple global separation in the MDS.
-2. After adjustment for phase and cycle, the membrane coefficient is broad and
+3. After adjustment for phase and cycle, the membrane coefficient is broad and
    bidirectional: 7,703 features have FDR below 0.05 and 7,699 also have
    absolute log2 fold-change at least 1.
-3. Functional support is narrow. SOS genes are collectively higher-ranked, but
+4. Functional support is narrow. SOS genes are collectively higher-ranked, but
    their median log2 fold-change is 0.136 and the other seven frozen repair and
    stress categories are unsupported for the adjusted membrane coefficient.
-4. Organism-level coherence is widespread and bidirectional: 175 of 340
+5. Organism-level coherence is widespread and bidirectional: 175 of 340
    eligible MAGs are supported, split between 100 phage-UV-higher and 75
    control-higher gene sets.
-5. The recurrence filter retains 6,985 genes, split between 3,334 phage-UV
+6. The recurrence filter retains 6,985 genes, split between 3,334 phage-UV
    higher and 3,651 control higher.
-6. Five coverage-qualified MAGs show organism-specific genomic stability and
+7. Five coverage-qualified MAGs show organism-specific genomic stability and
    turnover. This layer is descriptive and does not support damage, mutation,
    adaptation, or treatment-effect claims.
 
@@ -55,8 +58,8 @@ restructuring between the two repeatedly sampled membranes.
 Canonical artifacts remain unnumbered so the authors can reallocate them
 without renaming files. The working draft uses:
 
-1. Figure 1: `global-transcriptome-structure.pdf`.
-2. Figure 2: `functional-organism-restructuring.pdf`.
+1. Figure 1: `community-transcriptome-trajectory.pdf`.
+2. Figure 2: `transcriptome-response-architecture.pdf`.
 3. Figure 3: `recurrent-gene-structure.pdf`.
 4. Figure 4: `population-genomic-heterogeneity.pdf`.
 5. Figure 5: reserved for the independently delegated 16S result.
@@ -66,7 +69,10 @@ without renaming files. The working draft uses:
 9. Supplementary Figure S4: `supplementary-mag-coherence.pdf`.
 10. Supplementary Figure S5: `supplementary-population-genomics.pdf`.
 
-Two additional candidates remain deliberately unallocated:
+The earlier `global-transcriptome-structure.pdf` and
+`functional-organism-restructuring.pdf` layouts remain checksum-governed for
+provenance but are no longer proposed as manuscript figures. Two additional
+candidates remain deliberately unallocated:
 
 - `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with rings
   ordered as completeness, contamination, current full-universe post-model MAG
@@ -146,7 +152,7 @@ that plain author-year text is a live Zotero citation.
 
 ## Quarto execution contract
 
-All 18 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 19 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -166,9 +172,9 @@ in `tests/` remain `.R`; they are modules and tests, not analysis notebooks.
 ### Taxonomic-resolution exploration
 
 `scripts/explore_taxonomic_resolution_figures.qmd` builds a separate, versioned
-exploration under `PRJEB79569/derived/taxonomic_resolution_exploration/`; it does
-not replace the canonical MAG candidate. The top-25 semantic unnamed fraction
-is 47.2% at family, 58.6% at genus, and 70.6% at species. The microshades-style
+exploration under `PRJEB79569/derived/taxonomic_resolution_exploration/`. Its
+top-25 family profile now feeds story-reorganized Figure 1. The top-25 semantic
+unnamed fraction is 47.2% at family, 58.6% at genus, and 70.6% at species. The microshades-style
 profiles retain stacked bars but colour remaining or unresolved taxa by their
 known phylum, reducing the literal global-grey share to 16.5%, 18.7%, and 13.4%,
 respectively. The output also contains a rank-retention audit and a common-layout
@@ -180,20 +186,22 @@ family heat-tree across the two aligned six-position longitudinal series.
 - `Rscript tests/test_manuscript_figure_candidates.R <canonical-output>`.
 - `bash scripts/validate_manifests.sh`.
 - `Rscript tests/test_quarto_entrypoints.R`.
-- Quarto 1.9.37 structure renders for all 17 `scripts/*.qmd` notebooks with
+- Quarto 1.9.37 structure renders for all 19 `scripts/*.qmd` notebooks with
   execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.
 
 The original suite passed on 2026-08-27. On 2026-08-28, the two taxonomic-context
-PDFs were also rendered to PNG and visually inspected. All 11 one-page vector
+PDFs and the two story-reorganized opening PDFs were rendered to PNG and visually
+inspected. All 13 one-page vector
 PDFs are governed by the candidate registry and checksum inventory. The
 remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
 
 ## Next action
 
-Begin author review in the versioned Google Doc and import
+Review the two story-reorganized local PDFs, then version and replace the first
+two previews and their legends in the Google Doc. Import
 `manuscript/references.bib` into Zotero. Preserve the delegated 16S insertion
 point. Once the user supplies revised or accepted prose, all agent changes to
 that prose belong in Suggesting mode unless the user explicitly authorizes a

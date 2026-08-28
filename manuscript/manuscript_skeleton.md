@@ -190,21 +190,31 @@ within-organism context.
 
 ## Results
 
-### Cleaning cycle dominated the sample geometry, while the adjusted membrane coefficient was broad
+### Community composition and transcriptome geometry changed through the cleaning cycles
 
 The 23 sequencing runs collapsed to 12 physical-sample libraries, one for each
-membrane-by-phase-by-cycle cell (Figure 1A). In the leading log-fold-change
-space, samples were organised primarily by cycle. Cycle-1 samples occupied the
-left of the ordination, cycle-2 samples the lower right, and cycle-3 samples the
-upper right. Samples from the two membranes were generally close within matched
-phase-cycle cells (Figure 1B). The complete expression geometry therefore did
-not show a simple global separation by condition.
+membrane-by-phase-by-cycle cell (Figure 1A). The MAG-mapped metagenomic reads
+showed a taxonomically diverse community across these observations. No named
+family exceeded 6.6% mean relative abundance across the 12 profiles, and the
+identity and abundance of prominent families changed among cycles and phases
+(Figure 1B). This descriptive profile establishes the community through which
+the transcriptional results are interpreted; it is not a replicated test of a
+treatment effect.
+
+In the leading log-fold-change space, samples were organised primarily by
+cycle. Cycle-1 samples occupied the left of the ordination, cycle-2 samples the
+lower right, and cycle-3 samples the upper right. Samples from the two membranes
+were generally close within matched phase-cycle cells (Figure 1C). The complete
+expression geometry therefore did not show a simple global separation by
+condition.
+
+### The adjusted membrane coefficient was broad but bidirectional
 
 Of 1,734,019 input features, 361,907 passed the predeclared expression filter
 (20.9%; Supplementary Figure S1A). The phase- and cycle-adjusted membrane
 coefficient identified 7,703 features at FDR < 0.05. Of these, 7,699 also had an
 absolute log2 fold-change of at least 1, comprising 3,694 phage-UV-higher and
-4,005 control-higher features (Figure 1C). The fitted system-specific membrane
+4,005 control-higher features (Figure 2A). The fitted system-specific membrane
 contrast was thus broad and almost evenly bidirectional, even though it was not
 the dominant axis of the sample ordination.
 
@@ -220,14 +230,14 @@ increase in cycle-specific differential expression.
 Among the tested features, 4,119 mapped to at least one of the eight predefined
 repair and stress categories. SOS-response genes were collectively
 higher-ranked for the adjusted membrane coefficient (523 genes; `cameraPR` raw
-P = 2.58 x 10^-4, BH FDR = 2.07 x 10^-3; Figure 2A). The category-level result
+P = 2.58 x 10^-4, BH FDR = 2.07 x 10^-3; Figure 2B). The category-level result
 was statistically supported, but the gene-level shift was modest. Median log2
 fold-change was 0.136, and 57.9% of SOS genes had positive coefficients.
 
 Photoreactivation, nucleotide-excision repair, recombination repair,
 base-excision and oxidative repair, oxidative stress, redox stress, and general
 stress were unsupported for the adjusted membrane coefficient (BH FDR range
-0.642 to 0.892; Figure 2A). Redox-stress genes were higher-ranked for the
+0.642 to 0.892; Figure 2B). Redox-stress genes were higher-ranked for the
 cycle-2 interaction coefficient (1,227 genes; raw P = 1.19 x 10^-3, BH FDR =
 9.51 x 10^-3). No category was supported for the cycle-3 interaction or the
 condition-by-cycle omnibus (Supplementary Figure S3). The functional evidence
@@ -237,9 +247,9 @@ did not define a broad or recurrent DNA repair programme.
 
 Of 348 classified MAGs, 340 met the expression-support criteria. The adjusted
 membrane coefficient supported 175 MAG-level gene sets, comprising 100 with
-phage-UV-higher genes and 75 with control-higher genes (Figure 2B). The 24
+phage-UV-higher genes and 75 with control-higher genes (Figure 2C). The 24
 strongest supported sets selected for display spanned multiple phyla and both
-directions of median gene-level change (Figure 2C). No single taxonomic group
+directions of median gene-level change (Figure 2D). No single taxonomic group
 accounted for the organism-level result.
 
 The interaction models also contained coherent MAG-level structure. The
@@ -407,25 +417,30 @@ https://doi.org/10.1093/nar/gks461
 
 ## Working main-figure legends
 
-**Figure 1. Experimental design and complete-transcriptome structure.** (A) One
+**Figure 1. Experimental system, community trajectory, and transcriptome
+geometry.** (A) One
 control membrane and one phage-UV membrane sampled during the initial and
 backflush phases of three cleaning cycles, giving 12 physical samples. (B)
-Leading log-fold-change dimensions calculated from the TMM-normalised filtered
-expression matrix. Point colour denotes membrane, point shape denotes phase,
-and labels denote cycle. (C) Average log2 counts per million and
-phage-UV-minus-control log2 fold-change for the phase- and cycle-adjusted edgeR
-coefficient. Filled points passed BH FDR < 0.05 and are coloured by the direction
-of higher expression; open grey points are a deterministic context sample of
-the remaining features. Dotted horizontal lines mark log2 fold-changes of -1
-and 1. Full statistics are provided in the complete differential-expression
-tables.
+Relative abundance among MAG-mapped metagenomic reads for the top 25 classified
+families across the same six aligned cycle-phase positions. Named families use
+phylum-linked microshades; pale shades pool remaining or unresolved families
+within the same phylum, and grey denotes phyla outside the displayed set. The
+profile is descriptive and does not constitute a replicated treatment test.
+(C) Leading log-fold-change dimensions calculated from the TMM-normalised
+filtered expression matrix. Point colour denotes membrane, point shape denotes
+phase, and labels denote cycle.
 
-**Figure 2. Functional and organism-resolved transcriptional structure.** (A)
+**Figure 2. Transcriptome-wide, functional, and organism-resolved structure.**
+(A) Average log2 counts per million and phage-UV-minus-control log2 fold-change
+for the phase- and cycle-adjusted edgeR coefficient. Filled points passed BH FDR
+< 0.05 and are coloured by the direction of higher expression; open grey points
+are a deterministic context sample. Dotted horizontal lines mark log2
+fold-changes of -1 and 1. (B)
 Competitive rank tests for eight predefined repair and stress categories in the
 adjusted membrane coefficient. Values are signed -log10(BH FDR), with negative
 values denoting control-higher and positive values denoting phage-UV-higher gene
-ranks. Filled points passed BH FDR < 0.05. (B) Number of eligible MAG gene sets
-passing BH FDR < 0.05 in each rank direction. (C) Median gene-level adjusted
+ranks. Filled points passed BH FDR < 0.05. (C) Number of eligible MAG gene sets
+passing BH FDR < 0.05 in each rank direction. (D) Median gene-level adjusted
 membrane log2 fold-change for the 12 strongest supported MAGs in each direction,
 selected by FDR and then absolute median log2 fold-change. Squares denote GTDB
 phylum and circles denote the direction of higher-ranked genes. Full functional

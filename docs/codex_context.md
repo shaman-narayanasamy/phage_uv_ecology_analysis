@@ -68,7 +68,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 18 standalone analysis entrypoints are canonical Quarto notebooks under
+The 19 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -86,40 +86,48 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   this workstream.
 - Host-phage integration is deferred. Use it only if it materially clarifies a
   supported global result.
-- Canonical figure filenames remain unnumbered. The working draft provisionally
-  calls the four complete main candidates Figures 1-4, reserves Figure 5 for
-  delegated 16S, and calls the five supplements S1-S5. Use the fixed mappings in
-  `docs/figure_visual_grammar.md` throughout.
+- Canonical figure filenames remain unnumbered. The story-reorganized working
+  draft begins with `community-transcriptome-trajectory.pdf`, then
+  `transcriptome-response-architecture.pdf`, followed by the recurrence and
+  population-genomics candidates. Figure 5 remains reserved for delegated 16S.
+  Use the fixed mappings in `docs/figure_visual_grammar.md` throughout.
 - Two additional unallocated descriptive candidates provide MAG and vOTU
   taxonomic context. They are taxonomy-derived dendrograms, not sequence
   phylogenies, and do not broaden the treatment or host-phage claims.
 - A separate taxonomic-resolution exploration compares top-25 family, genus,
   and species stacked profiles using phylum-hued microshades remainders. It also
   contains an information-retention audit and a family heat-tree time-series
-  diagnostic. These files are exploratory and do not replace the current MAG
-  manuscript candidate until the authors choose a resolution.
+  diagnostic. Family is the deepest defensible main-text resolution and its
+  top-25 microshades profile now appears prominently in revised Figure 1;
+  genus, species, and heat-tree variants remain exploratory.
 
 ## Current manuscript state
 
-The complete venue-neutral first draft, all current-evidence main and
-supplementary figures, two additional taxonomic-context candidates, descriptive
-legends, bibliography, and claim audit are ready for author review. The
-versioned Google Doc contains the complete draft and all 11 figure previews,
+The complete venue-neutral first draft, story-reorganized main figures,
+supplementary figures, two taxonomic-context candidates, descriptive legends,
+bibliography, and claim audit are ready for author review. The local candidate
+suite contains 13 PDFs, including two reader-facing opening figures and their
+two preserved analysis-led predecessors. The versioned Google Doc still
+contains the complete draft and its previous 11 figure previews,
 including the two taxonomic-context candidates at the end of the gallery. The
 MAG preview now includes the family-level metagenomic community profile and
 the quality-first ring order. Its control and phage-UV profiles are vertically
 aligned at the same six cycle-phase positions, and missing family assignments
 are explicitly distinguished from collapsed classified families. The
 pre-replacement, nine-preview, initial 11-preview, revised-MAG, and aligned-MAG
-states are named in version history. The argument is fixed provisionally around
-cycle-led global geometry, a broad bidirectional adjusted membrane coefficient,
-narrow functional support, widespread organism-level coherence, recurrent
-gene-level structure, and descriptive population-genomic heterogeneity.
+states are named in version history. It has not yet been replaced with the two
+story-reorganized previews. The revised argument begins with longitudinal
+community context, then moves through cycle-led transcriptome geometry, a broad
+bidirectional adjusted membrane coefficient, narrow functional support,
+widespread organism-level coherence, recurrent gene-level structure, and
+descriptive population-genomic heterogeneity.
 
 ## Next decision
 
-Import `manuscript/references.bib` into Zotero and begin author revision in the
-existing Google Doc. The agent-authored starting draft may remain in regular
-editing mode while the user comments and suggests. If the user supplies revised
-or accepted prose, use Suggesting mode for agent changes. Do not wait for or
-manage the delegated 16S analysis; preserve its Figure 5 insertion point.
+Review the two story-reorganized local PDFs, then version and replace the first
+two previews and their legends in the existing Google Doc. Import
+`manuscript/references.bib` into Zotero for citation management. The
+agent-authored starting draft may remain in regular editing mode while the user
+comments and suggests. If the user supplies revised or accepted prose, use
+Suggesting mode for agent changes. Do not wait for or manage the delegated 16S
+analysis; preserve its Figure 5 insertion point.

@@ -16,10 +16,9 @@ manifest_path <- function(id) {
 stopifnot(
   !anyDuplicated(analysis_registry$analysis_id),
   !anyDuplicated(claim_registry$claim_id),
-  identical(
-    claim_registry[claim_id %chin% c("C03", "C04"), unique(allocation)],
-    "working_Figure_1"
-  ),
+  claim_registry[claim_id == "C03", allocation] == "working_Figure_2_and_S1",
+  claim_registry[claim_id == "C04", allocation] == "working_Figure_2",
+  claim_registry[claim_id == "C14", allocation] == "working_Figure_1",
   identical(
     claim_registry[claim_id %chin% c("C05", "C06", "C08"), unique(allocation)],
     "working_Figure_2"
