@@ -101,8 +101,9 @@ supplementary figures, two additional taxonomic-context candidates, descriptive
 legends, bibliography, and claim audit are ready for author review. The
 versioned Google Doc contains the complete draft and all 11 figure previews,
 including the two taxonomic-context candidates at the end of the gallery. The
-pre-replacement, nine-preview, and 11-preview states are named in version
-history. The argument is
+MAG preview now includes the family-level metagenomic community profile and
+the quality-first ring order. The pre-replacement, nine-preview, initial
+11-preview, and revised-MAG states are named in version history. The argument is
 fixed provisionally around cycle-led global geometry, a broad bidirectional
 adjusted membrane coefficient, narrow functional support, widespread
 organism-level coherence, recurrent gene-level structure, and descriptive

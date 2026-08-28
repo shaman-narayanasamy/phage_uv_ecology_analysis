@@ -57,8 +57,12 @@ renaming the canonical artifacts.
 
 1. `mag-taxonomic-context.pdf`:
    - taxonomy-derived circular dendrogram for all 348 dereplicated MAGs;
-   - fixed phylum colours plus current adjusted-membrane coherence,
-     recurrent-gene balance, completeness, and contamination rings;
+   - concentric rings ordered from the tree outwards as completeness,
+     contamination, current adjusted-membrane coherence, and recurrent-gene
+     balance;
+   - accompanying 12-sample family-level relative-abundance profile from
+     MAG-mapped metagenomic reads, using a fixed 15-family colour key plus
+     unclassified and other categories;
    - descriptive taxonomic context, not a marker-gene or genome sequence
      phylogeny.
 2. `votu-taxonomic-context.pdf`:

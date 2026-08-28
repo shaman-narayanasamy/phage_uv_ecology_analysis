@@ -43,6 +43,9 @@ required <- c(
   "tables/supplementary_population_genomics_cells.tsv",
   "tables/mag_taxonomic_context.tsv",
   "tables/mag_taxonomic_context_summary.tsv",
+  "tables/mag_taxonomic_context_layout.tsv",
+  "tables/mag_family_community_profile.tsv",
+  "tables/mag_family_colour_key.tsv",
   "tables/votu_taxonomic_context_groups.tsv",
   "tables/votu_taxonomic_context_realm_summary.tsv",
   "tables/votu_taxonomic_context_filter_summary.tsv",
@@ -78,6 +81,9 @@ functional_all <- read_tsv(file.path(output_dir, "tables", "supplementary_functi
 mag_counts <- read_tsv(file.path(output_dir, "tables", "supplementary_mag_coherence_counts.tsv"))
 population_cells <- read_tsv(file.path(output_dir, "tables", "supplementary_population_genomics_cells.tsv"))
 mag_context <- read_tsv(file.path(output_dir, "tables", "mag_taxonomic_context.tsv"))
+mag_layout <- read_tsv(file.path(output_dir, "tables", "mag_taxonomic_context_layout.tsv"))
+family_profile <- read_tsv(file.path(output_dir, "tables", "mag_family_community_profile.tsv"))
+family_colours <- read_tsv(file.path(output_dir, "tables", "mag_family_colour_key.tsv"))
 votu_groups <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_groups.tsv"))
 votu_realms <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_realm_summary.tsv"))
 votu_filter <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_filter_summary.tsv"))
@@ -166,6 +172,23 @@ expect(sum(mag_context$de_state %in% c("Phage-UV higher", "Control higher")) == 
          sum(mag_context$de_state == "Phage-UV higher") == 100L &&
          sum(mag_context$de_state == "Control higher") == 75L,
        "MAG taxonomic context preserves verified adjusted-membrane coherence counts")
+expect(identical(
+  mag_layout$element[mag_layout$panel == "A"],
+  c(
+    "phylum tip point", "completeness", "contamination",
+    "adjusted membrane coherence", "recurrent-gene balance"
+  )
+) && identical(mag_layout$radial_order[mag_layout$panel == "A"], 0:4),
+"MAG tree radial order places completeness and contamination before the other overlays")
+expect(nrow(family_profile) == 204L && length(unique(family_profile$sample_title)) == 12L &&
+         length(unique(family_profile$family_display)) == 17L,
+       "family-level community profile contains the complete 12-sample by 17-category grid")
+family_sums <- aggregate(relative_abundance ~ sample_title, family_profile, sum)
+expect(all(abs(family_sums$relative_abundance - 1) < 1e-12),
+       "family-level community profiles sum to one within every sample")
+expect(nrow(family_colours) == 17L && !anyDuplicated(family_colours$family_display) &&
+         all(grepl("^#[0-9A-F]{6}$", family_colours$colour)),
+       "family-level community profile uses a complete fixed colour key")
 expected_votu_filter <- c(
   catalogue_rows = 82615L,
   miuvig_high_quality = 624L,
