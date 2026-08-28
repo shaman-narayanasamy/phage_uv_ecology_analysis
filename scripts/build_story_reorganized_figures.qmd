@@ -1,0 +1,378 @@
+---
+title: "Build Story-Reorganized Manuscript Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook recomposes the verified figure panels into a reader-facing sequence.
+It does not refit a model or replace any underlying analysis. Run it after the
+canonical manuscript candidates and the taxonomic-resolution exploration:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_story_reorganized_figures.qmd [candidate-output-directory]
+```
+
+```{r}
+#| label: build-story-reorganized-figures
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(ggrepel)
+  library(patchwork)
+  library(scales)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  root <- normalizePath(getwd(), mustWork = TRUE)
+  if (!file.exists(file.path(root, "R", "figure_style.R"))) {
+    abort("Run this notebook from the phage_uv_ecology_analysis repository root")
+  }
+  root
+}
+
+promote_file <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  temporary <- paste0(destination, ".incoming")
+  if (file.exists(temporary)) unlink(temporary)
+  if (!file.copy(source, temporary, overwrite = TRUE, copy.mode = TRUE)) {
+    abort("Could not stage %s", basename(destination))
+  }
+  if (file.exists(destination)) unlink(destination)
+  if (!file.rename(temporary, destination)) abort("Could not promote %s", basename(destination))
+}
+
+write_checksums <- function(output_dir, staging) {
+  checksum_path <- file.path(output_dir, "output_checksums.md5.tsv")
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[file.info(files)$isdir %in% FALSE & normalizePath(files) != normalizePath(checksum_path)]
+  files <- sort(files)
+  table <- data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  )
+  staged <- file.path(staging, "output_checksums.md5.tsv")
+  fwrite(table, staged, sep = "\t")
+  promote_file(staged, checksum_path)
+}
+
+root <- repo_root()
+source(file.path(root, "R", "figure_style.R"))
+args <- commandArgs(trailingOnly = TRUE)
+project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+output_dir <- if (length(args)) args[[1L]] else file.path(
+  project_data, "derived", "manuscript_figure_candidates"
+)
+resolution_dir <- file.path(project_data, "derived", "taxonomic_resolution_exploration")
+de_dir <- file.path(project_data, "derived", "full_transcriptome_de")
+
+paths <- list(
+  metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+  mds = file.path(output_dir, "tables", "mds_coordinates.tsv"),
+  summary = file.path(output_dir, "tables", "figure_summary.tsv"),
+  functional = file.path(output_dir, "tables", "functional_condition_panel.tsv"),
+  top_mag = file.path(output_dir, "tables", "top_mag_condition_panel.tsv"),
+  registry = file.path(output_dir, "candidate_figure_registry.tsv"),
+  family_profile = file.path(resolution_dir, "tables", "family_top25_community_profile.tsv"),
+  family_colours = file.path(resolution_dir, "tables", "family_microshades_colour_key.tsv"),
+  de = file.path(de_dir, "tables", "de_condition_adjusted.tsv"),
+  filtering = file.path(de_dir, "tables", "filtering_summary.tsv")
+)
+missing <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+staging <- file.path(dirname(output_dir), sprintf(".story-figure-staging-%d", Sys.getpid()))
+if (dir.exists(staging)) unlink(staging, recursive = TRUE)
+dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+on.exit(unlink(staging, recursive = TRUE), add = TRUE)
+
+metadata <- fread(paths$metadata)
+mds <- fread(paths$mds)
+figure_summary <- fread(paths$summary)
+functional <- fread(paths$functional)
+top_mag <- fread(paths$top_mag)
+family_profile <- fread(paths$family_profile)
+family_colours <- fread(paths$family_colours)
+filtering <- fread(paths$filtering)
+
+condition_values <- c(
+  Control = phage_uv_condition_colours[["control"]],
+  `Phage-UV` = phage_uv_condition_colours[["treatment"]]
+)
+condition_lower_values <- c(
+  control = phage_uv_condition_colours[["control"]],
+  treatment = phage_uv_condition_colours[["treatment"]]
+)
+
+# Figure 1: establish the longitudinal system, show its community, then show
+# whole-transcriptome sample geometry.
+design <- copy(metadata)
+design[, `:=`(
+  cycle_number = as.numeric(cycle),
+  membrane_y = fifelse(condition == "control", 2, 1),
+  plot_y = fifelse(condition == "control", 2, 1) + fifelse(phase == "initial", 0.09, -0.09)
+)]
+
+p_design <- ggplot(
+  design,
+  aes(cycle_number, plot_y, colour = condition, shape = phase,
+      group = interaction(condition, phase))
+) +
+  geom_line(linewidth = 0.5, alpha = 0.8) +
+  geom_point(size = 3.2) +
+  scale_colour_manual(values = condition_lower_values) +
+  scale_shape_manual(values = phage_uv_phase_shapes) +
+  scale_x_continuous(breaks = 1:3, labels = paste("Cycle", 1:3), limits = c(0.7, 3.3)) +
+  scale_y_continuous(
+    breaks = c(1, 2), labels = c("Phage-UV", "Control"), limits = c(0.65, 2.35)
+  ) +
+  labs(x = NULL, y = "Membrane", tag = "A") +
+  theme_phage_uv(base_size = 9) +
+  theme(
+    axis.line.y = element_blank(), axis.ticks.y = element_blank(),
+    legend.position = "none", plot.tag = element_text(face = "bold", size = 11)
+  )
+
+mds[, `:=`(
+  condition = factor(condition, levels = c("control", "treatment")),
+  phase = factor(phase, levels = c("initial", "backflush"))
+)]
+p_mds <- ggplot(mds, aes(MDS1, MDS2, colour = condition, shape = phase)) +
+  geom_point(size = 3.0) +
+  geom_text_repel(
+    aes(label = cycle_label), size = 2.7, show.legend = FALSE,
+    box.padding = 0.35, point.padding = 0.25, min.segment.length = 0, seed = 79569
+  ) +
+  scale_colour_manual(
+    values = condition_lower_values, labels = c(control = "Control", treatment = "Phage-UV"),
+    name = "Membrane"
+  ) +
+  scale_shape_manual(
+    values = phage_uv_phase_shapes, labels = c(initial = "Initial", backflush = "Backflush"),
+    name = "Phase"
+  ) +
+  labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2", tag = "C") +
+  theme_phage_uv(base_size = 9) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
+
+family_profile[, `:=`(
+  sample_label = factor(sample_label, levels = c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B")),
+  condition_label = factor(condition_label, levels = c("Control", "Phage-UV")),
+  display_category = factor(display_category, levels = rev(family_colours$display_category))
+)]
+family_palette <- setNames(family_colours$colour, family_colours$display_category)
+family_legend <- family_colours[category_type == "top25 named" | display_category == "Other phyla"]
+family_legend[, legend_label := fifelse(
+  display_category == "Other phyla", "Other phyla", paste(phylum, display_category, sep = " | ")
+)]
+
+p_community <- ggplot(
+  family_profile,
+  aes(sample_label, relative_abundance, fill = display_category)
+) +
+  geom_vline(xintercept = c(2.5, 4.5), colour = "#D8D8D8", linewidth = 0.35) +
+  geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+  facet_grid(condition_label ~ ., scales = "fixed") +
+  scale_fill_manual(
+    values = family_palette,
+    breaks = family_legend$display_category,
+    labels = setNames(family_legend$legend_label, family_legend$display_category),
+    drop = FALSE,
+    name = "Family (phylum | family)"
+  ) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), expand = expansion(mult = c(0, 0.02))) +
+  labs(
+    x = "Cycle and phase in chronological order",
+    y = "Relative abundance among MAG-mapped metagenomic reads",
+    tag = "B",
+    caption = paste(
+      "Top 25 classified families are named; pale shades pool remaining or unresolved families within each phylum.",
+      "I, initial; B, backflush. Descriptive profiles; membrane identity is confounded with condition."
+    )
+  ) +
+  theme_phage_uv(base_size = 9) +
+  theme(
+    legend.position = "right", legend.text = element_text(size = 6.1),
+    legend.title = element_text(size = 7.2), legend.key.height = grid::unit(0.31, "cm"),
+    strip.text.y = element_text(angle = 0, face = "bold"), axis.text.x = element_text(size = 8),
+    plot.caption = element_text(size = 6.4, hjust = 0),
+    plot.tag = element_text(face = "bold", size = 11)
+  ) +
+  guides(fill = guide_legend(ncol = 1, byrow = TRUE, override.aes = list(colour = NA)))
+
+figure_community <- (p_design | p_mds) / p_community +
+  plot_layout(widths = c(0.85, 1.15), heights = c(0.72, 1.55))
+community_path <- file.path(staging, "figures", "community-transcriptome-trajectory.pdf")
+ggsave(community_path, figure_community, width = 13.5, height = 9.5, device = grDevices::pdf)
+
+# Figure 2: move from the complete adjusted-condition landscape to functional
+# rank coherence and organism-resolved coherence.
+de <- fread(paths$de, select = c("feature_id", "logFC", "logCPM", "FDR"))
+de[, supported := FDR < 0.05]
+de[, higher_in := factor(fifelse(logFC >= 0, "Phage-UV", "Control"), levels = c("Control", "Phage-UV"))]
+context <- de[supported == FALSE]
+context_index <- unique(round(seq(1, nrow(context), length.out = min(20000L, nrow(context)))))
+landscape <- rbindlist(list(
+  context[context_index][, display_class := "Context sample"],
+  de[supported == TRUE][, display_class := "BH FDR < 0.05"]
+), use.names = TRUE)
+
+summary_values <- setNames(figure_summary$value, figure_summary$metric)
+p_landscape <- ggplot() +
+  geom_point(
+    data = landscape[display_class == "Context sample"], aes(logCPM, logFC),
+    shape = 1, colour = "#A8A8A8", size = 0.5, stroke = 0.25, alpha = 0.35
+  ) +
+  geom_point(
+    data = landscape[display_class == "BH FDR < 0.05"], aes(logCPM, logFC, colour = higher_in),
+    shape = 16, size = 0.62, alpha = 0.48
+  ) +
+  geom_hline(yintercept = 0, linewidth = 0.35, colour = "#555555") +
+  geom_hline(yintercept = c(-1, 1), linewidth = 0.3, linetype = "dotted", colour = "#777777") +
+  annotate(
+    "label", x = Inf, y = Inf, hjust = 1.05, vjust = 1.15,
+    label = sprintf(
+      "%s tested features\n%s at BH FDR < 0.05\n%s also |log2FC| >= 1",
+      format(summary_values[["retained_features"]], big.mark = ","),
+      format(summary_values[["supported_features"]], big.mark = ","),
+      format(summary_values[["supported_abs_logFC_1"]], big.mark = ",")
+    ),
+    size = 2.8, linewidth = 0.25, colour = "#222222", fill = "white"
+  ) +
+  scale_colour_manual(values = condition_values, name = "Higher expression") +
+  labs(
+    x = "Average log2 CPM", y = "Phage-UV - control log2 fold-change", tag = "A"
+  ) +
+  theme_phage_uv(base_size = 9) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
+
+functional[, `:=`(
+  label = factor(label, levels = rev(functional[order(tier, set_id), as.character(label)])),
+  higher_in = factor(higher_in, levels = c("Control", "Phage-UV"))
+)]
+p_functional <- ggplot(functional, aes(signed_log10_fdr, label)) +
+  geom_vline(xintercept = 0, colour = "#555555", linewidth = 0.35) +
+  geom_vline(
+    xintercept = c(-log10(0.05), log10(0.05)), colour = "#888888",
+    linewidth = 0.3, linetype = "dotted"
+  ) +
+  geom_point(
+    data = functional[supported == FALSE], shape = 1, colour = "#777777",
+    size = 2.7, stroke = 0.65
+  ) +
+  geom_point(
+    data = functional[supported == TRUE], aes(fill = higher_in), shape = 21,
+    colour = "#222222", size = 3.1, stroke = 0.45
+  ) +
+  geom_text(
+    data = functional[supported == TRUE], aes(label = sprintf("BH FDR = %.2g", FDR)),
+    hjust = -0.08, size = 2.7, colour = "#222222"
+  ) +
+  scale_fill_manual(values = condition_values, guide = "none") +
+  scale_x_continuous(expand = expansion(mult = c(0.08, 0.3))) +
+  labs(
+    x = "Signed -log10(BH FDR)\nControl higher-ranked (negative); phage-UV higher-ranked (positive)",
+    y = NULL, tag = "B"
+  ) +
+  theme_phage_uv(base_size = 8.5) +
+  theme(legend.position = "none", plot.tag = element_text(face = "bold", size = 11))
+
+mag_counts <- data.table(
+  higher_in = factor(c("Control", "Phage-UV"), levels = c("Control", "Phage-UV")),
+  MAGs = as.numeric(summary_values[c("control_higher_MAGs", "phage_uv_higher_MAGs")])
+)
+p_mag_counts <- ggplot(mag_counts, aes(higher_in, MAGs, fill = higher_in)) +
+  geom_col(width = 0.62, colour = "#222222", linewidth = 0.3) +
+  geom_text(aes(label = MAGs), vjust = -0.45, size = 3.2) +
+  scale_fill_manual(values = condition_values, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.14))) +
+  labs(x = "Higher-ranked genes", y = "Supported MAGs", tag = "C") +
+  theme_phage_uv(base_size = 9) +
+  theme(axis.text.x = element_text(angle = 18, hjust = 1), plot.tag = element_text(face = "bold", size = 11))
+
+setorder(top_mag, median_logFC)
+top_mag[, `:=`(
+  display_taxon = factor(display_taxon, levels = rev(display_taxon)),
+  higher_in = factor(higher_in, levels = c("Control", "Phage-UV"))
+)]
+strip_x <- min(top_mag$median_logFC) - 0.28
+phylum_values <- phage_uv_phylum_colours[unique(top_mag$phylum_group)]
+p_mag <- ggplot(top_mag, aes(median_logFC, display_taxon)) +
+  geom_vline(xintercept = 0, colour = "#555555", linewidth = 0.35) +
+  geom_point(aes(x = strip_x, colour = phylum_group), shape = 15, size = 3.0) +
+  geom_point(aes(fill = higher_in), shape = 21, colour = "#222222", size = 3.0, stroke = 0.4) +
+  scale_colour_manual(values = phylum_values, name = "Phylum") +
+  scale_fill_manual(values = condition_values, name = "Higher-ranked genes") +
+  scale_x_continuous(expand = expansion(mult = c(0.06, 0.05))) +
+  scale_y_discrete(expand = expansion(add = c(0.5, 0.8))) +
+  labs(x = "Median gene-level phage-UV - control log2 fold-change", y = NULL, tag = "D") +
+  theme_phage_uv(base_size = 8.2) +
+  theme(
+    legend.position = "bottom", legend.box = "vertical",
+    plot.tag = element_text(face = "bold", size = 11)
+  ) +
+  guides(fill = guide_legend(order = 1), colour = guide_legend(order = 2, nrow = 2, byrow = TRUE))
+
+figure_response <- (p_landscape | (p_functional / p_mag_counts)) / p_mag +
+  plot_layout(widths = c(1.45, 1), heights = c(1.05, 1.5))
+response_path <- file.path(staging, "figures", "transcriptome-response-architecture.pdf")
+ggsave(response_path, figure_response, width = 13.5, height = 10, device = grDevices::pdf)
+
+required_figures <- c(community_path, response_path)
+if (any(!file.exists(required_figures)) || any(file.info(required_figures)$size == 0)) {
+  abort("One or more story-reorganized PDFs were not rendered")
+}
+
+inventory <- data.table(
+  artifact = basename(required_figures),
+  story_role = c(
+    "experimental system -> community trajectory -> transcriptome geometry",
+    "complete expression landscape -> functional coherence -> organism-resolved coherence"
+  ),
+  source_boundary = c(
+    "community profile is descriptive and derived from MAG-mapped metagenomic reads",
+    "complete tested feature universe; membrane identity is confounded with condition"
+  )
+)
+fwrite(inventory, file.path(staging, "tables", "story_reorganized_figure_inventory.tsv"), sep = "\t")
+
+for (source_path in list.files(staging, recursive = TRUE, full.names = TRUE)) {
+  if (file.info(source_path)$isdir) next
+  relative <- sub(paste0("^", normalizePath(staging), "/?"), "", normalizePath(source_path))
+  promote_file(source_path, file.path(output_dir, relative))
+}
+
+registry <- fread(paths$registry)
+registry[artifact %chin% c(
+  "global-transcriptome-structure.pdf", "functional-organism-restructuring.pdf"
+), status := "legacy_layout_preserved"]
+additions <- data.table(
+  artifact = basename(required_figures),
+  status = "candidate_main_story",
+  panels = c(
+    "experimental design; top-25 family community trajectory; sample MDS",
+    "adjusted-condition expression landscape; functional rank tests; supported MAG counts; top organism effects"
+  ),
+  boundary = c(
+    "Community profile is descriptive; MAG-mapped metagenomic reads; membrane identity remains confounded with condition",
+    "Complete tested universe; competitive rank coherence; SOS transcription is not direct DNA-damage evidence"
+  )
+)
+registry <- rbindlist(list(registry[!artifact %chin% additions$artifact], additions), use.names = TRUE)
+registry_stage <- file.path(staging, "candidate_figure_registry.tsv")
+fwrite(registry, registry_stage, sep = "\t")
+promote_file(registry_stage, paths$registry)
+write_checksums(output_dir, staging)
+
+cat(sprintf("Created two story-reorganized manuscript candidates in %s\n", output_dir))
+unlink(staging, recursive = TRUE)
+```

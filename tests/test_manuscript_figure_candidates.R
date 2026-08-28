@@ -16,6 +16,8 @@ output_dir <- if (length(commandArgs(trailingOnly = TRUE))) {
 required <- c(
   "figures/global-transcriptome-structure.pdf",
   "figures/functional-organism-restructuring.pdf",
+  "figures/community-transcriptome-trajectory.pdf",
+  "figures/transcriptome-response-architecture.pdf",
   "figures/recurrent-gene-structure.pdf",
   "figures/population-genomic-heterogeneity.pdf",
   "figures/mag-taxonomic-context.pdf",
@@ -29,6 +31,7 @@ required <- c(
   "tables/figure_summary.tsv",
   "tables/functional_condition_panel.tsv",
   "tables/top_mag_condition_panel.tsv",
+  "tables/story_reorganized_figure_inventory.tsv",
   "tables/recurrence_selection_funnel.tsv",
   "tables/recurrence_direction_concordance.tsv",
   "tables/recurrent_gene_heatmap_selection.tsv",
@@ -63,11 +66,14 @@ expect(length(Sys.glob(file.path(dirname(output_dir), ".remaining-figure-staging
        "remaining-figure builder leaves no hidden staging directories")
 expect(length(Sys.glob(file.path(dirname(output_dir), ".taxonomic-context-staging-*"))) == 0L,
        "taxonomic-context builder leaves no hidden staging directories")
+expect(length(Sys.glob(file.path(dirname(output_dir), ".story-figure-staging-*"))) == 0L,
+       "story-reorganization builder leaves no hidden staging directories")
 
 mds <- read_tsv(file.path(output_dir, "tables", "mds_coordinates.tsv"))
 summary <- read_tsv(file.path(output_dir, "tables", "figure_summary.tsv"))
 functional <- read_tsv(file.path(output_dir, "tables", "functional_condition_panel.tsv"))
 top_mag <- read_tsv(file.path(output_dir, "tables", "top_mag_condition_panel.tsv"))
+story_inventory <- read_tsv(file.path(output_dir, "tables", "story_reorganized_figure_inventory.tsv"))
 funnel <- read_tsv(file.path(output_dir, "tables", "recurrence_selection_funnel.tsv"))
 concordance <- read_tsv(file.path(output_dir, "tables", "recurrence_direction_concordance.tsv"))
 heatmap_selection <- read_tsv(file.path(output_dir, "tables", "recurrent_gene_heatmap_selection.tsv"))
@@ -120,6 +126,10 @@ expect(abs(functional$FDR[functional$set_id == "SOS_response"] - 0.0020679546924
 expect(nrow(top_mag) == 24L, "organism panel contains 12 MAGs per direction")
 expect(all(top_mag$FDR < 0.05), "all displayed MAGs pass the declared BH threshold")
 expect(all(table(top_mag$Direction) == 12L), "displayed MAG directions are balanced by construction")
+expect(nrow(story_inventory) == 2L && identical(story_inventory$artifact, c(
+  "community-transcriptome-trajectory.pdf",
+  "transcriptome-response-architecture.pdf"
+)), "story inventory records the two reader-facing recompositions")
 
 expect(identical(funnel$features, c(361907L, 7699L, 7603L, 7141L, 6985L)),
        "recurrence selection funnel matches the predeclared sequential criteria")
@@ -221,9 +231,11 @@ observed_realms <- setNames(votu_realms$n_votus, votu_realms$realm_display)
 expect(identical(as.integer(observed_realms[names(expected_realms)]), as.integer(expected_realms)),
        "vOTU realm composition is stable and unclassified labels are combined")
 
-expect(nrow(registry) == 11L && sum(registry$status == "candidate_unallocated") == 6L &&
-         sum(registry$status == "supplementary_unallocated") == 5L,
-       "registry contains six manuscript candidates and five supplementary candidates")
+expect(nrow(registry) == 13L && sum(registry$status == "candidate_unallocated") == 4L &&
+         sum(registry$status == "supplementary_unallocated") == 5L &&
+         sum(registry$status == "legacy_layout_preserved") == 2L &&
+         sum(registry$status == "candidate_main_story") == 2L,
+       "registry distinguishes the main story, preserved layouts, and supplementary candidates")
 expect(identical(registry$artifact, c(
   "global-transcriptome-structure.pdf",
   "functional-organism-restructuring.pdf",
@@ -235,7 +247,9 @@ expect(identical(registry$artifact, c(
   "supplementary-mag-coherence.pdf",
   "supplementary-population-genomics.pdf",
   "mag-taxonomic-context.pdf",
-  "votu-taxonomic-context.pdf"
+  "votu-taxonomic-context.pdf",
+  "community-transcriptome-trajectory.pdf",
+  "transcriptome-response-architecture.pdf"
 )), "candidate registry contains the expected PDFs in build order")
 
 for (i in seq_len(nrow(checksums))) {
