@@ -46,6 +46,29 @@ phage_uv_phylum_colours <- c(
   Unclassified = "#B3B3B3"
 )
 
+# Fixed family colours for the MAG-level metagenomic community profile. The
+# named set is frozen from the current mean-abundance ranking so that the same
+# family never changes colour between manuscript and supplementary figures.
+phage_uv_family_colours <- c(
+  `4484-276` = "#4E79A7",
+  Anaerolineaceae = "#F28E2B",
+  SHND01 = "#E15759",
+  Smithellaceae = "#76B7B2",
+  Propionibacteriaceae = "#59A14F",
+  Methanotrichaceae = "#EDC948",
+  Methanoregulaceae = "#B07AA1",
+  Burkholderiaceae_B = "#FF9DA7",
+  Arcobacteraceae = "#9C755F",
+  Rhodocyclaceae = "#17BECF",
+  JAFGLZ01 = "#1B9E77",
+  `FEN-979` = "#D95F02",
+  UBA1135 = "#7570B3",
+  UBA4823 = "#E7298A",
+  `CAG-138` = "#66A61E",
+  Unclassified = "#969696",
+  Other = "#D9D9D9"
+)
+
 phage_uv_viral_realm_colours <- c(
   Duplodnaviria = "#355070",
   Riboviria = "#E76F51",

@@ -58,15 +58,21 @@ after the analysis and provenance have been returned.
 
 ## Additional unallocated candidates
 
-**MAG taxonomic context.** Taxonomy-derived circular dendrogram of 348
-dereplicated metagenome-assembled genomes (MAGs). Tip points denote GTDB phylum.
-Concentric rings show, from the inside out, support and direction for the
-phase- and cycle-adjusted membrane coefficient, the balance of recurrent
-phage-UV-higher versus control-higher genes, estimated completeness, and
-estimated contamination. The adjusted membrane ring uses the complete tested
-gene universe and post-model MAG-level rank tests. This dendrogram represents
-taxonomic classification rather than sequence-derived evolutionary distance,
-and membrane identity remains confounded with condition.
+**MAG taxonomic context and family-level community profile.** (A)
+Taxonomy-derived circular dendrogram of 348 dereplicated metagenome-assembled
+genomes (MAGs). Tip points denote GTDB phylum. Concentric rings show, from the
+inside out, estimated completeness, estimated contamination, support and
+direction for the phase- and cycle-adjusted membrane coefficient, and the
+balance of recurrent phage-UV-higher versus control-higher genes. The adjusted
+membrane ring uses the complete tested gene universe and post-model MAG-level
+rank tests. (B) Relative abundance of the 15 fixed, most abundant classified
+families, unclassified MAGs, and all remaining families among MAG-mapped
+metagenomic reads in the 12 physical samples. C1-C3 denote cleaning cycles 1-3;
+I denotes the initial sample and B the backflush sample. Family colours are
+fixed across figures. The dendrogram represents taxonomic classification rather
+than sequence-derived evolutionary distance, and membrane identity remains
+confounded with condition. The community profile is descriptive and is not a
+replicated treatment-effect analysis.
 
 **vOTU taxonomic context.** (A) Taxonomy-derived cladogram of 607 deduplicated
 high-quality viral operational taxonomic units (vOTUs) with an assigned

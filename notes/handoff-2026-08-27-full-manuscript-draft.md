@@ -68,8 +68,10 @@ without renaming files. The working draft uses:
 
 Two additional candidates remain deliberately unallocated:
 
-- `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with current
-  full-universe post-model MAG and quality overlays;
+- `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with rings
+  ordered as completeness, contamination, current full-universe post-model MAG
+  coherence, and recurrent-gene balance, alongside a descriptive family-level
+  community profile based on MAG-mapped metagenomic reads;
 - `votu-taxonomic-context.pdf`: taxonomy-derived cladogram of 607 current
   high-quality vOTUs in 45 taxonomy groups plus realm composition.
 
@@ -112,6 +114,14 @@ the gallery. A fresh Markdown export verified 4,089 words, the unchanged
 manuscript title and editorial note, and exactly 11 image references. This
 state was preserved as `Manuscript draft v1 with eleven-figure gallery -
 2026-08-28`.
+
+The MAG preview was subsequently replaced with the revised two-panel figure:
+quality rings first, followed by the biological overlays, plus the family-level
+metagenomic community profile. The vOTU preview was restored without a content
+change. A fresh Markdown export verified 4,092 words, the unchanged manuscript
+title and editorial note, exactly 11 image references, and both taxonomic
+candidates at the gallery end. This state was preserved as `Manuscript draft
+v1 with revised MAG family profile - 2026-08-28`.
 
 The agent authored this draft, so regular editing mode is appropriate while the
 user begins commenting and suggesting. If the user supplies revised or accepted

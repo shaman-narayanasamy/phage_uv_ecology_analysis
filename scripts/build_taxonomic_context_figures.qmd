@@ -10,10 +10,11 @@ execute:
 ---
 
 This notebook rebuilds the two taxonomy-tree structures used in the original
-poster with current, manuscript-eligible inputs. The MAG panel uses the complete
+poster with current, manuscript-eligible inputs. The MAG figure uses the complete
 post-model MAG interpretation rather than the retired subset-first expression
-analysis. The viral panel uses an explicit current-catalogue filter and makes no
-treatment or host-phage inference.
+analysis and adds a metagenomic family-level community profile. The viral panel
+uses an explicit current-catalogue filter and makes no treatment or host-phage
+inference.
 
 Run individual lines or the analysis chunk for inline debugging. For exact
 command-line behaviour, including the optional output directory, use:
@@ -146,6 +147,8 @@ build_taxonomic_context <- function(root, output_dir) {
     quality = file.path(project_data, "binning", "dereplication", "data_tables", "Widb.csv"),
     taxonomy = file.path(project_data, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
     coherence = file.path(project_data, "derived", "full_de_interpretation", "tables", "mag_coherence.tsv"),
+    mag_mg_counts = file.path(project_data, "quantification", "mags_votu", "coverage", "metagenomics", "coverm", "output-Read_Count.tsv"),
+    sample_metadata = file.path(root, "metadata", "sample_metadata.tsv"),
     checkv = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "checkv", "quality_summary.tsv"),
     cenote = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "cenotetaker3", "output", "output_virus_summary.tsv"),
     clusters = file.path(project_data, "viromics", "votu_clustering", "cluster_summary.tsv"),
@@ -271,7 +274,39 @@ build_taxonomic_context <- function(root, output_dir) {
     ) +
     geom_tile(
       data = positions,
-      aes(x = ring_x[[1L]], y = y, fill = de_state),
+      aes(x = ring_x[[1L]], y = y, fill = completeness),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#F7FBFF",
+      high = "#08519C",
+      limits = c(75, 100),
+      name = "Completeness (%)",
+      guide = guide_colourbar(order = 2)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[2L]], y = y, fill = contamination),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#FFF5F0",
+      high = "#A50F15",
+      limits = c(0, 25),
+      name = "Contamination (%)",
+      guide = guide_colourbar(order = 3)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[3L]], y = y, fill = de_state),
       width = 0.25,
       height = 0.92,
       colour = NA,
@@ -280,12 +315,12 @@ build_taxonomic_context <- function(root, output_dir) {
     scale_fill_manual(
       values = de_colours,
       name = "Adjusted membrane\ncoherence",
-      guide = guide_legend(order = 2)
+      guide = guide_legend(order = 4)
     ) +
     ggnewscale::new_scale_fill() +
     geom_tile(
       data = positions,
-      aes(x = ring_x[[2L]], y = y, fill = recurrence_balance),
+      aes(x = ring_x[[4L]], y = y, fill = recurrence_balance),
       width = 0.25,
       height = 0.92,
       colour = NA,
@@ -299,38 +334,6 @@ build_taxonomic_context <- function(root, output_dir) {
       limits = c(-recurrence_limit, recurrence_limit),
       oob = scales::squish,
       name = "Recurrent-gene\nbalance",
-      guide = guide_colourbar(order = 3)
-    ) +
-    ggnewscale::new_scale_fill() +
-    geom_tile(
-      data = positions,
-      aes(x = ring_x[[3L]], y = y, fill = completeness),
-      width = 0.25,
-      height = 0.92,
-      colour = NA,
-      inherit.aes = FALSE
-    ) +
-    scale_fill_gradient(
-      low = "#F7FBFF",
-      high = "#08519C",
-      limits = c(75, 100),
-      name = "Completeness (%)",
-      guide = guide_colourbar(order = 4)
-    ) +
-    ggnewscale::new_scale_fill() +
-    geom_tile(
-      data = positions,
-      aes(x = ring_x[[4L]], y = y, fill = contamination),
-      width = 0.25,
-      height = 0.92,
-      colour = NA,
-      inherit.aes = FALSE
-    ) +
-    scale_fill_gradient(
-      low = "#FFF5F0",
-      high = "#A50F15",
-      limits = c(0, 25),
-      name = "Contamination (%)",
       guide = guide_colourbar(order = 5)
     ) +
     xlim(0, ring_x[[4L]] + 1.25) +
@@ -344,8 +347,130 @@ build_taxonomic_context <- function(root, output_dir) {
       plot.margin = margin(12, 18, 12, 12)
     )
 
+  mag_counts <- fread(paths$mag_mg_counts)
+  mag_counts <- mag_counts[grepl("_MAGScoT_", Contig, fixed = TRUE)]
+  mag_counts[, MAG_ID := vapply(
+    strsplit(Contig, "_", fixed = TRUE),
+    function(parts) paste(parts[seq_len(4L)], collapse = "_"),
+    character(1)
+  )]
+  count_columns <- setdiff(names(mag_counts), c("Contig", "MAG_ID"))
+  mag_sample_counts <- mag_counts[, lapply(.SD, sum, na.rm = TRUE), by = MAG_ID, .SDcols = count_columns]
+  mag_sample_counts <- melt(
+    mag_sample_counts,
+    id.vars = "MAG_ID",
+    variable.name = "source_sample",
+    value.name = "reads"
+  )
+  mag_sample_counts[, metagenome_run_accession := sub(
+    ".*(ERR[0-9]+).*", "\\1", source_sample
+  )]
+  sample_metadata <- fread(paths$sample_metadata)
+  sample_metadata <- sample_metadata[, .(
+    sample_title, condition, phase, cycle, metagenome_run_accession
+  )]
+  mag_sample_counts <- merge(
+    mag_sample_counts,
+    sample_metadata,
+    by = "metagenome_run_accession",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  if (anyNA(mag_sample_counts$sample_title) || uniqueN(mag_sample_counts$sample_title) != 12L) {
+    abort("MAG metagenomic counts do not map uniquely to the 12 physical samples")
+  }
+  mag_sample_counts <- merge(
+    mag_sample_counts,
+    mag[, .(MAG_ID, family)],
+    by = "MAG_ID",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  mag_sample_counts[is.na(family) | !nzchar(family), family := "Unclassified"]
+  fixed_families <- setdiff(names(phage_uv_family_colours), c("Unclassified", "Other"))
+  mag_sample_counts[, family_display := fifelse(
+    family == "Unclassified", "Unclassified",
+    fifelse(family %chin% fixed_families, family, "Other")
+  )]
+  family_profile <- mag_sample_counts[, .(reads = sum(reads)), by = .(
+    sample_title, condition, phase, cycle, family_display
+  )]
+  family_profile[, relative_abundance := reads / sum(reads), by = sample_title]
+  family_levels <- names(phage_uv_family_colours)
+  profile_grid <- CJ(
+    sample_title = unique(sample_metadata$sample_title),
+    family_display = family_levels,
+    unique = TRUE
+  )
+  family_profile <- merge(
+    profile_grid,
+    family_profile,
+    by = c("sample_title", "family_display"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  family_profile[is.na(reads), `:=`(reads = 0, relative_abundance = 0)]
+  family_profile <- merge(
+    family_profile,
+    sample_metadata[, .(sample_title, condition, phase, cycle)],
+    by = "sample_title",
+    all.x = TRUE,
+    suffixes = c("", ".metadata"),
+    sort = FALSE
+  )
+  for (column in c("condition", "phase", "cycle")) {
+    metadata_column <- paste0(column, ".metadata")
+    family_profile[is.na(get(column)), (column) := get(metadata_column)]
+    family_profile[, (metadata_column) := NULL]
+  }
+  family_profile[, family_display := factor(family_display, levels = family_levels)]
+  family_profile[, condition_label := factor(
+    condition,
+    levels = c("control", "treatment"),
+    labels = c("Control", "Phage-UV")
+  )]
+  sample_levels <- as.vector(t(outer(
+    paste0("C", 1:3), c("I", "B"), paste, sep = "-"
+  )))
+  family_profile[, sample_label := factor(
+    sprintf("C%d-%s", cycle, fifelse(phase == "initial", "I", "B")),
+    levels = sample_levels
+  )]
+
+  p_family <- ggplot(
+    family_profile,
+    aes(x = sample_label, y = relative_abundance, fill = family_display)
+  ) +
+    geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+    facet_grid(. ~ condition_label, scales = "free_x", space = "free_x") +
+    scale_fill_manual(
+      values = phage_uv_family_colours,
+      breaks = family_levels,
+      drop = FALSE,
+      name = "Family"
+    ) +
+    scale_y_continuous(
+      labels = label_percent(accuracy = 1),
+      breaks = seq(0, 1, by = 0.25),
+      expand = expansion(mult = c(0, 0.01))
+    ) +
+    labs(x = "Cycle-phase sample", y = "Relative abundance among MAG-mapped reads") +
+    theme_phage_uv(base_size = 8) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+      legend.position = "right",
+      legend.text = element_text(size = 6.2),
+      legend.title = element_text(size = 7),
+      panel.spacing = grid::unit(0.7, "lines")
+    )
+
+  p_mag_combined <- p_mag + p_family +
+    plot_layout(widths = c(2.2, 1.15)) +
+    plot_annotation(tag_levels = "A") &
+    theme(plot.tag = element_text(face = "plain", size = 11))
+
   mag_figure_path <- file.path(staging, "figures", "mag-taxonomic-context.pdf")
-  ggsave(mag_figure_path, p_mag, width = 13, height = 11, device = grDevices::pdf)
+  ggsave(mag_figure_path, p_mag_combined, width = 18, height = 10.5, device = grDevices::pdf)
 
   mag_summary <- mag[, .(
     MAGs = .N,
@@ -357,6 +482,32 @@ build_taxonomic_context <- function(root, output_dir) {
   ), by = .(phylum_display)][order(-MAGs, phylum_display)]
   fwrite(mag, file.path(staging, "tables", "mag_taxonomic_context.tsv"), sep = "\t")
   fwrite(mag_summary, file.path(staging, "tables", "mag_taxonomic_context_summary.tsv"), sep = "\t")
+  fwrite(
+    family_profile[, .(
+      sample_title, condition, phase, cycle, sample_label,
+      family_display, reads, relative_abundance
+    )],
+    file.path(staging, "tables", "mag_family_community_profile.tsv"),
+    sep = "\t"
+  )
+  fwrite(
+    data.table(family_display = family_levels, colour = unname(phage_uv_family_colours)),
+    file.path(staging, "tables", "mag_family_colour_key.tsv"),
+    sep = "\t"
+  )
+  fwrite(
+    data.table(
+      panel = c("A", "A", "A", "A", "A", "B"),
+      element = c(
+        "phylum tip point", "completeness", "contamination",
+        "adjusted membrane coherence", "recurrent-gene balance",
+        "family-level metagenomic community profile"
+      ),
+      radial_order = c(0L, 1L, 2L, 3L, 4L, NA_integer_)
+    ),
+    file.path(staging, "tables", "mag_taxonomic_context_layout.tsv"),
+    sep = "\t"
+  )
 
   checkv <- fread(paths$checkv, select = c(
     "contig_id", "contig_length", "gene_count", "viral_genes", "host_genes",
@@ -514,7 +665,7 @@ build_taxonomic_context <- function(root, output_dir) {
     artifact = c("mag-taxonomic-context.pdf", "votu-taxonomic-context.pdf"),
     status = "candidate_unallocated",
     panels = c(
-      "348-MAG taxonomic dendrogram; adjusted membrane coherence; recurrent-gene balance; completeness and contamination",
+      "348-MAG taxonomic dendrogram with completeness and contamination first; adjusted membrane coherence; recurrent-gene balance; family-level metagenomic community profile",
       "current high-quality vOTU taxonomy cladogram; realm-level catalogue composition"
     ),
     boundary = c(

@@ -115,8 +115,10 @@ after all six PDFs render successfully.
 
 The taxonomic-context builder adds descriptive MAG and vOTU candidates. Both
 trees are taxonomy-derived dendrograms rather than sequence phylogenies. The
-MAG panel overlays complete-universe post-model summaries; the vOTU panel is a
-descriptive catalogue view and carries no treatment or host-phage inference.
+MAG figure places completeness and contamination before the post-model
+biological overlays and adds a 12-sample family-level metagenomic community
+profile. The vOTU panel is a descriptive catalogue view and carries no
+treatment or host-phage inference.
 
 Validate manifest structure after changing tracked inputs or outputs:
 
