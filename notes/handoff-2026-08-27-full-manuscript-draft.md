@@ -1,6 +1,6 @@
 # Handoff: PRJEB79569 full manuscript draft
 
-Date: 2026-08-27
+Date: 2026-08-27; updated 2026-08-28
 
 This is the controlling scientific handoff. Start here, then read
 `docs/codex_context.md`. Do not reconstruct the project from chat, storage
@@ -89,21 +89,52 @@ apply in every main and supplementary figure.
 The existing Google Doc is:
 `https://docs.google.com/document/d/1BwtV8cU5anyC8yFYUmiG09fIa-buT0t425bkm1tiTXs/edit?tab=t.0`.
 
-At this handoff, that document still contains the older candidate inventory and
-three preview figures. It has not yet been replaced with the complete draft.
-The local draft is canonical until the cloud copy is written and re-exported
-for verification.
+The document is now titled `PRJEB79569 phage-UV ecology | Manuscript draft v1`.
+Before replacement, the obsolete state was preserved as the named version
+`Pre-manuscript figure plan and legends - 2026-08-27`. The document was then
+atomically replaced with the complete manuscript and a gallery containing all
+nine current figure previews. A Markdown export verified 4,073 words, the
+editorial insertion note, the gallery at the end of the document, and exactly
+nine image references. The completed state was preserved as the named version
+`Manuscript draft v1 with complete figure gallery - 2026-08-28`.
+
+The agent authored this draft, so regular editing mode is appropriate while the
+user begins commenting and suggesting. If the user supplies revised or accepted
+prose for further editing, work only in Suggesting mode unless explicitly asked
+to replace it.
 
 No direct Zotero connector was available to the agent. The ten DOI-addressed
 records in `manuscript/references.bib` are the verified import queue. Import
 them into Zotero, then use Zotero field codes in Google Docs. Do not pretend
 that plain author-year text is a live Zotero citation.
 
+## Quarto execution contract
+
+All 16 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
+so the user can inspect objects and debug lines or chunks directly in RStudio.
+Automatic execution during rendering is disabled because several workflows
+write project outputs.
+
+For exact non-interactive execution, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/<notebook>.qmd [arguments...]
+```
+
+The runner purls the notebook to a disposable temporary directory, sets
+`PHAGE_UV_NOTEBOOK_PATH` for repository discovery, runs the extracted source
+with `Rscript`, and removes it. The reusable files in `R/` and automated files
+in `tests/` remain `.R`; they are modules and tests, not analysis notebooks.
+
 ## Validation completed
 
 - `Rscript tests/test_manuscript_registry.R`.
 - `Rscript tests/test_manuscript_figure_candidates.R <canonical-output>`.
 - `bash scripts/validate_manifests.sh`.
+- `Rscript tests/test_quarto_entrypoints.R`.
+- Quarto 1.9.37 structure renders for all 16 `scripts/*.qmd` notebooks with
+  execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.
 
@@ -113,8 +144,8 @@ promotes them only after all six new PDFs render successfully.
 
 ## Next action
 
-After confirmation to transmit the unpublished draft to the signed-in Google
-account, replace the obsolete figure-plan document with the complete draft and
-current legends, insert review previews for Figures 1-4, and re-export the Doc
-to verify that the text and images survived. Then begin author review. Once the
-user makes edits, all further prose changes belong in Suggesting mode.
+Begin author review in the versioned Google Doc and import
+`manuscript/references.bib` into Zotero. Preserve the delegated 16S insertion
+point. Once the user supplies revised or accepted prose, all agent changes to
+that prose belong in Suggesting mode unless the user explicitly authorizes a
+replacement.

@@ -15,12 +15,12 @@ complete, using the same tested-gene universe and its multiplicity context.
 
 ## Quarantined workflows
 
-- `scripts/run_sos_edger_sensitivity.R`: SOS-restricted edgeR quick check;
-- `scripts/build_uv_activity_candidates.R`: preselected UV-category CPM checks;
-- `scripts/build_sos_activity_candidates.R`: preselected SOS-marker CPM checks;
+- `scripts/run_sos_edger_sensitivity.qmd`: SOS-restricted edgeR quick check;
+- `scripts/build_uv_activity_candidates.qmd`: preselected UV-category CPM checks;
+- `scripts/build_sos_activity_candidates.qmd`: preselected SOS-marker CPM checks;
 - the DNA-repair/SOS RNA:DNA and temporal-test portions of
-  `scripts/build_temporal_response_analysis.R`;
-- `scripts/evaluate_temporal_cluster_stability.R` when applied to the
+  `scripts/build_temporal_response_analysis.qmd`;
+- `scripts/evaluate_temporal_cluster_stability.qmd` when applied to the
   preselected response modules.
 
 The associated `uv_mt_*`, `sos_mt_*`, `sos_edger_*`,

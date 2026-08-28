@@ -19,7 +19,7 @@ functional-subset model as the inferential entry point.
 The transcriptome-wide workflow completed and passed its synthetic end-to-end
 test and project-scale output QA on 2026-08-10.
 
-- entry point: `scripts/run_full_transcriptome_edger.R`;
+- entry point: `scripts/run_full_transcriptome_edger.qmd`;
 - test: `tests/test_full_transcriptome_edger.R`;
 - canonical output:
   `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/full_transcriptome_de/`;

@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Build Manuscript Figure Candidates"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/build_manuscript_figure_candidates.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_manuscript_figure_candidates.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: build-manuscript-figure-candidates
+#| echo: true
 suppressPackageStartupMessages({
   library(data.table)
   library(edgeR)
@@ -422,3 +446,5 @@ checksum_table <- data.table(
 fwrite(checksum_table, file.path(output_dir, "output_checksums.md5.tsv"), sep = "\t")
 
 cat(sprintf("Created two unnumbered figure candidates in %s\n", output_dir))
+
+```

@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Build Remaining Manuscript Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/build_remaining_manuscript_figures.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_remaining_manuscript_figures.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: build-remaining-manuscript-figures
+#| echo: true
 suppressPackageStartupMessages({
   library(data.table)
   library(ggplot2)
@@ -667,3 +691,5 @@ output_dir <- if (length(args)) args[[1L]] else file.path(
   "manuscript_figure_candidates"
 )
 write_remaining_outputs(root, output_dir)
+
+```

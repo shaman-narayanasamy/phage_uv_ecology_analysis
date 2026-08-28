@@ -169,7 +169,7 @@ All outputs are under:
 
 ## Reproduction
 
-- Builder: `scripts/build_mag_genomic_variation_dossiers.R`
+- Builder: `scripts/build_mag_genomic_variation_dossiers.qmd`
 - Sample QC: `tables/mag_genomic_variation_sample_qc.tsv`
 - Strain memberships: `tables/mag_genomic_variation_strain_clusters.tsv`
 - Cluster-distance summary:

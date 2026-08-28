@@ -58,7 +58,7 @@ of DNA damage, mutagenesis, or a treatment effect.
 
 ## Reproduction
 
-- Script: `scripts/build_population_genomics_descriptive.R`
+- Script: `scripts/build_population_genomics_descriptive.qmd`
 - Pair QC table:
   `PRJEB79569/derived/manuscript_candidates/tables/population_genomics_pair_qc.tsv`
 - MAG QC table:
