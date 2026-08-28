@@ -18,6 +18,8 @@ required <- c(
   "figures/functional-organism-restructuring.pdf",
   "figures/recurrent-gene-structure.pdf",
   "figures/population-genomic-heterogeneity.pdf",
+  "figures/mag-taxonomic-context.pdf",
+  "figures/votu-taxonomic-context.pdf",
   "figures/supplementary-model-diagnostics.pdf",
   "figures/supplementary-cycle-interaction-landscape.pdf",
   "figures/supplementary-functional-coefficients.pdf",
@@ -39,6 +41,13 @@ required <- c(
   "tables/supplementary_functional_coefficients.tsv",
   "tables/supplementary_mag_coherence_counts.tsv",
   "tables/supplementary_population_genomics_cells.tsv",
+  "tables/mag_taxonomic_context.tsv",
+  "tables/mag_taxonomic_context_summary.tsv",
+  "tables/votu_taxonomic_context_groups.tsv",
+  "tables/votu_taxonomic_context_realm_summary.tsv",
+  "tables/votu_taxonomic_context_filter_summary.tsv",
+  "trees/mag_taxonomic_context.nwk",
+  "trees/votu_taxonomic_context.nwk",
   "candidate_figure_registry.tsv",
   "output_checksums.md5.tsv"
 )
@@ -49,6 +58,8 @@ expect(length(Sys.glob(file.path(output_dir, ".recurrent-gene-staging-*"))) == 0
        "recurrence builder leaves no hidden staging directories")
 expect(length(Sys.glob(file.path(dirname(output_dir), ".remaining-figure-staging-*"))) == 0L,
        "remaining-figure builder leaves no hidden staging directories")
+expect(length(Sys.glob(file.path(dirname(output_dir), ".taxonomic-context-staging-*"))) == 0L,
+       "taxonomic-context builder leaves no hidden staging directories")
 
 mds <- read_tsv(file.path(output_dir, "tables", "mds_coordinates.tsv"))
 summary <- read_tsv(file.path(output_dir, "tables", "figure_summary.tsv"))
@@ -66,6 +77,10 @@ interaction_counts <- read_tsv(file.path(output_dir, "tables", "supplementary_in
 functional_all <- read_tsv(file.path(output_dir, "tables", "supplementary_functional_coefficients.tsv"))
 mag_counts <- read_tsv(file.path(output_dir, "tables", "supplementary_mag_coherence_counts.tsv"))
 population_cells <- read_tsv(file.path(output_dir, "tables", "supplementary_population_genomics_cells.tsv"))
+mag_context <- read_tsv(file.path(output_dir, "tables", "mag_taxonomic_context.tsv"))
+votu_groups <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_groups.tsv"))
+votu_realms <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_realm_summary.tsv"))
+votu_filter <- read_tsv(file.path(output_dir, "tables", "votu_taxonomic_context_filter_summary.tsv"))
 registry <- read_tsv(file.path(output_dir, "candidate_figure_registry.tsv"))
 checksums <- read_tsv(file.path(output_dir, "output_checksums.md5.tsv"))
 
@@ -145,9 +160,40 @@ expect(identical(
 expect(nrow(population_cells) == 720L,
        "population-genomics supplement contains five complete 12 by 12 display grids")
 
-expect(nrow(registry) == 9L && sum(registry$status == "candidate_unallocated") == 4L &&
+expect(nrow(mag_context) == 348L && sum(mag_context$eligible) == 340L,
+       "MAG taxonomic context contains all dereplicated MAGs and the verified eligible set")
+expect(sum(mag_context$de_state %in% c("Phage-UV higher", "Control higher")) == 175L &&
+         sum(mag_context$de_state == "Phage-UV higher") == 100L &&
+         sum(mag_context$de_state == "Control higher") == 75L,
+       "MAG taxonomic context preserves verified adjusted-membrane coherence counts")
+expected_votu_filter <- c(
+  catalogue_rows = 82615L,
+  miuvig_high_quality = 624L,
+  high_quality_with_taxonomy = 615L,
+  high_quality_with_taxonomy_and_viral_genes = 607L,
+  taxonomy_groups = 45L
+)
+observed_votu_filter <- setNames(votu_filter$value, votu_filter$criterion)
+expect(identical(
+  as.integer(observed_votu_filter[names(expected_votu_filter)]),
+  as.integer(expected_votu_filter)
+), "vOTU taxonomic-context filter contract is stable")
+expect(nrow(votu_groups) == 45L && sum(votu_groups$n_votus) == 607L,
+       "vOTU cladogram contains 45 taxonomy groups representing 607 vOTUs")
+expected_realms <- c(
+  Duplodnaviria = 462L,
+  Riboviria = 103L,
+  Unclassified = 32L,
+  Floreoviria = 6L,
+  Varidnaviria = 4L
+)
+observed_realms <- setNames(votu_realms$n_votus, votu_realms$realm_display)
+expect(identical(as.integer(observed_realms[names(expected_realms)]), as.integer(expected_realms)),
+       "vOTU realm composition is stable and unclassified labels are combined")
+
+expect(nrow(registry) == 11L && sum(registry$status == "candidate_unallocated") == 6L &&
          sum(registry$status == "supplementary_unallocated") == 5L,
-       "registry contains four main candidates and five supplementary candidates")
+       "registry contains six manuscript candidates and five supplementary candidates")
 expect(identical(registry$artifact, c(
   "global-transcriptome-structure.pdf",
   "functional-organism-restructuring.pdf",
@@ -157,7 +203,9 @@ expect(identical(registry$artifact, c(
   "supplementary-cycle-interaction-landscape.pdf",
   "supplementary-functional-coefficients.pdf",
   "supplementary-mag-coherence.pdf",
-  "supplementary-population-genomics.pdf"
+  "supplementary-population-genomics.pdf",
+  "mag-taxonomic-context.pdf",
+  "votu-taxonomic-context.pdf"
 )), "candidate registry contains the expected PDFs in build order")
 
 for (i in seq_len(nrow(checksums))) {

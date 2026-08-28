@@ -68,7 +68,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 16 standalone analysis entrypoints are canonical Quarto notebooks under
+The 17 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -90,14 +90,19 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   calls the four complete main candidates Figures 1-4, reserves Figure 5 for
   delegated 16S, and calls the five supplements S1-S5. Use the fixed mappings in
   `docs/figure_visual_grammar.md` throughout.
+- Two additional unallocated descriptive candidates provide MAG and vOTU
+  taxonomic context. They are taxonomy-derived dendrograms, not sequence
+  phylogenies, and do not broaden the treatment or host-phage claims.
 
 ## Current manuscript state
 
 The complete venue-neutral first draft, all current-evidence main and
-supplementary figures, descriptive legends, bibliography, and claim audit are
-ready for author review. The versioned Google Doc now contains the complete
-draft and all nine current figure previews; the pre-replacement document and
-the completed replacement are both named in version history. The argument is
+supplementary figures, two additional taxonomic-context candidates, descriptive
+legends, bibliography, and claim audit are ready for author review. The
+versioned Google Doc contains the complete draft and all 11 figure previews,
+including the two taxonomic-context candidates at the end of the gallery. The
+pre-replacement, nine-preview, and 11-preview states are named in version
+history. The argument is
 fixed provisionally around cycle-led global geometry, a broad bidirectional
 adjusted membrane coefficient, narrow functional support, widespread
 organism-level coherence, recurrent gene-level structure, and descriptive

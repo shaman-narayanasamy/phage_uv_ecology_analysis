@@ -56,6 +56,28 @@ metrics are provided in the population-genomics tables.
 collaborator's verified result. Panel content and legend will be added only
 after the analysis and provenance have been returned.
 
+## Additional unallocated candidates
+
+**MAG taxonomic context.** Taxonomy-derived circular dendrogram of 348
+dereplicated metagenome-assembled genomes (MAGs). Tip points denote GTDB phylum.
+Concentric rings show, from the inside out, support and direction for the
+phase- and cycle-adjusted membrane coefficient, the balance of recurrent
+phage-UV-higher versus control-higher genes, estimated completeness, and
+estimated contamination. The adjusted membrane ring uses the complete tested
+gene universe and post-model MAG-level rank tests. This dendrogram represents
+taxonomic classification rather than sequence-derived evolutionary distance,
+and membrane identity remains confounded with condition.
+
+**vOTU taxonomic context.** (A) Taxonomy-derived cladogram of 607 deduplicated
+high-quality viral operational taxonomic units (vOTUs) with an assigned
+taxonomic path and at least one viral gene. Tips represent 45 distinct taxonomy
+paths, point colour denotes realm, point size denotes the number of vOTUs in
+the group, and selected larger groups are labelled. (B) Number of qualifying
+vOTUs in each realm; unclassified taxonomy labels are combined for display.
+The cladogram represents taxonomic classification rather than a sequence
+phylogeny and is descriptive of the current catalogue only. It does not encode
+treatment response or host-phage linkage.
+
 ## Supplementary figures
 
 **Supplementary Figure S1. Feature, library, and model diagnostics.** (A) Number
