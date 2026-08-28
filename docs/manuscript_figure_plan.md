@@ -62,7 +62,10 @@ renaming the canonical artifacts.
      balance;
    - accompanying 12-sample family-level relative-abundance profile from
      MAG-mapped metagenomic reads, using a fixed 15-family colour key plus
-     unclassified and other categories;
+     explicitly distinguished unclassified-at-family-level and other-classified
+     categories;
+   - control above phage-UV with the six cycle-phase positions aligned on a
+     shared horizontal axis;
    - descriptive taxonomic context, not a marker-gene or genome sequence
      phylogeny.
 2. `votu-taxonomic-context.pdf`:

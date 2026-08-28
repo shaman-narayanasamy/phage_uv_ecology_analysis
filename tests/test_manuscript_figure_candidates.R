@@ -183,6 +183,13 @@ expect(identical(
 expect(nrow(family_profile) == 204L && length(unique(family_profile$sample_title)) == 12L &&
          length(unique(family_profile$family_display)) == 17L,
        "family-level community profile contains the complete 12-sample by 17-category grid")
+expect(identical(
+  sort(unique(family_profile$family_display)[grepl("classified", unique(family_profile$family_display), ignore.case = TRUE)]),
+  sort(c("Other classified families", "Unclassified at family level"))
+), "family profile distinguishes resolved low-abundance families from missing family assignments")
+condition_positions <- unique(family_profile[, c("condition", "sample_label")])
+expect(all(table(condition_positions$sample_label, condition_positions$condition) == 1L),
+       "control and phage-UV profiles share the same six aligned cycle-phase positions")
 family_sums <- aggregate(relative_abundance ~ sample_title, family_profile, sum)
 expect(all(abs(family_sums$relative_abundance - 1) < 1e-12),
        "family-level community profiles sum to one within every sample")
