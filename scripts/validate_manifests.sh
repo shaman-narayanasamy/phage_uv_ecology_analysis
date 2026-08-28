@@ -39,6 +39,9 @@ awk -F '\t' '
 printf '\nChecking delegated 16S input contract...\n'
 Rscript tests/test_16s_handoff.R || failures=$((failures + 1))
 
+printf '\nChecking Quarto analysis entrypoints...\n'
+Rscript tests/test_quarto_entrypoints.R || failures=$((failures + 1))
+
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
   NR == 1 { next }

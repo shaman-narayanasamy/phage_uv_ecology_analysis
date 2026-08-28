@@ -125,12 +125,12 @@ stage.
 
 ## Reproducible outputs
 
-- `scripts/build_uv_activity_candidates.R`
-- `scripts/build_sos_activity_candidates.R`
-- `scripts/build_temporal_response_analysis.R`
-- `scripts/evaluate_temporal_cluster_stability.R`
-- `scripts/run_sos_edger_sensitivity.R`
-- `scripts/build_population_genomics_descriptive.R`
+- `scripts/build_uv_activity_candidates.qmd`
+- `scripts/build_sos_activity_candidates.qmd`
+- `scripts/build_temporal_response_analysis.qmd`
+- `scripts/evaluate_temporal_cluster_stability.qmd`
+- `scripts/run_sos_edger_sensitivity.qmd`
+- `scripts/build_population_genomics_descriptive.qmd`
 
 Generated tables and vector figures are written under
 `PRJEB79569/derived/manuscript_candidates/` outside the repository.

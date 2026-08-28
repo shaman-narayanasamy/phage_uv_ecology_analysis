@@ -1,7 +1,22 @@
 #!/usr/bin/env Rscript
 
 suppressPackageStartupMessages(library(data.table))
-source("scripts/run_full_transcriptome_edger.R")
+
+full_de_notebook <- normalizePath("scripts/run_full_transcriptome_edger.qmd")
+full_de_source <- tempfile("run-full-transcriptome-edger-", fileext = ".R")
+old_notebook_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+Sys.setenv(PHAGE_UV_NOTEBOOK_PATH = full_de_notebook)
+tryCatch({
+  knitr::purl(full_de_notebook, output = full_de_source, quiet = TRUE)
+  source(full_de_source, local = .GlobalEnv)
+}, finally = {
+  unlink(full_de_source)
+  if (nzchar(old_notebook_path)) {
+    Sys.setenv(PHAGE_UV_NOTEBOOK_PATH = old_notebook_path)
+  } else {
+    Sys.unsetenv("PHAGE_UV_NOTEBOOK_PATH")
+  }
+})
 
 expect_true <- function(value, message) {
   if (!isTRUE(value)) stop(message, call. = FALSE)

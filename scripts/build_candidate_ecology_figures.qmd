@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Build Candidate Ecology Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/build_candidate_ecology_figures.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_candidate_ecology_figures.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: build-candidate-ecology-figures
+#| echo: true
 suppressPackageStartupMessages({
   library(data.table)
   library(ggplot2)
@@ -14,8 +38,19 @@ if (!nzchar(data_root) || !dir.exists(data_root)) {
   stop("Provide the PRJEB79569 data root as the first argument or PHAGE_UV_DATA_ROOT.")
 }
 
-script_arg <- grep("^--file=", commandArgs(), value = TRUE)
-script_path <- normalizePath(sub("^--file=", "", script_arg[[1L]]))
+script_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+if (!nzchar(script_path)) {
+  script_arg <- grep("^--file=", commandArgs(), value = TRUE)
+  if (length(script_arg)) script_path <- sub("^--file=", "", script_arg[[1L]])
+}
+if (!nzchar(script_path)) {
+  candidates <- c(
+    file.path(getwd(), "scripts", "build_candidate_ecology_figures.qmd"),
+    file.path(getwd(), "build_candidate_ecology_figures.qmd")
+  )
+  script_path <- candidates[file.exists(candidates)][[1L]]
+}
+script_path <- normalizePath(script_path)
 repo_root <- dirname(dirname(script_path))
 source(file.path(repo_root, "R", "figure_style.R"))
 
@@ -333,3 +368,5 @@ manifest <- data.table(
 fwrite(manifest, file.path(out_root, "candidate_figure_manifest.tsv"), sep = "\t")
 
 message("Wrote unallocated candidate figures to: ", figures_dir)
+
+```

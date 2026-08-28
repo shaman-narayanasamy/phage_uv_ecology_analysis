@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Build vOTU Replication Inputs"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/build_votu_replication_inputs.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_votu_replication_inputs.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: build-votu-replication-inputs
+#| echo: true
 suppressPackageStartupMessages({
   library(data.table)
   library(ggplot2)
@@ -231,3 +255,5 @@ manifest <- data.table(
 fwrite(manifest, file.path(out_dir, "poster_replication_manifest.tsv"), sep = "\t")
 
 message("Wrote poster-replication vOTU/UV outputs to: ", out_dir)
+
+```

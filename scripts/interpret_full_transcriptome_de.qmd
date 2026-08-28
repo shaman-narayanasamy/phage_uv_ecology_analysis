@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Interpret Full-Transcriptome Differential Expression"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/interpret_full_transcriptome_de.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/interpret_full_transcriptome_de.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: interpret-full-transcriptome-de
+#| echo: true
 # Post-model interpretation of the complete PRJEB79569 transcriptome-wide DE
 # universe. This script never fits a category-restricted expression model.
 
@@ -11,11 +35,15 @@ suppressPackageStartupMessages({
   library(matrixStats)
 })
 
+notebook_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)
-repo_root <- if (length(script_file)) {
+repo_root <- if (nzchar(notebook_path)) {
+  normalizePath(file.path(dirname(notebook_path), ".."))
+} else if (length(script_file)) {
   normalizePath(file.path(dirname(sub("^--file=", "", script_file[[1]])), ".."))
 } else {
-  normalizePath(".")
+  current <- normalizePath(".")
+  if (basename(current) == "scripts") dirname(current) else current
 }
 source(file.path(repo_root, "R", "full_de_interpretation_functions.R"))
 source(file.path(repo_root, "R", "figure_style.R"))
@@ -34,7 +62,7 @@ parse_cli <- function(args) {
   )
   if ("--help" %in% args || "-h" %in% args) {
     cat(paste(
-      "Usage: Rscript scripts/interpret_full_transcriptome_de.R [options]",
+      "Usage: bash scripts/run_qmd.sh scripts/interpret_full_transcriptome_de.qmd [options]",
       "  --de-dir PATH",
       "  --taxonomy PATH",
       "  --signature-hits PATH",
@@ -470,6 +498,8 @@ run_workflow <- function(args) {
   invisible(result_summary)
 }
 
-if (sys.nframe() == 0L) {
+if (sys.nframe() == 0L && !interactive()) {
   run_workflow(parse_cli(commandArgs(trailingOnly = TRUE)))
 }
+
+```

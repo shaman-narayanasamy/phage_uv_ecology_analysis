@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Check MGnify PRJEB79569"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/check_mgnify_prjeb79569.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/check_mgnify_prjeb79569.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: check-mgnify-prjeb79569
+#| echo: true
 args <- commandArgs(trailingOnly = TRUE)
 outdir <- if (length(args) >= 1) args[[1]] else "metadata"
 dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
@@ -66,3 +90,5 @@ write_status(list(
   timestamp = format(Sys.time(), "%Y-%m-%dT%H:%M:%S%z")
 ))
 
+
+```

@@ -66,6 +66,15 @@ evidence of DNA damage, mutagenesis, or adaptation.
 - Reproducible audit report:
   `analysis/phage_uv_ecology.qmd`
 
+## Executable analysis sources
+
+The 16 standalone analysis entrypoints are canonical Quarto notebooks under
+`scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
+[arguments...]` for exact command-line execution. The runner uses a temporary
+purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
+Notebook rendering does not execute analysis code automatically. Reusable
+modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
+
 ## Analysis boundaries
 
 - Every subset-first SOS, UV-response, DNA-repair, RNA:DNA, temporal-module,
@@ -86,15 +95,18 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 The complete venue-neutral first draft, all current-evidence main and
 supplementary figures, descriptive legends, bibliography, and claim audit are
-ready for author review. The argument is fixed provisionally around cycle-led
-global geometry, a broad bidirectional adjusted membrane coefficient, narrow
-functional support, widespread organism-level coherence, recurrent gene-level
-structure, and descriptive population-genomic heterogeneity.
+ready for author review. The versioned Google Doc now contains the complete
+draft and all nine current figure previews; the pre-replacement document and
+the completed replacement are both named in version history. The argument is
+fixed provisionally around cycle-led global geometry, a broad bidirectional
+adjusted membrane coefficient, narrow functional support, widespread
+organism-level coherence, recurrent gene-level structure, and descriptive
+population-genomic heterogeneity.
 
 ## Next decision
 
-Move the complete draft into the existing Google Doc after browser
-transmission is confirmed, import `manuscript/references.bib` into Zotero, and
-begin author revision. Once the user edits accepted prose, use Suggesting mode.
-Do not wait for or manage the delegated 16S analysis; preserve its Figure 5
-insertion point.
+Import `manuscript/references.bib` into Zotero and begin author revision in the
+existing Google Doc. The agent-authored starting draft may remain in regular
+editing mode while the user comments and suggests. If the user supplies revised
+or accepted prose, use Suggesting mode for agent changes. Do not wait for or
+manage the delegated 16S analysis; preserve its Figure 5 insertion point.

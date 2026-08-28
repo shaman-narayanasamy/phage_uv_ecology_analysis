@@ -66,8 +66,27 @@ manifests/    data and code provenance
 manuscript/   manuscript scaffold
 metadata/     versioned sample metadata
 notes/        durable handoffs
-scripts/      reproducible analysis and validation scripts
+scripts/      Quarto analysis notebooks, runners, and validation helpers
 ```
+
+## Quarto notebook workflow
+
+The 16 standalone R analysis entrypoints are maintained as Quarto notebooks in
+`scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
+chunk while inspecting objects inline. Automatic execution during rendering is
+disabled because several notebooks write or replace project outputs.
+
+For the exact command-line behaviour of the former `Rscript` entrypoints,
+including positional arguments, use the repository runner:
+
+```sh
+bash scripts/run_qmd.sh scripts/run_full_transcriptome_edger.qmd --help
+```
+
+The runner extracts the R source into a temporary directory, supplies the
+notebook path for repository discovery, executes it with `Rscript`, and removes
+the temporary extraction. Files in `R/` remain sourceable modules and files in
+`tests/` remain automated R tests; they are not standalone notebooks.
 
 ## Validation
 
@@ -76,9 +95,9 @@ output directory, add the population-genomics and supplementary suite, then
 validate the exact counts, tables, registry, and checksums:
 
 ```sh
-Rscript scripts/build_manuscript_figure_candidates.R /path/to/fresh/output
-Rscript scripts/build_recurrent_gene_candidate.R /path/to/fresh/output
-Rscript scripts/build_remaining_manuscript_figures.R /path/to/fresh/output
+bash scripts/run_qmd.sh scripts/build_manuscript_figure_candidates.qmd /path/to/fresh/output
+bash scripts/run_qmd.sh scripts/build_recurrent_gene_candidate.qmd /path/to/fresh/output
+bash scripts/run_qmd.sh scripts/build_remaining_manuscript_figures.qmd /path/to/fresh/output
 Rscript tests/test_manuscript_figure_candidates.R /path/to/fresh/output
 ```
 

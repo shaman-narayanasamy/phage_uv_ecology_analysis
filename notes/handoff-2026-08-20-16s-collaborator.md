@@ -30,7 +30,7 @@ The committed input contracts are:
   sample order;
 - `metadata/16s_ena_fastq_manifest.tsv`: exact HTTPS URL, filename, byte count,
   and ENA MD5 for every R1/R2 file;
-- `scripts/build_16s_ena_manifests.R`: reproducibly rebuild and validate both
+- `scripts/build_16s_ena_manifests.qmd`: reproducibly rebuild and validate both
   manifests from the ENA Portal report;
 - `scripts/fetch_16s_ena_reads.sh`: resumable, checksum-enforcing downloader to
   an explicitly chosen data directory.

@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Evaluate Temporal Cluster Stability"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/evaluate_temporal_cluster_stability.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/evaluate_temporal_cluster_stability.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: evaluate-temporal-cluster-stability
+#| echo: true
 suppressPackageStartupMessages({
   library(data.table)
   library(cluster)
@@ -212,3 +236,5 @@ fwrite(
 )
 
 message("Wrote multi-method temporal cluster stability diagnostics.")
+
+```

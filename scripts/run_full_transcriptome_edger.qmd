@@ -1,5 +1,29 @@
-#!/usr/bin/env Rscript
+---
+title: "Run Full-Transcriptome edgeR"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
 
+This Quarto notebook is the canonical executable source for `scripts/run_full_transcriptome_edger.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/run_full_transcriptome_edger.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: run-full-transcriptome-edger
+#| echo: true
 # Transcriptome-wide edgeR quasi-likelihood analysis for PRJEB79569.
 #
 # This workflow deliberately starts from every feature in the staged, headerless
@@ -23,11 +47,16 @@ DEFAULT_MIN_TOTAL_COUNT <- 15
 abort <- function(...) stop(sprintf(...), call. = FALSE)
 
 repo_root <- function() {
+  notebook_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+  if (nzchar(notebook_path)) {
+    return(normalizePath(file.path(dirname(notebook_path), "..")))
+  }
   script_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
   if (length(script_arg)) {
     return(normalizePath(file.path(dirname(sub("^--file=", "", script_arg[[1]])), "..")))
   }
-  normalizePath(".")
+  current <- normalizePath(".")
+  if (basename(current) == "scripts") dirname(current) else current
 }
 
 default_data_root <- function(root = repo_root()) {
@@ -54,7 +83,7 @@ parse_cli <- function(args) {
 
   if ("--help" %in% args || "-h" %in% args) {
     cat(paste(
-      "Usage: Rscript scripts/run_full_transcriptome_edger.R [options]",
+      "Usage: bash scripts/run_qmd.sh scripts/run_full_transcriptome_edger.qmd [options]",
       "",
       "Options:",
       "  --metadata PATH          Physical-sample metadata TSV",
@@ -763,4 +792,6 @@ run_workflow <- function(args) {
 
 main <- function() run_workflow(parse_cli(commandArgs(trailingOnly = TRUE)))
 
-if (sys.nframe() == 0L) main()
+if (sys.nframe() == 0L && !interactive()) main()
+
+```
