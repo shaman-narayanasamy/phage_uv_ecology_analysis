@@ -10,9 +10,11 @@ project storage.
 
 The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
 six-cell recurrence interpretation, and the manuscript workflow rebuild are
-complete. Four unnumbered manuscript candidates and five supplementary
-candidates are built and visually verified; the delegated 16S figure remains
-the only reserved external insertion. A complete venue-neutral first draft,
+complete. Six unnumbered manuscript candidates and five supplementary
+candidates are built and visually verified; two of the manuscript candidates
+are descriptive taxonomic-context options that remain unallocated, and the
+delegated 16S figure remains the only reserved external insertion. A complete
+venue-neutral first draft,
 descriptive legend set, Zotero-importable bibliography, and machine-readable
 claim audit are ready for scientific and voice review. No subset-first
 expression model is valid.
@@ -71,7 +73,7 @@ scripts/      Quarto analysis notebooks, runners, and validation helpers
 
 ## Quarto notebook workflow
 
-The 16 standalone R analysis entrypoints are maintained as Quarto notebooks in
+The 17 standalone R analysis entrypoints are maintained as Quarto notebooks in
 `scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
 chunk while inspecting objects inline. Automatic execution during rendering is
 disabled because several notebooks write or replace project outputs.
@@ -98,6 +100,7 @@ validate the exact counts, tables, registry, and checksums:
 bash scripts/run_qmd.sh scripts/build_manuscript_figure_candidates.qmd /path/to/fresh/output
 bash scripts/run_qmd.sh scripts/build_recurrent_gene_candidate.qmd /path/to/fresh/output
 bash scripts/run_qmd.sh scripts/build_remaining_manuscript_figures.qmd /path/to/fresh/output
+bash scripts/run_qmd.sh scripts/build_taxonomic_context_figures.qmd /path/to/fresh/output
 Rscript tests/test_manuscript_figure_candidates.R /path/to/fresh/output
 ```
 
@@ -109,6 +112,11 @@ The remaining-figure builder adds one coverage-qualified population-genomics
 candidate and five supplementary vector PDFs from canonical result tables. It
 uses staged promotion and refreshes the registry and checksum inventory only
 after all six PDFs render successfully.
+
+The taxonomic-context builder adds descriptive MAG and vOTU candidates. Both
+trees are taxonomy-derived dendrograms rather than sequence phylogenies. The
+MAG panel overlays complete-universe post-model summaries; the vOTU panel is a
+descriptive catalogue view and carries no treatment or host-phage inference.
 
 Validate manifest structure after changing tracked inputs or outputs:
 

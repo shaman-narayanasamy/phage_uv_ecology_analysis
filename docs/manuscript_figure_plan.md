@@ -53,6 +53,25 @@ renaming the canonical artifacts.
    - expected to contribute community composition and ordination, without blocking
      the current figure work.
 
+## Additional unallocated candidates
+
+1. `mag-taxonomic-context.pdf`:
+   - taxonomy-derived circular dendrogram for all 348 dereplicated MAGs;
+   - fixed phylum colours plus current adjusted-membrane coherence,
+     recurrent-gene balance, completeness, and contamination rings;
+   - descriptive taxonomic context, not a marker-gene or genome sequence
+     phylogeny.
+2. `votu-taxonomic-context.pdf`:
+   - taxonomy-derived cladogram of 607 deduplicated high-quality vOTUs grouped
+     into 45 current taxonomy paths;
+   - accompanying realm-level catalogue composition;
+   - descriptive catalogue context only, with no treatment-response or
+     host-phage inference.
+
+These candidates restore the useful descriptive tree concepts from the
+original poster without importing its superseded expression overlays. Their
+main-text or supplementary placement and any panel combination remain open.
+
 ## Current supplementary set
 
 1. `supplementary-model-diagnostics.pdf`:
@@ -79,6 +98,7 @@ supplementary recurrence panel is created.
 
 Subset-first SOS, UV-response, DNA-repair, RNA:DNA, temporal-module, and
 module-clustering figures remain quarantined. The retired broad inStrain comparison
-cannot be revived as manuscript evidence. Only full-universe expression outputs and
-the separately governed descriptive population-genomics outputs may feed the current
-candidates.
+cannot be revived as manuscript evidence. Inferential candidates may use only
+full-universe expression outputs and the separately governed descriptive
+population-genomics outputs. Current quality and taxonomy catalogues may feed
+clearly labelled descriptive context figures without becoming treatment evidence.

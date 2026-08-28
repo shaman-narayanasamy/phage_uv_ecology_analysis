@@ -66,6 +66,16 @@ without renaming files. The working draft uses:
 9. Supplementary Figure S4: `supplementary-mag-coherence.pdf`.
 10. Supplementary Figure S5: `supplementary-population-genomics.pdf`.
 
+Two additional candidates remain deliberately unallocated:
+
+- `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with current
+  full-universe post-model MAG and quality overlays;
+- `votu-taxonomic-context.pdf`: taxonomy-derived cladogram of 607 current
+  high-quality vOTUs in 45 taxonomy groups plus realm composition.
+
+Neither is a sequence phylogeny. The vOTU candidate is descriptive only and
+does not support treatment-response or host-phage inference.
+
 Control is fixed to `#8FCB8A`; phage-UV is fixed to `#7E57C2`. The same mappings
 apply in every main and supplementary figure.
 
@@ -93,10 +103,15 @@ The document is now titled `PRJEB79569 phage-UV ecology | Manuscript draft v1`.
 Before replacement, the obsolete state was preserved as the named version
 `Pre-manuscript figure plan and legends - 2026-08-27`. The document was then
 atomically replaced with the complete manuscript and a gallery containing all
-nine current figure previews. A Markdown export verified 4,073 words, the
+nine then-current figure previews. A Markdown export verified 4,073 words, the
 editorial insertion note, the gallery at the end of the document, and exactly
-nine image references. The completed state was preserved as the named version
-`Manuscript draft v1 with complete figure gallery - 2026-08-28`.
+nine image references. The completed nine-preview state was preserved as the
+named version `Manuscript draft v1 with complete figure gallery - 2026-08-28`.
+The MAG and vOTU taxonomic-context previews were then appended at the end of
+the gallery. A fresh Markdown export verified 4,089 words, the unchanged
+manuscript title and editorial note, and exactly 11 image references. This
+state was preserved as `Manuscript draft v1 with eleven-figure gallery -
+2026-08-28`.
 
 The agent authored this draft, so regular editing mode is appropriate while the
 user begins commenting and suggesting. If the user supplies revised or accepted
@@ -110,7 +125,7 @@ that plain author-year text is a live Zotero citation.
 
 ## Quarto execution contract
 
-All 16 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 17 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -133,14 +148,16 @@ in `tests/` remain `.R`; they are modules and tests, not analysis notebooks.
 - `Rscript tests/test_manuscript_figure_candidates.R <canonical-output>`.
 - `bash scripts/validate_manifests.sh`.
 - `Rscript tests/test_quarto_entrypoints.R`.
-- Quarto 1.9.37 structure renders for all 16 `scripts/*.qmd` notebooks with
+- Quarto 1.9.37 structure renders for all 17 `scripts/*.qmd` notebooks with
   execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.
 
-All passed on 2026-08-27. All nine one-page vector PDFs were rendered to PNG
-and visually inspected. The remaining-figure builder stages its outputs and
-promotes them only after all six new PDFs render successfully.
+The original suite passed on 2026-08-27. On 2026-08-28, the two taxonomic-context
+PDFs were also rendered to PNG and visually inspected. All 11 one-page vector
+PDFs are governed by the candidate registry and checksum inventory. The
+remaining-figure and taxonomic-context builders stage their outputs before
+promotion.
 
 ## Next action
 
