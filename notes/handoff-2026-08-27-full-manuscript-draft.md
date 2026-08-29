@@ -117,8 +117,14 @@ apply in every main and supplementary figure.
 - Population genomics is descriptive and limited to a selected five-MAG set.
 - Host-phage links remain deferred unless they materially clarify a supported
   organism-level result.
-- The 16S analysis is owned by the external expert collaborator. Do not manage,
-  audit, or rerun it from this workstream. Preserve the Figure 5 insertion point.
+- The 16S analysis is owned by the external expert collaborator. Do not manage
+  or rerun it from this workstream. Review the returned package only for sample
+  mapping, provenance, inference, and manuscript integration under issue #30.
+  Figure 5 is a conditional working slot, not a guaranteed allocation.
+- The original `smarbas` repository invitation had expired. It was replaced on
+  2026-08-29 with active pending write invitation `330960159`, and the
+  collaborator was notified on GitHub issue #30. No result or pull request had
+  been returned at that check.
 
 ## Google Docs and Zotero
 
