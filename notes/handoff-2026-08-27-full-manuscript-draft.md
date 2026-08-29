@@ -58,7 +58,7 @@ The submission-readiness claim audit is recorded in
 counts: 2,671 phage-UV-higher and 2,709 control-higher genes agree in all six
 cells, while 663 and 942, respectively, agree in five of six.
 
-## Provisional figure allocation
+## Frozen pre-16S figure allocation
 
 Canonical artifacts remain unnumbered so the authors can reallocate them
 without renaming files. The working draft uses:
@@ -73,11 +73,13 @@ without renaming files. The working draft uses:
 8. Supplementary Figure S3: `supplementary-functional-coefficients.pdf`.
 9. Supplementary Figure S4: `supplementary-mag-coherence.pdf`.
 10. Supplementary Figure S5: `supplementary-population-genomics.pdf`.
+11. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
+12. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
 
 The earlier `global-transcriptome-structure.pdf` and
 `functional-organism-restructuring.pdf` layouts remain checksum-governed for
-provenance but are no longer proposed as manuscript figures. Two additional
-candidates remain deliberately unallocated:
+provenance but are no longer proposed as manuscript figures. Two descriptive
+taxonomic candidates are allocated to the supplement:
 
 - `mag-taxonomic-context.pdf`: taxonomy-derived 348-MAG dendrogram with rings
   ordered as completeness, contamination, current full-universe post-model MAG
@@ -90,6 +92,11 @@ candidates remain deliberately unallocated:
 
 Neither is a sequence phylogeny. The vOTU candidate is descriptive only and
 does not support treatment-response or host-phage inference.
+
+The complete visual review is recorded in
+`docs/figure_visual_qa_2026-08-29.md`. Figure 1 was recomposed to reduce unused
+space in the experimental-design panel while preserving the aligned community
+profile.
 
 Control is fixed to `#8FCB8A`; phage-UV is fixed to `#7E57C2`. The same mappings
 apply in every main and supplementary figure.

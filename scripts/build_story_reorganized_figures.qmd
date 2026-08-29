@@ -210,9 +210,9 @@ p_community <- ggplot(
   guides(fill = guide_legend(ncol = 1, byrow = TRUE, override.aes = list(colour = NA)))
 
 figure_community <- (p_design | p_mds) / p_community +
-  plot_layout(widths = c(0.85, 1.15), heights = c(0.72, 1.55))
+  plot_layout(widths = c(0.72, 1.28), heights = c(0.55, 1.65))
 community_path <- file.path(staging, "figures", "community-transcriptome-trajectory.pdf")
-ggsave(community_path, figure_community, width = 13.5, height = 9.5, device = grDevices::pdf)
+ggsave(community_path, figure_community, width = 13.5, height = 8.8, device = grDevices::pdf)
 
 # Figure 2: move from the complete adjusted-condition landscape to functional
 # rank coherence and organism-resolved coherence.
@@ -357,7 +357,7 @@ registry[artifact %chin% c(
 ), status := "legacy_layout_preserved"]
 additions <- data.table(
   artifact = basename(required_figures),
-  status = "candidate_main_story",
+  status = c("allocated_main_figure_1", "allocated_main_figure_2"),
   panels = c(
     "experimental design; top-25 family community trajectory; sample MDS",
     "adjusted-condition expression landscape; functional rank tests; supported MAG counts; top organism effects"

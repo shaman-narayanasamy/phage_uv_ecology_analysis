@@ -131,3 +131,21 @@ landscapes.** Pairwise consensus differences per callable Mbp for all five MAGs
 passing the organism-level coverage rules. Grey cells indicate unavailable or
 coverage-failing comparisons. Pairs required at least 1 Mbp and 50% of the
 callable genome.
+
+**Supplementary Figure S6. MAG taxonomic context and family-level community
+profile.** (A) Taxonomy-derived circular dendrogram of 348 dereplicated MAGs.
+Tip points denote GTDB phylum. Concentric rings show estimated completeness,
+estimated contamination, support and direction for the adjusted membrane
+coefficient, and recurrent-gene balance. (B) Relative abundance of the 15 most
+abundant classified families, unclassified MAGs, and all remaining classified
+families among MAG-mapped metagenomic reads. Control is aligned above phage-UV
+across the six cycle-phase observations. The tree represents taxonomic
+classification, not sequence-derived evolutionary distance, and the abundance
+profiles are descriptive.
+
+**Supplementary Figure S7. vOTU taxonomic context.** (A) Taxonomy-derived
+cladogram of 607 deduplicated high-quality vOTUs grouped into 45 taxonomic
+paths. Point colour denotes realm and point size denotes the number of vOTUs in
+the group. (B) Number of qualifying vOTUs in each realm. The cladogram is not a
+sequence phylogeny and does not encode treatment response or host-phage
+linkage.

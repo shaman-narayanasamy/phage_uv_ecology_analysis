@@ -348,7 +348,7 @@ write_recurrence_outputs <- function() {
     registry,
     data.table(
       artifact = figure_name,
-      status = "candidate_unallocated",
+      status = "allocated_main_figure_3",
       panels = paste(
         "sequential selection provenance; recurrence direction and cell concordance;",
         "balanced top-gene six-cell effect heatmap"

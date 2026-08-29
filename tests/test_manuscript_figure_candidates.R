@@ -231,11 +231,19 @@ observed_realms <- setNames(votu_realms$n_votus, votu_realms$realm_display)
 expect(identical(as.integer(observed_realms[names(expected_realms)]), as.integer(expected_realms)),
        "vOTU realm composition is stable and unclassified labels are combined")
 
-expect(nrow(registry) == 13L && sum(registry$status == "candidate_unallocated") == 4L &&
-         sum(registry$status == "supplementary_unallocated") == 5L &&
-         sum(registry$status == "legacy_layout_preserved") == 2L &&
-         sum(registry$status == "candidate_main_story") == 2L,
-       "registry distinguishes the main story, preserved layouts, and supplementary candidates")
+expect(
+  nrow(registry) == 13L &&
+    identical(
+      sort(registry$status[grepl("^allocated_main_figure_", registry$status)]),
+      paste0("allocated_main_figure_", 1:4)
+    ) &&
+    identical(
+      sort(registry$status[grepl("^allocated_supplementary_figure_", registry$status)]),
+      paste0("allocated_supplementary_figure_S", 1:7)
+    ) &&
+    sum(registry$status == "legacy_layout_preserved") == 2L,
+  "registry distinguishes allocated main, supplementary, and preserved layouts"
+)
 expect(identical(registry$artifact, c(
   "global-transcriptome-structure.pdf",
   "functional-organism-restructuring.pdf",
