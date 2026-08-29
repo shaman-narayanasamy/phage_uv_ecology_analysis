@@ -84,8 +84,10 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   `docs/expression_quarantine.md`.
 - Population genomics is descriptive, coverage-qualified, and limited to a
   selected five-MAG set. See `docs/population_genomics_descriptive.md`.
-- The 16S analysis is owned by a separate collaborator. Do not manage it from
-  this workstream.
+- The 16S analysis is owned by a separate collaborator. Do not manage or rerun
+  it from this workstream; audit only the returned package for integration.
+- A fresh write invitation for `smarbas` is pending as of 2026-08-29 after the
+  earlier invitation expired. No returned result or pull request was present.
 - Host-phage integration is deferred. Use it only if it materially clarifies a
   supported global result.
 - Canonical figure filenames remain unnumbered. The story-reorganized working

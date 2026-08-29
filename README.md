@@ -10,13 +10,13 @@ project storage.
 
 The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
 six-cell recurrence interpretation, and the manuscript workflow rebuild are
-complete. Six unnumbered manuscript candidates and five supplementary
-candidates are built and visually verified; two of the manuscript candidates
-are descriptive taxonomic-context options that remain unallocated, and the
-delegated 16S figure remains the only reserved external insertion. A complete
-venue-neutral first draft,
-descriptive legend set, Zotero-importable bibliography, and machine-readable
-claim audit are ready for scientific and voice review. No subset-first
+complete. Four main figures and seven supplementary figures are allocated and
+visually verified. The candidate store contains 13 PDFs because it also retains
+two analysis-led predecessor layouts for provenance. A fifth main figure is a
+conditional insertion point for the delegated 16S result, not a guaranteed
+allocation. The evidence-led venue-neutral manuscript, descriptive legend set,
+Zotero-importable bibliography, citation audit, editorial audit, and
+machine-readable claim audit are ready for author review. No subset-first
 expression model is valid.
 
 The experimental design contains one control membrane and one treated membrane
