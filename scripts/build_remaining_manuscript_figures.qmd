@@ -644,7 +644,10 @@ write_remaining_outputs <- function(root, output_dir) {
       "supplementary-mag-coherence.pdf",
       "supplementary-population-genomics.pdf"
     ),
-    status = c("candidate_unallocated", rep("supplementary_unallocated", 5)),
+    status = c(
+      "allocated_main_figure_4",
+      paste0("allocated_supplementary_figure_S", 1:5)
+    ),
     panels = c(
       "strain membership; five-MAG distance summary; Propionicimonas pairwise landscape",
       "feature filtering; library normalization; model dispersion summaries",

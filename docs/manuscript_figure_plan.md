@@ -1,14 +1,14 @@
 # Manuscript figure plan
 
-Status: story-reorganized candidate architecture. Artifact filenames remain
-unnumbered; the manuscript uses provisional numbering for review.
+Status: pre-16S allocation frozen after complete visual review on 2026-08-29.
+Artifact filenames remain unnumbered so the allocation can be revised without
+breaking provenance.
 
-Figures are being built before the manuscript argument is frozen. Main-text versus
-supplementary placement and panel assignments remain open until the candidates have
-been reviewed together. Every candidate and supplementary figure must use
+The current main-text and supplementary candidates have been reviewed together.
+Every candidate and supplementary figure must use
 `R/figure_style.R` and the fixed visual mappings in `docs/figure_visual_grammar.md`.
 
-## Provisional manuscript allocation
+## Frozen pre-16S manuscript allocation
 
 The working draft uses the following labels so that every quantitative claim has
 an explicit destination. These labels can change during author review without
@@ -18,10 +18,13 @@ renaming the canonical artifacts.
 2. Figure 2: `transcriptome-response-architecture.pdf`.
 3. Figure 3: `recurrent-gene-structure.pdf`.
 4. Figure 4: `population-genomic-heterogeneity.pdf`.
-5. Figure 5: reserved for the delegated 16S result.
+5. Figure 5: conditional insertion point for the delegated 16S result; it is
+   included only if the returned analysis materially improves the story.
 6. Supplementary Figures S1-S5: model diagnostics, cycle interactions, all
    functional coefficients, all MAG coefficients, and all five population-genomic
    pairwise landscapes, respectively.
+7. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
+8. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
 
 ## Current candidate set
 
@@ -64,7 +67,7 @@ renaming the canonical artifacts.
    and 2 above; they are retained for provenance, not proposed as additional
    manuscript figures.
 
-## Additional unallocated candidates
+## Supplementary taxonomic context
 
 1. `mag-taxonomic-context.pdf`:
    - taxonomy-derived circular dendrogram for all 348 dereplicated MAGs;
@@ -85,9 +88,10 @@ renaming the canonical artifacts.
    - descriptive catalogue context only, with no treatment-response or
      host-phage inference.
 
-These candidates restore the useful descriptive tree concepts from the
+These supplementary candidates restore the useful descriptive tree concepts from the
 original poster without importing its superseded expression overlays. Their
-main-text or supplementary placement and any panel combination remain open.
+descriptive status is explicit: neither tree is a sequence phylogeny, and the
+viral panel carries no treatment-response or host-phage inference.
 
 ## Integrated taxonomic layout comparison
 

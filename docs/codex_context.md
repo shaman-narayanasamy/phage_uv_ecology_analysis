@@ -89,11 +89,12 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 - Canonical figure filenames remain unnumbered. The story-reorganized working
   draft begins with `community-transcriptome-trajectory.pdf`, then
   `transcriptome-response-architecture.pdf`, followed by the recurrence and
-  population-genomics candidates. Figure 5 remains reserved for delegated 16S.
+  population-genomics candidates. Figure 5 remains a conditional insertion
+  point for delegated 16S.
   Use the fixed mappings in `docs/figure_visual_grammar.md` throughout.
-- Two additional unallocated descriptive candidates provide MAG and vOTU
-  taxonomic context. They are taxonomy-derived dendrograms, not sequence
-  phylogenies, and do not broaden the treatment or host-phage claims.
+- Supplementary Figures S6 and S7 provide MAG and vOTU taxonomic context. They
+  are taxonomy-derived dendrograms, not sequence phylogenies, and do not broaden
+  the treatment or host-phage claims.
 - A separate taxonomic-resolution exploration compares top-25 family, genus,
   and species stacked profiles using phylum-hued microshades remainders. It also
   contains an information-retention audit and a family heat-tree time-series
@@ -135,5 +136,5 @@ two previews and their legends in the existing Google Doc. Import
 `manuscript/references.bib` into Zotero for citation management. The
 agent-authored starting draft may remain in regular editing mode while the user
 comments and suggests. If the user supplies revised or accepted prose, use
-Suggesting mode for agent changes. Do not wait for or manage the delegated 16S
-analysis; preserve its Figure 5 insertion point.
+Suggesting mode for agent changes. Do not manage the delegated 16S analysis;
+preserve its conditional Figure 5 insertion point.

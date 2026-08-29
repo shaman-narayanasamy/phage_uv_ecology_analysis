@@ -668,7 +668,10 @@ build_taxonomic_context <- function(root, output_dir) {
   registry <- fread(paths$registry)
   additions <- data.table(
     artifact = c("mag-taxonomic-context.pdf", "votu-taxonomic-context.pdf"),
-    status = "candidate_unallocated",
+    status = c(
+      "allocated_supplementary_figure_S6",
+      "allocated_supplementary_figure_S7"
+    ),
     panels = c(
       "348-MAG taxonomic dendrogram with completeness and contamination first; adjusted membrane coherence; recurrent-gene balance; family-level metagenomic community profile",
       "current high-quality vOTU taxonomy cladogram; realm-level catalogue composition"
@@ -684,7 +687,7 @@ build_taxonomic_context <- function(root, output_dir) {
   promote_file(registry_stage, paths$registry)
   write_checksums(output_dir, staging)
 
-  cat(sprintf("Created two unallocated taxonomic-context candidates in %s\n", output_dir))
+  cat(sprintf("Created two supplementary taxonomic-context figures in %s\n", output_dir))
 }
 
 args <- commandArgs(trailingOnly = TRUE)

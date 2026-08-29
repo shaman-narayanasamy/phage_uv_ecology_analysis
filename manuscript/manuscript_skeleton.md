@@ -200,6 +200,9 @@ identity and abundance of prominent families changed among cycles and phases
 (Figure 1B). This descriptive profile establishes the community through which
 the transcriptional results are interpreted; it is not a replicated test of a
 treatment effect.
+Taxonomy-derived summaries of the 348-MAG and 607-vOTU catalogues provide
+broader descriptive context (Supplementary Figures S6 and S7); neither
+represents a sequence phylogeny.
 
 In the leading log-fold-change space, samples were organised primarily by
 cycle. Cycle-1 samples occupied the left of the ordination, cycle-2 samples the
@@ -513,6 +516,22 @@ landscapes.** Pairwise consensus differences per callable Mbp for all five MAGs
 passing the organism-level coverage rules. Grey cells indicate unavailable or
 coverage-failing comparisons. Pairs required at least 1 Mbp and 50% of the
 callable genome.
+
+**Supplementary Figure S6. MAG taxonomic context and family-level community
+profile.** (A) Taxonomy-derived circular dendrogram of 348 dereplicated MAGs.
+Tip points denote GTDB phylum. Concentric rings show estimated completeness,
+estimated contamination, adjusted-membrane gene-set coherence, and
+recurrent-gene balance. (B) Relative abundance of the 15 most abundant
+classified families, unclassified MAGs, and all remaining classified families
+among MAG-mapped metagenomic reads. Control is aligned above phage-UV across the
+six cycle-phase observations. The dendrogram is classification-derived, not a
+sequence phylogeny, and the abundance profiles are descriptive.
+
+**Supplementary Figure S7. vOTU taxonomic context.** (A) Taxonomy-derived
+cladogram of 607 deduplicated high-quality vOTUs grouped into 45 taxonomic
+paths. Point colour denotes realm and point size denotes group size. (B) Number
+of qualifying vOTUs in each realm. The cladogram is not a sequence phylogeny
+and does not encode treatment response or host-phage linkage.
 
 ## Editorial insertion note, not manuscript text
 
