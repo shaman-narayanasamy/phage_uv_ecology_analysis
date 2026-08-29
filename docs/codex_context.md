@@ -68,7 +68,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 19 standalone analysis entrypoints are canonical Quarto notebooks under
+The 20 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -100,6 +100,12 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   diagnostic. Family is the deepest defensible main-text resolution and its
   top-25 microshades profile now appears prominently in revised Figure 1;
   genus, species, and heat-tree variants remain exploratory.
+- A separate four-PDF taxonomic layout comparison pairs the MAG tree with the
+  family profile and the vOTU tree with a 12-sample realm profile, each as bars
+  and areas. Bars are recommended because the six observations are discrete.
+  Viral realm composition is 93.3-97.1% Duplodnaviria across samples, so the
+  high-level viral panel is descriptive supplementary context rather than a
+  strong longitudinal main-text result.
 
 ## Current manuscript state
 
