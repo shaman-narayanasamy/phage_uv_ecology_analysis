@@ -45,6 +45,9 @@ Rscript tests/test_quarto_entrypoints.R || failures=$((failures + 1))
 printf '\nChecking manuscript bibliography...\n'
 Rscript tests/test_references.R || failures=$((failures + 1))
 
+printf '\nChecking manuscript structure and editorial boundaries...\n'
+Rscript tests/test_manuscript_structure.R || failures=$((failures + 1))
+
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
   NR == 1 { next }

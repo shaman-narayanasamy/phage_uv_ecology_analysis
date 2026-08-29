@@ -1,6 +1,6 @@
 # Handoff: PRJEB79569 full manuscript draft
 
-Date: 2026-08-27; updated 2026-08-28
+Date: 2026-08-27; updated 2026-08-29
 
 This is the controlling scientific handoff. Start here, then read
 `docs/codex_context.md`. Do not reconstruct the project from chat, storage
@@ -8,8 +8,9 @@ cleanup, old tickets, or quarantined subset-first expression analyses.
 
 ## Current state
 
-The full current-evidence figure suite, two story-reorganized opening figures,
-and a complete venue-neutral manuscript draft are ready for author review.
+The full current-evidence figure suite and a complete, evidence-led
+venue-neutral manuscript are ready for author review. GitHub issue #29 completed
+the full editorial pass on 2026-08-29.
 
 - Working manuscript: `manuscript/manuscript_skeleton.md`.
 - Descriptive legends: `manuscript/figure_legends.md`.
@@ -18,15 +19,18 @@ and a complete venue-neutral manuscript draft are ready for author review.
 - Analysis-use boundary: `manuscript/analysis_registry.tsv`.
 - Figure architecture: `docs/manuscript_figure_plan.md`.
 - Fixed visual mappings: `docs/figure_visual_grammar.md`.
+- Editorial audit: `docs/manuscript_editorial_audit.md`.
 - Canonical figure output:
   `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_figure_candidates/`.
 
-The first draft was written under the knowledgebase scientific-writing and
-writing-voice protocols. It retains negative results, anchors quantitative
-claims to figures and tables, avoids em dashes, and ends each Results section
-with the evidence-bounded finding. It remains agent-authored text. Regular
-editing is permitted until the user begins revising accepted prose; after that,
-work in Suggesting mode.
+The manuscript was written and edited under the knowledgebase
+scientific-writing and writing-voice protocols. It retains negative results,
+anchors quantitative claims to figures and tables, avoids em dashes, separates
+the RNA landscape from per-cell regulation, and ends each Results section with
+the evidence-bounded finding. Structural, terminology, citation, figure-order,
+and quantitative checks pass. It remains agent-authored text. Regular editing
+is permitted until the user begins revising accepted prose; after that, work in
+Suggesting mode.
 
 ## Working argument
 
@@ -230,12 +234,12 @@ promotion.
 ## Submission-readiness roadmap
 
 GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issues #26
-through #28 have frozen the evidence boundary, finalized the figure allocation,
-and completed the current citation audit. Issue #29 edits the complete
-manuscript; #30 integrates the collaborator-owned 16S result if informative;
-#31 performs the final reproducibility audit; #32 selects and conforms to a
-defensible journal; #33 obtains author and coauthor approval; and #34 submits
-and archives the approved release.
+through #29 have frozen the evidence boundary, finalized and visually audited
+the figure allocation, completed the citation audit, and edited the complete
+manuscript. Issue #30 integrates the collaborator-owned 16S result if
+informative; #31 performs the final reproducibility audit; #32 selects and
+conforms to a defensible journal; #33 obtains author and coauthor approval; and
+#34 submits and archives the approved release.
 
 Work one issue at a time and close it only after its acceptance criteria are
 evidenced. Once the user supplies revised or accepted prose, all agent changes

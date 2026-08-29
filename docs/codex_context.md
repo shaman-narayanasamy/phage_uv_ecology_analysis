@@ -112,7 +112,7 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 
 ## Current manuscript state
 
-The complete venue-neutral first draft, story-reorganized main figures,
+The complete evidence-led venue-neutral manuscript, story-reorganized main figures,
 supplementary figures, two taxonomic-context candidates, descriptive legends,
 bibliography, and claim audit are ready for author review. The local candidate
 suite contains 13 PDFs, including two reader-facing opening figures and their
@@ -133,9 +133,10 @@ descriptive population-genomic heterogeneity.
 
 ## Next decision
 
-The evidence boundary, complete figure allocation, visual QA, and current
-citation audit are complete under GitHub issues #26 through #28. Continue with
-the complete manuscript edit in issue #29. Import the 14 records in
+The evidence boundary, complete figure allocation, visual QA, citation audit,
+and full manuscript edit are complete under GitHub issues #26 through #29.
+Proceed to issue #30 only when the collaborator-owned 16S result is returned;
+integrate it only if informative. Import the 14 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
 remain in regular editing mode while the user comments and suggests. If the
