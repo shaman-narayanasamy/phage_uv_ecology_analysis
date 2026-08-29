@@ -12,8 +12,9 @@ control membrane and one phage-UV membrane sampled during the initial and
 backflush phases of three cleaning cycles, giving 12 physical samples. (B)
 Relative abundance among MAG-mapped metagenomic reads for the top 25 classified
 families across the same six aligned cycle-phase positions. Named families use
-phylum-linked microshades; pale shades pool remaining or unresolved families
-within the same phylum, and grey denotes phyla outside the displayed set. The
+phylum-linked microshades adapted from Dahl et al. (2022); pale shades pool
+remaining or unresolved families within the same phylum, and grey denotes phyla
+outside the displayed set. The
 profile is descriptive and does not constitute a replicated treatment test.
 (C) Leading log-fold-change dimensions calculated from the TMM-normalised
 filtered expression matrix. Point colour denotes membrane, point shape denotes
@@ -144,8 +145,9 @@ classification, not sequence-derived evolutionary distance, and the abundance
 profiles are descriptive.
 
 **Supplementary Figure S7. vOTU taxonomic context.** (A) Taxonomy-derived
-cladogram of 607 deduplicated high-quality vOTUs grouped into 45 taxonomic
-paths. Point colour denotes realm and point size denotes the number of vOTUs in
+cladogram of 607 deduplicated high-quality vOTUs after quality assessment with
+CheckV (Nayfach et al., 2021), grouped into 45 taxonomic paths. Point colour
+denotes realm and point size denotes the number of vOTUs in
 the group. (B) Number of qualifying vOTUs in each realm. The cladogram is not a
 sequence phylogeny and does not encode treatment response or host-phage
 linkage.

@@ -42,6 +42,9 @@ Rscript tests/test_16s_handoff.R || failures=$((failures + 1))
 printf '\nChecking Quarto analysis entrypoints...\n'
 Rscript tests/test_quarto_entrypoints.R || failures=$((failures + 1))
 
+printf '\nChecking manuscript bibliography...\n'
+Rscript tests/test_references.R || failures=$((failures + 1))
+
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
   NR == 1 { next }
