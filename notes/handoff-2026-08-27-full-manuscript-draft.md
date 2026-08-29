@@ -157,10 +157,13 @@ user begins commenting and suggesting. If the user supplies revised or accepted
 prose for further editing, work only in Suggesting mode unless explicitly asked
 to replace it.
 
-No direct Zotero connector was available to the agent. The ten DOI-addressed
-records in `manuscript/references.bib` are the verified import queue. Import
-them into Zotero, then use Zotero field codes in Google Docs. Do not pretend
-that plain author-year text is a live Zotero citation.
+No direct Zotero connector was available to the agent. GitHub issue #28 closed
+the current citation audit on 2026-08-29. The 14 unique DOI-addressed records in
+`manuscript/references.bib` are the verified import queue, and
+`docs/citation_audit.md` records their roles and verification basis. Import them
+into Zotero, then use Zotero field codes in Google Docs. Do not pretend that
+plain author-year text is a live Zotero citation. Add 16S-specific references
+only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
@@ -226,12 +229,13 @@ promotion.
 
 ## Submission-readiness roadmap
 
-GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issue #26
-freezes the evidence boundary; #27 and #28 finalize figures and references; #29
-edits the complete manuscript; #30 integrates the collaborator-owned 16S result
-if informative; #31 performs the final reproducibility audit; #32 selects and
-conforms to a defensible journal; #33 obtains author and coauthor approval; and
-#34 submits and archives the approved release.
+GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issues #26
+through #28 have frozen the evidence boundary, finalized the figure allocation,
+and completed the current citation audit. Issue #29 edits the complete
+manuscript; #30 integrates the collaborator-owned 16S result if informative;
+#31 performs the final reproducibility audit; #32 selects and conforms to a
+defensible journal; #33 obtains author and coauthor approval; and #34 submits
+and archives the approved release.
 
 Work one issue at a time and close it only after its acceptance criteria are
 evidenced. Once the user supplies revised or accepted prose, all agent changes

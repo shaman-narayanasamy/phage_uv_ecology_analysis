@@ -37,6 +37,7 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `manuscript/manuscript_skeleton.md`: complete working manuscript draft;
 - `manuscript/figure_legends.md`: descriptive main and supplementary legends;
 - `manuscript/references.bib`: bibliography for import into Zotero;
+- `docs/citation_audit.md`: verified reference roles and live-Zotero boundary;
 - `manuscript/claim_evidence_registry.tsv`: claim-by-claim evidence audit;
 - `manuscript/analysis_registry.tsv`: current, descriptive, delegated,
   deferred, and prohibited workflow registry;

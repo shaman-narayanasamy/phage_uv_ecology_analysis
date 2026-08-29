@@ -99,6 +99,16 @@ first data record from the headerless inputs and rejected conflicting duplicate
 feature records. Features were represented by coordinate-aware identifiers
 containing the contig, start, end, gene identifier, and strand.
 
+MAG-level community profiles were calculated from the metagenomic CoverM
+read-count matrix (Aroney et al., 2025). Read counts were joined to the
+CAT/BAT-GTDB classification and summed by family within each physical sample.
+Relative abundance was calculated within the MAG-mapped read total. The 25
+families with the highest mean relative abundance were displayed using a
+microshades-inspired hierarchy in which phylum determined hue and taxonomic
+resolution determined shade (Dahl et al., 2022). The resulting profiles
+describe the recovered MAG fraction rather than absolute whole-community
+abundance.
+
 ### Complete-universe differential expression
 
 Differential expression was performed in R 4.5.1 using edgeR 4.8.2 (Robinson et
@@ -315,8 +325,9 @@ test remained significant against the complete expressed background. However,
 the median shift was small, almost 42% of SOS genes had negative coefficients,
 and none of the other seven repair and stress categories was supported for the
 same coefficient. Transcription of an SOS-associated gene set is not a direct
-measurement of DNA lesions. Calling this a community-wide DNA-damage response
-would exceed the evidence.
+measurement of DNA lesions because SOS induction is a regulated response that
+varies across organisms and physiological contexts (Maslowska et al., 2019).
+Calling this a community-wide DNA-damage response would exceed the evidence.
 
 The organism-level analysis explains why a narrow pathway account was
 insufficient. More than half of the eligible MAGs carried a coherent adjusted
@@ -371,15 +382,33 @@ Competing interests: [to be confirmed by the authors].
 
 ## References
 
+Aroney STN, Newell RJP, Nissen JN, Camargo AP, Tyson GW, Woodcroft BJ. 2025.
+CoverM: read alignment statistics for metagenomics. *Bioinformatics* 41:btaf147.
+https://doi.org/10.1093/bioinformatics/btaf147
+
 Benjamini Y, Hochberg Y. 1995. Controlling the false discovery rate: a practical
 and powerful approach to multiple testing. *Journal of the Royal Statistical
 Society Series B* 57:289-300. https://doi.org/10.1111/j.2517-6161.1995.tb02031.x
+
+Dahl EM, Neer E, Bowie KR, Leung ET, Karstens L. 2022. microshades: An R package
+for improving color accessibility and organization of microbiome data.
+*Microbiology Resource Announcements* 11:e00795-22.
+https://doi.org/10.1128/mra.00795-22
+
+Maslowska KH, Makiela-Dzbenska K, Fijalkowska IJ. 2019. The SOS system: a
+complex and tightly regulated response to DNA damage. *Environmental and
+Molecular Mutagenesis* 60:368-384. https://doi.org/10.1002/em.22267
 
 Myshkevych Y, Scarascia G, Sanchez Medina J, Narayanasamy S, Satagopam V, Hong
 P-Y. 2025. Effectiveness of combined UV-C and bacteriophage approach over
 repeated cleaning cycles to alleviate membrane fouling of anaerobic
 bioreactors. *Chemical Engineering Journal Advances* 24:100796.
 https://doi.org/10.1016/j.ceja.2025.100796
+
+Nayfach S, Camargo AP, Schulz F, Eloe-Fadrosh E, Roux S, Kyrpides NC. 2021.
+CheckV assesses the quality and completeness of metagenome-assembled viral
+genomes. *Nature Biotechnology* 39:578-585.
+https://doi.org/10.1038/s41587-020-00774-7
 
 Olm MR, Crits-Christoph A, Bouma-Gregson K, Firek BA, Morowitz MJ, Banfield JF.
 2021. inStrain profiles population microdiversity from metagenomic data and
@@ -428,9 +457,10 @@ control membrane and one phage-UV membrane sampled during the initial and
 backflush phases of three cleaning cycles, giving 12 physical samples. (B)
 Relative abundance among MAG-mapped metagenomic reads for the top 25 classified
 families across the same six aligned cycle-phase positions. Named families use
-phylum-linked microshades; pale shades pool remaining or unresolved families
-within the same phylum, and grey denotes phyla outside the displayed set. The
-profile is descriptive and does not constitute a replicated treatment test.
+phylum-linked microshades adapted from Dahl et al. (2022); pale shades pool
+remaining or unresolved families within the same phylum, and grey denotes phyla
+outside the displayed set. The profile is descriptive and does not constitute a
+replicated treatment test.
 (C) Leading log-fold-change dimensions calculated from the TMM-normalised
 filtered expression matrix. Point colour denotes membrane, point shape denotes
 phase, and labels denote cycle.
@@ -528,8 +558,9 @@ six cycle-phase observations. The dendrogram is classification-derived, not a
 sequence phylogeny, and the abundance profiles are descriptive.
 
 **Supplementary Figure S7. vOTU taxonomic context.** (A) Taxonomy-derived
-cladogram of 607 deduplicated high-quality vOTUs grouped into 45 taxonomic
-paths. Point colour denotes realm and point size denotes group size. (B) Number
+cladogram of 607 deduplicated high-quality vOTUs after quality assessment with
+CheckV (Nayfach et al., 2021), grouped into 45 taxonomic paths. Point colour
+denotes realm and point size denotes group size. (B) Number
 of qualifying vOTUs in each realm. The cladogram is not a sequence phylogeny
 and does not encode treatment response or host-phage linkage.
 

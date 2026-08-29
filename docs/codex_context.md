@@ -59,6 +59,8 @@ evidence of DNA damage, mutagenesis, or adaptation.
   `manuscript/figure_legends.md`
 - Zotero-importable bibliography:
   `manuscript/references.bib`
+- Citation audit and live-field-code boundary:
+  `docs/citation_audit.md`
 - Claim audit:
   `manuscript/claim_evidence_registry.tsv`
 - Analysis-use registry:
@@ -131,10 +133,12 @@ descriptive population-genomic heterogeneity.
 
 ## Next decision
 
-Review the two story-reorganized local PDFs, then version and replace the first
-two previews and their legends in the existing Google Doc. Import
-`manuscript/references.bib` into Zotero for citation management. The
-agent-authored starting draft may remain in regular editing mode while the user
-comments and suggests. If the user supplies revised or accepted prose, use
-Suggesting mode for agent changes. Do not manage the delegated 16S analysis;
-preserve its conditional Figure 5 insertion point.
+The evidence boundary, complete figure allocation, visual QA, and current
+citation audit are complete under GitHub issues #26 through #28. Continue with
+the complete manuscript edit in issue #29. Import the 14 records in
+`manuscript/references.bib` into Zotero before converting temporary author-year
+text into live Google Docs field codes. The agent-authored starting draft may
+remain in regular editing mode while the user comments and suggests. If the
+user supplies revised or accepted prose, use Suggesting mode for agent changes.
+Do not manage the delegated 16S analysis; preserve its conditional Figure 5
+insertion point.
