@@ -53,6 +53,11 @@ restructuring between the two repeatedly sampled membranes.
    turnover. This layer is descriptive and does not support damage, mutation,
    adaptation, or treatment-effect claims.
 
+The submission-readiness claim audit is recorded in
+`docs/submission_claim_audit.md`. It corrected one prose error in the recurrence
+counts: 2,671 phage-UV-higher and 2,709 control-higher genes agree in all six
+cells, while 663 and 942, respectively, agree in five of six.
+
 ## Provisional figure allocation
 
 Canonical artifacts remain unnumbered so the authors can reallocate them
@@ -212,11 +217,16 @@ PDFs are governed by the candidate registry and checksum inventory. The
 remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
 
-## Next action
+## Submission-readiness roadmap
 
-Review the two story-reorganized local PDFs, then version and replace the first
-two previews and their legends in the Google Doc. Import
-`manuscript/references.bib` into Zotero. Preserve the delegated 16S insertion
-point. Once the user supplies revised or accepted prose, all agent changes to
-that prose belong in Suggesting mode unless the user explicitly authorizes a
+GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issue #26
+freezes the evidence boundary; #27 and #28 finalize figures and references; #29
+edits the complete manuscript; #30 integrates the collaborator-owned 16S result
+if informative; #31 performs the final reproducibility audit; #32 selects and
+conforms to a defensible journal; #33 obtains author and coauthor approval; and
+#34 submits and archives the approved release.
+
+Work one issue at a time and close it only after its acceptance criteria are
+evidenced. Once the user supplies revised or accepted prose, all agent changes
+to that prose belong in Suggesting mode unless the user explicitly authorizes a
 replacement.

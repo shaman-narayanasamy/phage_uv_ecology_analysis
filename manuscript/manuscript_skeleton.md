@@ -268,7 +268,9 @@ adjusted-condition FDR and effect-size thresholds, 7,603 were detected in at
 least six samples, 7,141 had a non-empty annotation, and 6,985 met the
 five-of-six-cell recurrence rule. Among the recurrent genes, 3,334 were
 phage-UV higher and 3,651 were control higher. Six-of-six directional agreement
-was observed for 663 phage-UV-higher and 942 control-higher genes (Figure 3B).
+was observed for 2,671 phage-UV-higher and 2,709 control-higher genes; the
+remaining 663 and 942 genes, respectively, agreed in five of six cells
+(Figure 3B).
 
 The 24 deterministically selected display genes included transport,
 carbohydrate metabolism, transcriptional regulation, protein homeostasis, and
@@ -337,10 +339,10 @@ not create independent treatment replicates. The reported P values and FDRs are
 useful for organising internally consistent signals across the observed
 samples. They cannot support a general causal estimate for phage-UV cleaning.
 
-The delegated 16S analysis will add an independent view of community
-composition and can test whether broad taxonomic turnover helps explain the
-transcriptome. It is not required for the present conclusion and should not be
-used to retrofit a treatment-effect claim. Host-phage links can likewise be
+The delegated 16S analysis will add a complementary amplicon-based view of
+community composition and can test whether broad taxonomic turnover helps
+explain the transcriptome. It is not required for the present conclusion and
+should not be used to retrofit a treatment-effect claim. Host-phage links can likewise be
 introduced only if they clarify a supported organism-level result. The current
 evidence is sufficient for a precise conclusion: the two repeatedly sampled
 membranes developed broad, bidirectional, organism-resolved transcriptional
