@@ -7,76 +7,69 @@ for the independently delegated 16S analysis.
 
 ## Working title
 
-Repeated phage-UV cleaning is associated with heterogeneous organism-resolved
-transcriptional restructuring in anaerobic membrane biofilms
+Heterogeneous organism-resolved transcriptional restructuring across repeated
+phage-UV cleaning of anaerobic membrane biofilms
 
 ## Abstract
 
-Combined bacteriophage and ultraviolet C cleaning can delay membrane fouling in
-anaerobic membrane bioreactors, but its community-wide transcriptional context
-has not been resolved. We analysed the complete metatranscriptome from one
-control membrane and one phage-UV-treated membrane sampled during the initial
-and backflush phases of three cleaning cycles. Twenty-three sequencing runs were
-collapsed into 12 physical samples before modelling. Of 1,734,019 input
-features, 361,907 passed the predeclared expression filter. Sample geometry was
-organised primarily by cleaning cycle, with samples from the two membranes
-remaining close within several matched phase-cycle cells. After adjustment for
-phase and cycle, 7,703 features differed between the membranes at a
-Benjamini-Hochberg false discovery rate below 0.05; 7,699 also had an absolute
-log2 fold-change of at least 1. Functional support was narrow. SOS-response
-genes were collectively higher-ranked in the phage-UV membrane (523 genes;
-competitive rank test, raw P = 2.58 x 10^-4, FDR = 2.07 x 10^-3), but their
-median log2 fold-change was 0.136 and the other seven predefined repair and
-stress categories were unsupported for the adjusted membrane coefficient.
-Organism-resolved tests supported 175 of 340 eligible metagenome-assembled
-genomes, split between 100 phage-UV-higher and 75 control-higher gene sets. A
-predeclared recurrence filter retained 6,985 genes across the six phase-cycle
-cells, again with both directions represented (3,334 phage-UV higher; 3,651
-control higher). Population-genomic comparisons among five coverage-qualified
-genomes showed organism-specific stability and turnover, without a uniform
-condition-associated pattern. The dominant result is therefore heterogeneous,
-organism-resolved transcriptional structure rather than a community-wide DNA
-damage programme. Because one membrane represents each condition, membrane
-identity and treatment are confounded. These findings describe this
-longitudinal two-membrane system and do not establish a population-level causal
-treatment effect.
+Combined bacteriophage and ultraviolet C cleaning can delay fouling of
+anaerobic membrane bioreactors, but the community-wide context of this response
+is unresolved. We analysed all expressed features from one control membrane and
+one phage-UV membrane sampled during two phases of three cleaning cycles.
+MAG-mapped metagenomes showed diverse, changing community profiles, while the
+global metatranscriptome was organised primarily by cleaning cycle. Of
+1,734,019 input features, 361,907 passed a predeclared filter. After adjustment
+for phase and cycle, 7,703 differed between membranes at a
+Benjamini-Hochberg false discovery rate below 0.05, with 7,699 also exceeding an
+absolute log2 fold-change of 1. The signal was broad but bidirectional and its
+functional support was narrow. SOS-response genes were collectively
+higher-ranked in the phage-UV membrane, but the median log2 fold-change was
+0.136 and the other seven predefined repair and stress categories were
+unsupported. By contrast, 175 of 340 eligible metagenome-assembled genomes
+carried coherent gene-set signals, split between 100 phage-UV-higher and 75
+control-higher sets. A predeclared recurrence filter retained 6,985 genes across
+the six phase-cycle cells, again in both directions. Five coverage-qualified
+genomes showed organism-specific population stability and turnover without a
+uniform membrane-associated pattern. Because each condition is represented by
+one membrane, treatment and membrane identity are confounded. Repeated cleaning
+therefore coincided with broad, organism-resolved transcriptional
+restructuring in this system, not a uniform DNA-damage or adaptation programme.
 
 Keywords: anaerobic membrane bioreactor; bacteriophage; UV-C; biofouling;
 metatranscriptomics; genome-resolved analysis
 
 ## Introduction
 
-Membrane biofouling constrains the operation of anaerobic membrane bioreactors
-and creates a recurring need for cleaning. Chemical cleaning can damage membrane
-materials and generate secondary waste. A combined bacteriophage and UV-C
-procedure was therefore developed as a chemical-free alternative. In the
-initial proof-of-concept, the treatment reduced membrane-associated cells and
+Membrane biofouling constrains anaerobic membrane bioreactors and creates a
+recurring need for cleaning. A combined bacteriophage and UV-C procedure was
+developed as a chemical-free alternative to conventional cleaning. In the
+initial proof-of-concept, this procedure reduced membrane-associated cells and
 extracellular polymeric substances while maintaining membrane flux (Scarascia
-et al., 2021). The subsequent repeated-cycle experiment extended the procedure
-across three cleaning cycles. Transmembrane pressure regrowth remained delayed,
-but bacterial-cell and protein removal declined as the cycles progressed
+et al., 2021). A subsequent experiment extended the procedure across three
+cleaning cycles. Regrowth of transmembrane pressure remained delayed, although
+bacterial-cell and protein removal declined over successive cycles
 (Myshkevych et al., 2025).
 
-The repeated-cycle study also reported transcriptional changes among selected
-biofilm-forming organisms and proposed that repeated exposure could favour an
-adaptive response (Myshkevych et al., 2025). That interpretation raises a
-broader question. A signal detected in selected organisms or stress genes may
-not represent the complete community. It may instead sit within a much larger
-change in organism abundance, physiological state, membrane history, or sample
-fraction. Distinguishing these alternatives requires the analysis to begin with
-the complete expressed feature universe. Functional and taxonomic labels should
-enter after model fitting, not determine which genes are tested.
+Whether this changing engineering performance reflects a uniform microbial
+response is less clear. The repeated-cycle study reported transcriptional
+changes in selected biofilm-forming organisms and proposed that repeated
+exposure could favour adaptation (Myshkevych et al., 2025). Yet a signal in
+selected organisms or stress genes need not represent the wider community. It
+can be embedded in shifts in community composition, organism abundance,
+physiological state, membrane history, or sampled fraction. Resolving that
+structure requires the full expressed feature universe to be modelled before
+functional or taxonomic labels determine interpretation.
 
-We therefore reanalysed the metatranscriptome at three connected levels. We
-asked i) whether predefined DNA repair and stress functions shifted
-collectively, ii) whether individual organisms carried coherent multi-gene
-signals, and iii) whether gene-level differences recurred across the six
-phase-cycle cells. We then examined population-genomic variation in a
-coverage-qualified five-genome set as descriptive context. The experiment has
-one membrane per condition, repeatedly sampled through time. Condition is
-inseparable from membrane identity. Our aim was consequently not to estimate a
-replicated treatment effect, but to identify the transcriptional structure that
-is reproducible within this observed two-membrane system.
+Here, we place the metatranscriptome within its genome-resolved community
+context and ask three connected questions: whether predefined DNA-repair and
+stress functions shift collectively, whether individual organisms carry
+coherent multi-gene signals, and whether gene-level differences recur across
+the six phase-cycle cells. We then examine population-genomic variation in a
+coverage-qualified five-genome set as descriptive context. The experiment
+repeatedly sampled one membrane per condition, so treatment is inseparable from
+membrane identity. We therefore seek reproducible structure within this
+longitudinal two-membrane system, not a population-level causal treatment
+effect.
 
 ## Methods
 
@@ -210,9 +203,6 @@ identity and abundance of prominent families changed among cycles and phases
 (Figure 1B). This descriptive profile establishes the community through which
 the transcriptional results are interpreted; it is not a replicated test of a
 treatment effect.
-Taxonomy-derived summaries of the 348-MAG and 607-vOTU catalogues provide
-broader descriptive context (Supplementary Figures S6 and S7); neither
-represents a sequence phylogeny.
 
 In the leading log-fold-change space, samples were organised primarily by
 cycle. Cycle-1 samples occupied the left of the ordination, cycle-2 samples the
@@ -271,7 +261,8 @@ gene sets. The cycle-3 interaction supported 132 MAGs, with 73 up-ranked and 59
 down-ranked sets (Supplementary Figure S4). These competitive results can
 detect a coordinated shift across many genes even when few individual genes
 pass feature-level FDR. Across coefficients, the nearly balanced directions
-showed that the community did not follow one uniform transcriptional response.
+showed that the recovered community did not follow one uniform
+metatranscriptomic response.
 
 ### Recurrent gene-level differences remained balanced in direction
 
@@ -310,14 +301,21 @@ The strongest pattern in this selected set was associated with organism and
 sample fraction, not a uniform condition-associated trajectory. These data do
 not demonstrate treatment-induced mutation or adaptation.
 
+Taxonomy-derived summaries place these organism-level results within catalogues
+of 348 classified MAGs and 607 high-quality classified vOTUs (Supplementary
+Figure S6; Supplementary Figure S7). These classification-derived diagrams
+describe recovered taxonomic breadth. They are not sequence phylogenies and do
+not encode a treatment response or host-phage linkage.
+
 ## Discussion
 
-The complete metatranscriptome produced a simpler story than the original
-DNA-damage hypothesis. Cleaning cycle organised the global sample geometry.
-After cycle and phase were modelled, the two membranes still differed across
-thousands of genes, but those differences were almost evenly split in direction
-and distributed across many organisms. The strongest supported interpretation
-is heterogeneous organism-resolved transcriptional restructuring.
+The complete metatranscriptome changes the scale of the biological
+interpretation. Cleaning cycle organised the global sample geometry. After
+cycle and phase were modelled, the two membranes differed across thousands of
+features, but those differences were almost evenly split in direction and
+distributed across many organisms. The strongest supported interpretation is
+therefore heterogeneous organism-resolved restructuring, not a single stress
+programme shared across the community.
 
 The SOS result remains part of that story, but it does not define it. SOS genes
 were collectively higher-ranked in the phage-UV membrane, and the competitive
@@ -335,7 +333,16 @@ membrane signal, and both directions were common. The recurrence analysis
 recovered the same structure at gene level. Thousands of genes differed in at
 least five of six phase-cycle cells, but the recurrent catalogue remained
 balanced between the two membranes and crossed diverse annotations. The
-community was transcriptionally structured. It was not moving as one unit.
+community was structured at the level of organisms and genes. It was not moving
+as one unit.
+
+This structure cannot be assigned entirely to transcriptional regulation.
+The RNA counts were not normalised to matched DNA abundance, so MAG-level
+gene-set coherence cannot separate organism abundance from cellular RNA output.
+The changing MAG-mapped metagenomic profiles make community turnover a
+plausible contributor, but the present analysis does not fit a joint DNA-RNA
+model. We therefore use transcriptional restructuring to describe the observed
+RNA landscape, not to claim a uniform per-cell regulatory response.
 
 The population-genomic analysis adds context without rescuing an adaptation
 claim. Coverage-qualified comparisons revealed both stable and changing strain
@@ -353,15 +360,14 @@ not create independent treatment replicates. The reported P values and FDRs are
 useful for organising internally consistent signals across the observed
 samples. They cannot support a general causal estimate for phage-UV cleaning.
 
-The delegated 16S analysis will add a complementary amplicon-based view of
-community composition and can test whether broad taxonomic turnover helps
-explain the transcriptome. It is not required for the present conclusion and
-should not be used to retrofit a treatment-effect claim. Host-phage links can likewise be
-introduced only if they clarify a supported organism-level result. The current
-evidence is sufficient for a precise conclusion: the two repeatedly sampled
-membranes developed broad, bidirectional, organism-resolved transcriptional
-differences, while a uniform DNA-damage or adaptation programme was not
-supported.
+The delegated 16S analysis can add a complementary amplicon-based view of
+community composition and test whether broad taxonomic turnover is consistent
+with the metagenomic profile. It samples the same experimental units and cannot
+create treatment replication. Host-phage links should likewise enter the story
+only if they clarify a supported organism-level result. The present evidence
+supports a precise conclusion: the two repeatedly sampled membranes developed
+broad, bidirectional, organism-resolved differences in their RNA landscapes,
+whereas a uniform DNA-damage or adaptation programme was not supported.
 
 ## Data and code availability
 
