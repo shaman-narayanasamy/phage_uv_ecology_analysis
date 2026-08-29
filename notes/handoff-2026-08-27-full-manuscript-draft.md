@@ -152,7 +152,7 @@ that plain author-year text is a live Zotero citation.
 
 ## Quarto execution contract
 
-All 19 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 20 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -180,13 +180,27 @@ known phylum, reducing the literal global-grey share to 16.5%, 18.7%, and 13.4%,
 respectively. The output also contains a rank-retention audit and a common-layout
 family heat-tree across the two aligned six-position longitudinal series.
 
+### Integrated MAG and vOTU taxonomic layouts
+
+`scripts/compare_taxonomic_timeseries_layouts.qmd` builds four review candidates
+under `PRJEB79569/derived/taxonomic_timeseries_layout_comparison/`: integrated
+MAG-tree plus top-25-family and vOTU-tree plus realm-profile figures, each using
+stacked bars and stacked areas. All 607 verified high-quality classified vOTU
+representatives map to the 12-sample metagenomic CoverM matrix. Duplodnaviria
+accounts for 93.3-97.1% of mapped reads within this vOTU set. Visual review
+favours bars because they preserve the six discrete observations; area plots
+imply unobserved continuity and turn the MAG families into thin ribbons. These
+are review candidates and have not replaced the manuscript figures or Google
+Doc previews.
+
 ## Validation completed
 
 - `Rscript tests/test_manuscript_registry.R`.
 - `Rscript tests/test_manuscript_figure_candidates.R <canonical-output>`.
+- `Rscript tests/test_taxonomic_timeseries_layouts.R`.
 - `bash scripts/validate_manifests.sh`.
 - `Rscript tests/test_quarto_entrypoints.R`.
-- Quarto 1.9.37 structure renders for all 19 `scripts/*.qmd` notebooks with
+- Quarto 1.9.37 structure renders for all 20 `scripts/*.qmd` notebooks with
   execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.

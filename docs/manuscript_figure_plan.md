@@ -89,6 +89,28 @@ These candidates restore the useful descriptive tree concepts from the
 original poster without importing its superseded expression overlays. Their
 main-text or supplementary placement and any panel combination remain open.
 
+## Integrated taxonomic layout comparison
+
+Four review candidates combine catalogue structure with longitudinal
+composition without replacing the working manuscript figures:
+
+1. `mag-taxonomy-family-bars.pdf` and `mag-taxonomy-family-area.pdf` pair the
+   348-MAG taxonomy-derived dendrogram and quality/interpretation rings with the
+   aligned top-25 family profile.
+2. `votu-taxonomy-realm-bars.pdf` and `votu-taxonomy-realm-area.pdf` pair the
+   607-vOTU taxonomy-derived cladogram with a genuine 12-sample metagenomic
+   read profile summarized at realm level.
+
+The stacked-bar versions are recommended. The six cycle-phase positions are
+discrete observations, and bars preserve that sampling structure. Stacked areas
+connect the observations with straight segments, which makes trajectories look
+continuous and turns the 25-family MAG profile into difficult-to-follow ribbons.
+At viral realm level, Duplodnaviria contributes 93.3-97.1% of mapped reads in
+every sample. That dominance is an informative high-level catalogue result, but
+it leaves little longitudinal taxonomic restructuring to display. The viral
+panel is therefore supplementary context unless a more resolved, prespecified
+viral question earns a main-text role.
+
 ## Current supplementary set
 
 1. `supplementary-model-diagnostics.pdf`:

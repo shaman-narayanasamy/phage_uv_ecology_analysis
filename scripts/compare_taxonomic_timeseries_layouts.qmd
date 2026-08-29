@@ -1,0 +1,514 @@
+---
+title: "Compare Integrated Taxonomic Time-Series Layouts"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook compares stacked bars with stacked areas for two integrated
+taxonomic-context figures: MAG taxonomy plus family composition, and vOTU
+taxonomy plus realm composition. It creates review candidates only and does not
+replace the current manuscript figures.
+
+```sh
+bash scripts/run_qmd.sh scripts/compare_taxonomic_timeseries_layouts.qmd [output-directory]
+```
+
+```{r}
+#| label: compare-taxonomic-timeseries-layouts
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ape)
+  library(ggplot2)
+  library(ggtree)
+  library(ggnewscale)
+  library(patchwork)
+  library(scales)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  root <- normalizePath(getwd(), mustWork = TRUE)
+  if (!file.exists(file.path(root, "R", "figure_style.R"))) {
+    abort("Run this notebook from the phage_uv_ecology_analysis repository root")
+  }
+  root
+}
+
+promote_file <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  incoming <- paste0(destination, ".incoming-", Sys.getpid())
+  if (!file.copy(source, incoming, overwrite = TRUE, copy.mode = TRUE)) {
+    abort("Failed to stage %s", basename(destination))
+  }
+  if (file.exists(destination)) unlink(destination)
+  if (!file.rename(incoming, destination)) {
+    unlink(incoming)
+    abort("Failed to promote %s", basename(destination))
+  }
+}
+
+write_checksums <- function(output_dir, staging) {
+  checksum_path <- file.path(output_dir, "output_checksums.md5.tsv")
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[
+    file.info(files)$isdir %in% FALSE &
+      normalizePath(files) != normalizePath(checksum_path, mustWork = FALSE)
+  ]
+  files <- sort(files)
+  checksum_table <- data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  )
+  staged <- file.path(staging, "output_checksums.md5.tsv")
+  fwrite(checksum_table, staged, sep = "\t")
+  promote_file(staged, checksum_path)
+}
+
+extract_realm <- function(taxonomy_hierarchy) {
+  vapply(strsplit(as.character(taxonomy_hierarchy), ";", fixed = TRUE), function(parts) {
+    hit <- parts[startsWith(parts, "-_")]
+    if (length(hit) < 2L) return("Unclassified")
+    sub("^-_", "", hit[[2L]])
+  }, character(1))
+}
+
+make_stacked_profile <- function(
+  profile, palette, breaks, labels, mode, y_label, legend_title, caption
+) {
+  profile[, sample_index := as.integer(sample_label)]
+  base <- ggplot(
+    profile,
+    aes(x = sample_index, y = relative_abundance, fill = display_category)
+  ) +
+    facet_grid(condition_label ~ ., scales = "fixed") +
+    scale_fill_manual(
+      values = palette, breaks = breaks, labels = labels[breaks],
+      drop = FALSE, name = legend_title
+    ) +
+    scale_x_continuous(
+      breaks = seq_along(levels(profile$sample_label)),
+      labels = levels(profile$sample_label),
+      expand = expansion(mult = c(0.025, 0.025))
+    ) +
+    scale_y_continuous(
+      labels = label_percent(accuracy = 1), breaks = seq(0, 1, by = 0.25),
+      expand = expansion(mult = c(0, 0.01))
+    ) +
+    labs(
+      x = "Cycle and phase in chronological order",
+      y = y_label,
+      caption = paste(strwrap(caption, width = 105), collapse = "\n")
+    ) +
+    theme_phage_uv(base_size = 8.2) +
+    theme(
+      legend.position = "right",
+      legend.text = element_text(size = 6.1),
+      legend.title = element_text(size = 7),
+      legend.key.height = grid::unit(0.31, "cm"),
+      strip.text.y = element_text(angle = 0, face = "bold"),
+      axis.text.x = element_text(size = 7.6),
+      panel.spacing = grid::unit(0.7, "lines"),
+      plot.caption = element_text(size = 6.2, hjust = 0)
+    ) +
+    guides(fill = guide_legend(ncol = 1, byrow = TRUE, override.aes = list(colour = NA)))
+
+  if (mode == "bars") {
+    return(base +
+      geom_vline(xintercept = c(2.5, 4.5), colour = "#D8D8D8", linewidth = 0.35) +
+      geom_col(width = 0.82, colour = "white", linewidth = 0.08))
+  }
+
+  base +
+    geom_vline(xintercept = seq_along(levels(profile$sample_label)), colour = "#EEEEEE", linewidth = 0.25) +
+    geom_area(position = "stack", colour = "white", linewidth = 0.08, alpha = 0.97)
+}
+
+build_mag_tree <- function(tree_path, context_path) {
+  tree <- read.tree(tree_path)
+  mag <- fread(context_path)
+  if (Ntip(tree) != 348L || nrow(mag) != 348L || !setequal(tree$tip.label, mag$MAG_ID)) {
+    abort("MAG taxonomy inputs do not contain the expected 348 records")
+  }
+
+  p <- ggtree(tree, layout = "circular", branch.length = "none", linewidth = 0.18, colour = "#B7B7B7")
+  positions <- as.data.table(p$data[p$data$isTip, c("label", "x", "y")])
+  setnames(positions, "label", "MAG_ID")
+  positions <- merge(positions, mag, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+  radius <- max(p$data$x, na.rm = TRUE)
+  ring_x <- radius + c(0.30, 0.62, 0.94, 1.26)
+  recurrence_limit <- max(abs(quantile(positions$recurrence_balance, c(0.02, 0.98), na.rm = TRUE)))
+  recurrence_limit <- max(recurrence_limit, 0.05)
+  de_colours <- c(
+    "Control higher" = phage_uv_condition_colours[["control"]],
+    "Phage-UV higher" = phage_uv_condition_colours[["phage_uv"]],
+    "Not supported" = "#D8D8D8",
+    "Not modeled" = "#FFFFFF"
+  )
+
+  p +
+    geom_point(
+      data = positions, aes(x = x, y = y, colour = phylum_display),
+      size = 0.85, alpha = 0.95, inherit.aes = FALSE
+    ) +
+    scale_colour_manual(
+      values = phage_uv_phylum_colours, drop = TRUE, name = "Phylum",
+      guide = guide_legend(order = 1)
+    ) +
+    geom_tile(
+      data = positions, aes(x = ring_x[[1L]], y = y, fill = completeness),
+      width = 0.25, height = 0.92, colour = NA, inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#F7FBFF", high = "#08519C", limits = c(75, 100),
+      name = "Completeness (%)", guide = guide_colourbar(order = 2)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions, aes(x = ring_x[[2L]], y = y, fill = contamination),
+      width = 0.25, height = 0.92, colour = NA, inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#FFF5F0", high = "#A50F15", limits = c(0, 25),
+      name = "Contamination (%)", guide = guide_colourbar(order = 3)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions, aes(x = ring_x[[3L]], y = y, fill = de_state),
+      width = 0.25, height = 0.92, colour = NA, inherit.aes = FALSE
+    ) +
+    scale_fill_manual(
+      values = de_colours, name = "Adjusted membrane\ncoherence",
+      guide = guide_legend(order = 4)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions, aes(x = ring_x[[4L]], y = y, fill = recurrence_balance),
+      width = 0.25, height = 0.92, colour = NA, inherit.aes = FALSE
+    ) +
+    scale_fill_gradient2(
+      low = phage_uv_condition_colours[["control"]], mid = "#F7F7F7",
+      high = phage_uv_condition_colours[["phage_uv"]], midpoint = 0,
+      limits = c(-recurrence_limit, recurrence_limit), oob = squish,
+      name = "Recurrent-gene\nbalance", guide = guide_colourbar(order = 5)
+    ) +
+    xlim(0, ring_x[[4L]] + 1.25) +
+    labs(tag = "A") +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "right", legend.box = "vertical",
+      legend.key.height = grid::unit(0.36, "cm"),
+      legend.text = element_text(size = 6.4), legend.title = element_text(size = 7.1),
+      plot.tag = element_text(face = "bold", size = 11),
+      plot.margin = margin(12, 18, 12, 12)
+    )
+}
+
+build_votu_tree <- function(tree_path, group_path) {
+  tree <- read.tree(tree_path)
+  groups <- fread(group_path)
+  if (Ntip(tree) != nrow(groups) || !setequal(tree$tip.label, groups$vOTU_group)) {
+    abort("vOTU taxonomy tree does not match the grouped catalogue")
+  }
+  label_ids <- head(groups[order(-n_votus, display_label)]$vOTU_group, 18L)
+  tip <- data.frame(label = groups$vOTU_group, as.data.frame(groups), check.names = FALSE)
+  tip$tree_label <- ifelse(tip$vOTU_group %in% label_ids, tip$display_label, "")
+
+  ggtree(tree, layout = "daylight", branch.length = "none", linewidth = 0.25, colour = "#8A8A8A") %<+% tip +
+    geom_tippoint(aes(size = n_votus, colour = realm_display), alpha = 0.92) +
+    geom_tiplab(aes(label = tree_label), size = 2.05, offset = 0.15, linesize = 0.15) +
+    scale_colour_manual(values = phage_uv_viral_realm_colours, name = "Realm") +
+    scale_size_continuous(range = c(1.6, 7.5), name = "vOTUs") +
+    labs(tag = "A") +
+    coord_cartesian(clip = "off") +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11),
+      plot.margin = margin(55, 75, 65, 75)
+    )
+}
+
+build_comparison <- function(root, output_dir) {
+  project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+  candidate_dir <- file.path(project_data, "derived", "manuscript_figure_candidates")
+  resolution_dir <- file.path(project_data, "derived", "taxonomic_resolution_exploration")
+  paths <- list(
+    metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+    mag_tree = file.path(candidate_dir, "trees", "mag_taxonomic_context.nwk"),
+    mag_context = file.path(candidate_dir, "tables", "mag_taxonomic_context.tsv"),
+    mag_profile = file.path(resolution_dir, "tables", "family_top25_community_profile.tsv"),
+    mag_colours = file.path(resolution_dir, "tables", "family_microshades_colour_key.tsv"),
+    votu_tree = file.path(candidate_dir, "trees", "votu_taxonomic_context.nwk"),
+    votu_groups = file.path(candidate_dir, "tables", "votu_taxonomic_context_groups.tsv"),
+    coverm = file.path(project_data, "quantification", "mags_votu", "coverage", "metagenomics", "coverm", "output-Read_Count.tsv"),
+    checkv = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "checkv", "quality_summary.tsv"),
+    cenote = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "cenotetaker3", "output", "output_virus_summary.tsv"),
+    clusters = file.path(project_data, "viromics", "votu_clustering", "cluster_summary.tsv")
+  )
+  missing <- names(paths)[!file.exists(unlist(paths))]
+  if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+  source(file.path(root, "R", "figure_style.R"))
+  if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
+  staging <- file.path(dirname(output_dir), sprintf(".taxonomic-layout-staging-%d", Sys.getpid()))
+  if (dir.exists(staging)) unlink(staging, recursive = TRUE)
+  dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+  sample_levels <- c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B")
+
+  # Complete the top-25 family profile for both bars and areas.
+  mag_profile <- fread(paths$mag_profile)
+  mag_colours <- fread(paths$mag_colours)
+  mag_categories <- mag_colours$display_category
+  mag_grid <- CJ(
+    sample_title = unique(mag_profile$sample_title),
+    display_category = mag_categories,
+    unique = TRUE
+  )
+  mag_profile <- merge(
+    mag_grid,
+    mag_profile[, .(
+      sample_title, condition, phase, cycle, display_category,
+      display_phylum, relative_abundance, sample_label, condition_label
+    )],
+    by = c("sample_title", "display_category"), all.x = TRUE, sort = FALSE
+  )
+  metadata <- fread(paths$metadata)[, .(
+    sample_title, condition, phase, cycle, metagenome_run_accession
+  )]
+  mag_profile <- merge(mag_profile, metadata, by = "sample_title", all.x = TRUE, suffixes = c("", ".metadata"))
+  for (column in c("condition", "phase", "cycle")) {
+    metadata_column <- paste0(column, ".metadata")
+    mag_profile[is.na(get(column)), (column) := get(metadata_column)]
+    mag_profile[, (metadata_column) := NULL]
+  }
+  mag_profile[is.na(relative_abundance), relative_abundance := 0]
+  mag_profile[, `:=`(
+    sample_label = factor(
+      sprintf("C%d-%s", cycle, fifelse(phase == "initial", "I", "B")),
+      levels = sample_levels
+    ),
+    condition_label = factor(
+      fifelse(condition == "control", "Control", "Phage-UV"),
+      levels = c("Control", "Phage-UV")
+    ),
+    display_category = factor(display_category, levels = rev(mag_categories))
+  )]
+  if (any(abs(mag_profile[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-10)) {
+    abort("Completed MAG profiles do not sum to one")
+  }
+  mag_palette <- setNames(mag_colours$colour, mag_colours$display_category)
+  mag_legend <- mag_colours[category_type == "top25 named" | display_category == "Other phyla"]
+  mag_legend[, legend_label := fifelse(
+    display_category == "Other phyla", "Other phyla", paste(phylum, display_category, sep = " | ")
+  )]
+  mag_labels <- setNames(mag_legend$legend_label, mag_legend$display_category)
+  mag_tree_plot <- build_mag_tree(paths$mag_tree, paths$mag_context)
+
+  mag_caption <- paste(
+    "Top 25 classified families are named; pale shades pool remaining or unresolved families within each phylum.",
+    "I, initial; B, backflush. Descriptive MAG-mapped metagenomic profile."
+  )
+  mag_bar <- make_stacked_profile(
+    mag_profile, mag_palette, mag_legend$display_category, mag_labels, "bars",
+    "Relative abundance among MAG-mapped reads", "Family (phylum | family)", mag_caption
+  ) + labs(tag = "B") + theme(plot.tag = element_text(face = "bold", size = 11))
+  mag_area <- make_stacked_profile(
+    mag_profile, mag_palette, mag_legend$display_category, mag_labels, "area",
+    "Relative abundance among MAG-mapped reads", "Family (phylum | family)",
+    paste(mag_caption, "Straight segments connect the six observed compositions only.")
+  ) + labs(tag = "B") + theme(plot.tag = element_text(face = "bold", size = 11))
+
+  mag_bar_figure <- mag_tree_plot + mag_bar + plot_layout(widths = c(2.15, 1.35))
+  mag_area_figure <- mag_tree_plot + mag_area + plot_layout(widths = c(2.15, 1.35))
+
+  # Build a genuine 12-sample high-level vOTU profile from the same metagenomic
+  # read-count matrix used for the MAG profile.
+  checkv <- fread(paths$checkv, select = c("contig_id", "viral_genes", "miuvig_quality"))
+  cenote <- fread(paths$cenote, select = c("input_name", "virus_seq_length", "taxonomy_hierarchy"))
+  setnames(cenote, "input_name", "contig_id")
+  clusters <- fread(paths$clusters, select = c("representative", "n_members", "sources"))
+  votu <- merge(cenote, checkv, by = "contig_id", all.x = TRUE)
+  votu <- merge(votu, clusters, by.x = "contig_id", by.y = "representative", all.x = TRUE)
+  setorder(votu, contig_id, -virus_seq_length, taxonomy_hierarchy, na.last = TRUE)
+  votu <- votu[, .SD[1L], by = contig_id]
+  votu[, has_taxonomy := !is.na(taxonomy_hierarchy) & nzchar(taxonomy_hierarchy)]
+  votu <- votu[miuvig_quality == "High-quality" & viral_genes > 0 & has_taxonomy == TRUE]
+  if (nrow(votu) != 607L || uniqueN(votu$contig_id) != 607L) {
+    abort("Expected the verified 607 high-quality classified vOTUs")
+  }
+  votu[, realm := extract_realm(taxonomy_hierarchy)]
+  votu[, realm_display := fifelse(
+    realm %chin% names(phage_uv_viral_realm_colours), realm, "Unclassified"
+  )]
+
+  message("Reading the 12-sample CoverM matrix and retaining 607 vOTUs...")
+  coverm <- fread(paths$coverm)
+  coverm <- coverm[Contig %chin% votu$contig_id]
+  if (nrow(coverm) != 607L || uniqueN(coverm$Contig) != 607L) {
+    abort("The CoverM matrix does not contain exactly the verified 607 vOTUs")
+  }
+  coverm <- merge(
+    coverm, votu[, .(contig_id, realm_display)],
+    by.x = "Contig", by.y = "contig_id", all.x = TRUE, sort = FALSE
+  )
+  count_columns <- setdiff(names(coverm), c("Contig", "realm_display"))
+  realm_counts <- coverm[, lapply(.SD, sum, na.rm = TRUE), by = realm_display, .SDcols = count_columns]
+  realm_counts <- melt(
+    realm_counts, id.vars = "realm_display",
+    variable.name = "source_sample", value.name = "reads"
+  )
+  realm_counts[, metagenome_run_accession := sub(".*(ERR[0-9]+).*", "\\1", source_sample)]
+  realm_counts <- merge(
+    realm_counts,
+    metadata[, .(sample_title, condition, phase, cycle, metagenome_run_accession)],
+    by = "metagenome_run_accession", all.x = TRUE, sort = FALSE
+  )
+  if (anyNA(realm_counts$sample_title) || uniqueN(realm_counts$sample_title) != 12L) {
+    abort("vOTU metagenomic counts do not map to all 12 physical samples")
+  }
+  realm_profile <- realm_counts[, .(reads = sum(reads)), by = .(
+    sample_title, condition, phase, cycle, realm_display
+  )]
+  if (any(realm_profile[, sum(reads), by = sample_title]$V1 <= 0)) {
+    abort("At least one sample has no mapped reads across the verified vOTU set")
+  }
+  realm_profile[, relative_abundance := reads / sum(reads), by = sample_title]
+  realm_order <- realm_profile[, .(mean_relative_abundance = mean(relative_abundance)), by = realm_display][order(-mean_relative_abundance)]$realm_display
+  realm_grid <- CJ(
+    sample_title = unique(metadata$sample_title), realm_display = realm_order, unique = TRUE
+  )
+  realm_profile <- merge(
+    realm_grid, realm_profile,
+    by = c("sample_title", "realm_display"), all.x = TRUE, sort = FALSE
+  )
+  realm_profile <- merge(
+    realm_profile, metadata,
+    by = "sample_title", all.x = TRUE, suffixes = c("", ".metadata"), sort = FALSE
+  )
+  for (column in c("condition", "phase", "cycle")) {
+    metadata_column <- paste0(column, ".metadata")
+    realm_profile[is.na(get(column)), (column) := get(metadata_column)]
+    realm_profile[, (metadata_column) := NULL]
+  }
+  realm_profile[is.na(reads), `:=`(reads = 0, relative_abundance = 0)]
+  realm_profile[, `:=`(
+    sample_label = factor(
+      sprintf("C%d-%s", cycle, fifelse(phase == "initial", "I", "B")),
+      levels = sample_levels
+    ),
+    condition_label = factor(
+      fifelse(condition == "control", "Control", "Phage-UV"),
+      levels = c("Control", "Phage-UV")
+    ),
+    display_category = factor(realm_display, levels = rev(realm_order))
+  )]
+  if (any(abs(realm_profile[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-10)) {
+    abort("Completed vOTU realm profiles do not sum to one")
+  }
+  realm_palette <- phage_uv_viral_realm_colours[realm_order]
+  realm_labels <- setNames(realm_order, realm_order)
+  votu_tree_plot <- build_votu_tree(paths$votu_tree, paths$votu_groups)
+  votu_caption <- paste(
+    "Relative abundance is calculated within 607 high-quality classified vOTUs with viral genes.",
+    "Realm is intentionally used as a high-level summary; I, initial; B, backflush."
+  )
+  votu_bar <- make_stacked_profile(
+    realm_profile, realm_palette, realm_order, realm_labels, "bars",
+    "Relative abundance among reads mapped to the verified vOTUs", "Viral realm", votu_caption
+  ) + labs(tag = "B") + theme(plot.tag = element_text(face = "bold", size = 11))
+  votu_area <- make_stacked_profile(
+    realm_profile, realm_palette, realm_order, realm_labels, "area",
+    "Relative abundance among reads mapped to the verified vOTUs", "Viral realm",
+    paste(votu_caption, "Straight segments connect the six observed compositions only.")
+  ) + labs(tag = "B") + theme(plot.tag = element_text(face = "bold", size = 11))
+
+  votu_bar_figure <- votu_tree_plot + votu_bar + plot_layout(widths = c(2.05, 1.25))
+  votu_area_figure <- votu_tree_plot + votu_area + plot_layout(widths = c(2.05, 1.25))
+
+  figure_specs <- data.table(
+    artifact = c(
+      "mag-taxonomy-family-bars.pdf",
+      "mag-taxonomy-family-area.pdf",
+      "votu-taxonomy-realm-bars.pdf",
+      "votu-taxonomy-realm-area.pdf"
+    ),
+    organism_layer = c("MAG", "MAG", "vOTU", "vOTU"),
+    profile_geometry = c("stacked bars", "stacked area", "stacked bars", "stacked area"),
+    taxonomy_resolution = c("family", "family", "realm", "realm"),
+    review_status = c("recommended", "comparison_only", "recommended", "comparison_only"),
+    interpretation_boundary = c(
+      rep("Descriptive MAG-mapped metagenomic composition; one membrane per condition", 2),
+      rep("Descriptive composition within 607 high-quality classified vOTUs; one membrane per condition", 2)
+    )
+  )
+  plots <- list(mag_bar_figure, mag_area_figure, votu_bar_figure, votu_area_figure)
+  widths <- c(18, 18, 17, 17)
+  heights <- c(10.5, 10.5, 9.5, 9.5)
+  for (i in seq_len(nrow(figure_specs))) {
+    ggsave(
+      file.path(staging, "figures", figure_specs$artifact[[i]]),
+      plots[[i]], width = widths[[i]], height = heights[[i]], device = grDevices::pdf
+    )
+  }
+
+  fwrite(
+    mag_profile[, .(
+      sample_title, condition, phase, cycle, sample_label,
+      display_category, relative_abundance
+    )],
+    file.path(staging, "tables", "mag_family_top25_profile.tsv"), sep = "\t"
+  )
+  fwrite(
+    realm_profile[, .(
+      sample_title, condition, phase, cycle, sample_label,
+      realm = realm_display, reads, relative_abundance
+    )],
+    file.path(staging, "tables", "votu_realm_profile.tsv"), sep = "\t"
+  )
+  fwrite(
+    data.table(realm = realm_order, colour = unname(realm_palette)),
+    file.path(staging, "tables", "votu_realm_colour_key.tsv"), sep = "\t"
+  )
+  fwrite(
+    data.table(
+      metric = c("selected_votus", "viral_realms", "physical_samples", "mapped_reads"),
+      value = c(607L, length(realm_order), uniqueN(realm_profile$sample_title), sum(realm_profile$reads))
+    ),
+    file.path(staging, "tables", "votu_profile_summary.tsv"), sep = "\t"
+  )
+  fwrite(figure_specs, file.path(staging, "layout_comparison_registry.tsv"), sep = "\t")
+
+  figure_paths <- file.path(staging, "figures", figure_specs$artifact)
+  if (any(!file.exists(figure_paths)) || any(file.info(figure_paths)$size == 0L)) {
+    abort("One or more taxonomic layout comparison PDFs were not rendered")
+  }
+
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  generated <- list.files(staging, recursive = TRUE, full.names = TRUE)
+  generated <- generated[file.info(generated)$isdir %in% FALSE]
+  for (source_path in generated) {
+    relative <- sub(paste0("^", normalizePath(staging), "/?"), "", normalizePath(source_path))
+    promote_file(source_path, file.path(output_dir, relative))
+  }
+  write_checksums(output_dir, staging)
+  cat(sprintf("Created four integrated taxonomic layout candidates in %s\n", output_dir))
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+root <- repo_root()
+output_dir <- if (length(args)) args[[1L]] else file.path(
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569",
+  "derived", "taxonomic_timeseries_layout_comparison"
+)
+build_comparison(root, output_dir)
+```
