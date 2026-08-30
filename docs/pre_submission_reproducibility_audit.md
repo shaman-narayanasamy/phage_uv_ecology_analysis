@@ -7,7 +7,7 @@ open until the collaborator-owned 16S decision in issue #30 is resolved.
 
 ## Verified current state
 
-- All 10 repository R tests pass, including the synthetic full-transcriptome
+- All 11 repository R tests pass, including the synthetic full-transcriptome
   edgeR run and checksum validation of the complete manuscript figure suite.
 - `scripts/validate_manifests.sh` passes every metadata, 16S input-contract,
   Quarto-entrypoint, citation, manuscript-structure, data-path, and HPC Conda
@@ -53,7 +53,20 @@ bash scripts/run_pre_submission_audit.sh
 
 The canonical full-DE and interpretation output directories contain their own
 software-version tables. The inStrain version and exact compare command are
-preserved in the staged run log.
+preserved in the staged run log. Upstream workflow provenance is recorded in
+`manuscript/upstream_software_provenance.tsv`, with evidence paths and SHA-256
+checksums. Verified entries are Bakta 1.12.0 with full database 6.0 dated
+2025-02-24, CAT/BAT 6.0.1 with a GTDB-derived database build dated 2023-11-21,
+CheckV 1.1.1 with database v1.5, and inStrain 1.10.0.
+
+The exact CoverM package version is not recoverable. Its archived Snakemake
+metadata retains the exact command, inputs, nine reported metrics, 24 threads,
+and software-stack hash, but its environment specification requested unpinned
+`coverm` and the resolved runtime prefix was removed before package export. A
+currently available CoverM 0.7.0 cache is not linked to that execution and is
+therefore not reported as the run version. The CAT/BAT database files preserve
+their 2023-11-21 build date but no exact GTDB release tag. These are documented
+provenance gaps, not silently imputed versions.
 
 ## Quarantine and inference audit
 
@@ -74,12 +87,7 @@ preserved in the staged run log.
 1. Receive and decide on the collaborator-owned 16S package under issue #30.
    If included, register its exact software, database, classifier, parameters,
    source tables, checksums, figure, and claims, then rerun this full audit.
-2. Recover or explicitly mark as unavailable the exact upstream versions for
-   CoverM, Bakta, CAT/BAT, GTDB release, and CheckV. Their source artifacts and
-   authoritative citations are verified, but the locally staged files do not
-   currently expose every executed upstream version. The manuscript must not
-   claim that all upstream versions are versioned until this is resolved.
-3. Re-run visual inspection only if any figure changes after 16S integration or
+2. Re-run visual inspection only if any figure changes after 16S integration or
    journal conformance.
 
 These open items are provenance gates, not evidence for expanding the
