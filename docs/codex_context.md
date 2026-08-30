@@ -149,7 +149,10 @@ user supplies revised or accepted prose, use Suggesting mode for agent changes.
 Do not manage the delegated 16S analysis; preserve its conditional Figure 5
 insertion point.
 
-The full pre-16S reproducibility audit passed on 2026-08-30. Final issue #31
-closure still requires the issue #30 decision and recovery, or explicit
-documentation of unavailability, for upstream CoverM, Bakta, CAT/BAT, GTDB, and
-CheckV versions.
+The full pre-16S reproducibility audit passed on 2026-08-30. Upstream software
+provenance is now versioned in `manuscript/upstream_software_provenance.tsv`:
+Bakta 1.12.0/database 6.0, CAT/BAT 6.0.1/database build 2023-11-21, CheckV
+1.1.1/database v1.5, and inStrain 1.10.0 are verified. The exact executed
+CoverM version and exact GTDB release tag are explicitly not recoverable and
+must not be inferred from unrelated cached environments or other projects.
+Final issue #31 closure still requires the issue #30 decision.

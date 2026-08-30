@@ -93,14 +93,23 @@ feature records. Features were represented by coordinate-aware identifiers
 containing the contig, start, end, gene identifier, and strand.
 
 MAG-level community profiles were calculated from the metagenomic CoverM
-read-count matrix (Aroney et al., 2025). Read counts were joined to the
-CAT/BAT-GTDB classification and summed by family within each physical sample.
+read-count matrix (Aroney et al., 2025). Archived workflow metadata preserves
+the exact command and reported metrics, but not the resolved CoverM package
+version because the unpinned runtime environment was removed. Read counts were
+joined to the CAT/BAT-GTDB classification and summed by family within each
+physical sample.
 Relative abundance was calculated within the MAG-mapped read total. The 25
 families with the highest mean relative abundance were displayed using a
 microshades-inspired hierarchy in which phylum determined hue and taxonomic
 resolution determined shade (Dahl et al., 2022). The resulting profiles
 describe the recovered MAG fraction rather than absolute whole-community
 abundance.
+
+The staged viral catalogue contained 607 deduplicated, classified,
+high-quality vOTUs after quality assessment with CheckV 1.1.1 and database
+v1.5 (Nayfach et al., 2021). Viral taxonomy was summarized as classification
+paths and realms. These summaries describe catalogue composition; they are not
+sequence phylogenies or measurements of treatment response.
 
 ### Complete-universe differential expression
 
@@ -124,12 +133,14 @@ not used to select features before fitting.
 
 ### Functional annotation and competitive gene-set tests
 
-Primary gene annotations generated with Bakta were joined to the model results
-by metagenome-assembled genome (MAG) and gene identifier (Schwengers et al.,
-2021). MAG taxonomy was joined from the staged CAT/BAT classification against
-the Genome Taxonomy Database (von Meijenfeldt et al., 2019; Parks et al.,
-2022). Annotation and taxonomy failures were retained as explicit audit
-categories.
+Primary gene annotations generated with Bakta 1.12.0 and the full Bakta
+database 6.0 build dated 2025-02-24 were joined to the model results by
+metagenome-assembled genome (MAG) and gene identifier (Schwengers et al.,
+2021). MAG taxonomy was joined from the staged CAT/BAT 6.0.1 classification
+against a GTDB-derived database build dated 2023-11-21 (von Meijenfeldt et al.,
+2019; Parks et al., 2022). The exact GTDB release tag was not preserved and is
+not inferred from other projects. Annotation and taxonomy failures were
+retained as explicit audit categories.
 
 Eight functional categories were fixed before category-level interpretation:
 photoreactivation, nucleotide-excision repair, recombination repair, SOS
@@ -171,10 +182,10 @@ genes. They were not treated as a second hypothesis test.
 
 ### Descriptive population-genomic comparisons
 
-Population-genomic comparisons used the scoped priority-20 inStrain analysis
-(Olm et al., 2021). A sample pair was retained when at least 1 Mbp and 50% of
-the callable genome were compared. A MAG was retained for the descriptive panel
-when it had at least 10 qualified pairs spanning at least six samples.
+Population-genomic comparisons used the scoped priority-20 inStrain 1.10.0
+analysis (Olm et al., 2021). A sample pair was retained when at least 1 Mbp and
+50% of the callable genome were compared. A MAG was retained for the descriptive
+panel when it had at least 10 qualified pairs spanning at least six samples.
 Consensus differences were divided by callable bases and expressed per Mbp. No
 statistical comparison by condition, phase, or cycle was performed. The scoped
 MAGs originated from earlier host-link and signature priorities and are not a
@@ -373,9 +384,9 @@ whereas a uniform DNA-damage or adaptation programme was not supported.
 
 Raw sequencing data are available from the European Nucleotide Archive under
 PRJEB79569 (secondary study accession ERP163720). Analysis code, sample
-metadata, software versions for the manuscript-facing statistical workflows,
-input checksums, output checksums, and exact output provenance are versioned in
-the project repository and its manifests. The complete statistical tables
+metadata, software versions, explicit upstream provenance gaps, input
+checksums, output checksums, and exact output provenance are versioned in the
+project repository and its manifests. The complete statistical tables
 underlying all displayed summaries are retained in the project-derived data
 store.
 

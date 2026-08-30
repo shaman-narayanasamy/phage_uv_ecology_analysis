@@ -19,6 +19,7 @@ require_file "metadata/16s_ena_fastq_manifest.tsv"
 require_file "resources/uv_resistance_signatures.tsv"
 require_file "manifests/data_manifest.tsv"
 require_file "manifests/code_manifest.tsv"
+require_file "manuscript/upstream_software_provenance.tsv"
 
 printf '\nChecking sample metadata grouping...\n'
 awk -F '\t' '
@@ -47,6 +48,9 @@ Rscript tests/test_references.R || failures=$((failures + 1))
 
 printf '\nChecking manuscript structure and editorial boundaries...\n'
 Rscript tests/test_manuscript_structure.R || failures=$((failures + 1))
+
+printf '\nChecking upstream software provenance...\n'
+Rscript tests/test_upstream_software_provenance.R || failures=$((failures + 1))
 
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
