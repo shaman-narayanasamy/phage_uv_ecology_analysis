@@ -2,10 +2,10 @@
 
 Research checked: 2026-08-30
 
-Status: issue #32 prework. This document records an agent recommendation, not
-the authors' journal decision. Final conformance remains blocked by issue #31
-and the author must record the target and fallback order before files are
-reformatted or a cover letter is finalized.
+Status: provisional author decision recorded 2026-08-30. The target sequence
+below is approved for preparation and author review, not for submission. Final
+conformance remains blocked by issue #31 and requires a live instructions check
+plus explicit author approval immediately before submission.
 
 ## Non-negotiable editorial boundary
 
@@ -85,14 +85,19 @@ Nature Portfolio biofilm audience and have confirmed APC coverage.
 
 ## Author decision record
 
-Target journal: **[author to select]**
+Target journal: **ISME Communications**
 
-Fallback 1: **[author to select]**
+Fallback 1: **FEMS Microbiology Ecology**
 
-Fallback 2: **[author to select]**
+Fallback 2: **Environmental Microbiome**
 
 Agent recommendation: **ISME Communications -> FEMS Microbiology Ecology ->
 Environmental Microbiome**.
+
+Decision status: **provisional author decision for package preparation**, made
+2026-08-30. The author explicitly retained review authority. This decision does
+not authorize a live Google Docs edit, journal-system upload, pre-submission
+enquiry, or submission.
 
 The author decision must also record:
 
