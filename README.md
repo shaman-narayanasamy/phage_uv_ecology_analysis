@@ -42,6 +42,10 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `manuscript/analysis_registry.tsv`: current, descriptive, delegated,
   deferred, and prohibited workflow registry;
 - `analysis/phage_uv_ecology.qmd`: executable manuscript audit surface;
+- `scripts/run_pre_submission_audit.sh`: complete repeatable repository,
+  manuscript, figure, and Quarto audit;
+- `docs/pre_submission_reproducibility_audit.md`: current audit evidence and
+  unresolved final gates;
 - `docs/full_de_interpretation_results.md`: concise verified result summary;
 - `docs/full_de_interpretation_plan.md`: frozen #23 methods and thresholds;
 - `docs/manuscript_figure_plan.md`: unnumbered candidate architecture and

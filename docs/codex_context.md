@@ -67,6 +67,9 @@ evidence of DNA damage, mutagenesis, or adaptation.
   `manuscript/analysis_registry.tsv`
 - Reproducible audit report:
   `analysis/phage_uv_ecology.qmd`
+- Complete pre-submission audit runner and current report:
+  `scripts/run_pre_submission_audit.sh` and
+  `docs/pre_submission_reproducibility_audit.md`
 
 ## Executable analysis sources
 
@@ -145,3 +148,8 @@ remain in regular editing mode while the user comments and suggests. If the
 user supplies revised or accepted prose, use Suggesting mode for agent changes.
 Do not manage the delegated 16S analysis; preserve its conditional Figure 5
 insertion point.
+
+The full pre-16S reproducibility audit passed on 2026-08-30. Final issue #31
+closure still requires the issue #30 decision and recovery, or explicit
+documentation of unavailability, for upstream CoverM, Bakta, CAT/BAT, GTDB, and
+CheckV versions.

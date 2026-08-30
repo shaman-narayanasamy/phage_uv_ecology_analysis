@@ -373,10 +373,11 @@ whereas a uniform DNA-damage or adaptation programme was not supported.
 
 Raw sequencing data are available from the European Nucleotide Archive under
 PRJEB79569 (secondary study accession ERP163720). Analysis code, sample
-metadata, software versions, input checksums, output checksums, and exact output
-provenance are versioned in the project repository and its manifests. The
-complete statistical tables underlying all displayed summaries are retained in
-the project-derived data store.
+metadata, software versions for the manuscript-facing statistical workflows,
+input checksums, output checksums, and exact output provenance are versioned in
+the project repository and its manifests. The complete statistical tables
+underlying all displayed summaries are retained in the project-derived data
+store.
 
 ## Declarations
 

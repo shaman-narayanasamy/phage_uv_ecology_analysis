@@ -1,6 +1,6 @@
 # Handoff: PRJEB79569 full manuscript draft
 
-Date: 2026-08-27; updated 2026-08-29
+Date: 2026-08-27; updated 2026-08-30
 
 This is the controlling scientific handoff. Start here, then read
 `docs/codex_context.md`. Do not reconstruct the project from chat, storage
@@ -20,6 +20,8 @@ the full editorial pass on 2026-08-29.
 - Figure architecture: `docs/manuscript_figure_plan.md`.
 - Fixed visual mappings: `docs/figure_visual_grammar.md`.
 - Editorial audit: `docs/manuscript_editorial_audit.md`.
+- Pre-submission reproducibility audit:
+  `docs/pre_submission_reproducibility_audit.md`.
 - Canonical figure output:
   `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_figure_candidates/`.
 
@@ -236,6 +238,14 @@ inspected. All 13 one-page vector
 PDFs are governed by the candidate registry and checksum inventory. The
 remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
+
+The complete pre-16S audit passed on 2026-08-30 through
+`bash scripts/run_pre_submission_audit.sh`: all 10 R tests, manifest checks,
+all 20 no-execute Quarto structure renders, the Pandoc manuscript build,
+figure checksums, and repository hygiene. Issue #31 remains open because issue
+#30 has not returned and because exact upstream versions for CoverM, Bakta,
+CAT/BAT, the GTDB release, and CheckV still need recovery or an explicit
+unavailable-provenance statement.
 
 ## Submission-readiness roadmap
 
