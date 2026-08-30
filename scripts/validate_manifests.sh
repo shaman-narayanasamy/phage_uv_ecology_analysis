@@ -52,6 +52,9 @@ Rscript tests/test_manuscript_structure.R || failures=$((failures + 1))
 printf '\nChecking upstream software provenance...\n'
 Rscript tests/test_upstream_software_provenance.R || failures=$((failures + 1))
 
+printf '\nChecking journal review package...\n'
+Rscript tests/test_journal_review_package.R || failures=$((failures + 1))
+
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
   NR == 1 { next }
