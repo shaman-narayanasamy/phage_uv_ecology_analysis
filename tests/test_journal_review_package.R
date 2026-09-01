@@ -37,6 +37,8 @@ decision_register <- read.delim(
   stringsAsFactors = FALSE,
   na.strings = character()
 )
+release_script <- file.path(repo_root, "scripts", "build_submission_release_manifest.sh")
+release_protocol <- read_text(file.path(repo_root, "docs", "submission_release_protocol.md"))
 
 stopifnot(
   grepl("Target journal: **ISME Communications**", decision, fixed = TRUE),
@@ -64,7 +66,68 @@ stopifnot(
   all(is.na(decision_register$decision_date) | decision_register$decision_date == ""),
   !any(grepl("approved|confirmed|complete", decision_register$status)),
   grepl("Only[[:space:]]+named authors can approve", package_text[["scientific_review_checklist.md"]]),
+  file.exists(release_script),
+  file.access(release_script, mode = 1L) == 0L,
+  grepl("No package is frozen, tagged", release_protocol, fixed = TRUE),
+  grepl("does not grant that authority", release_protocol, fixed = TRUE),
   !grepl("approved for submission", package_text[["README.md"]], fixed = TRUE)
+)
+
+release_test_dir <- tempfile("submission-release-test-")
+dir.create(release_test_dir)
+on.exit(unlink(release_test_dir, recursive = TRUE), add = TRUE)
+source_file <- file.path(release_test_dir, "manuscript.pdf")
+writeBin(charToRaw("approved submission bytes\n"), source_file)
+
+pending_inventory <- file.path(release_test_dir, "pending.tsv")
+writeLines(c(
+  "role\tsource_path\tsubmission_name\tapproval_status",
+  paste("manuscript", source_file, "manuscript.pdf", "pending_human", sep = "\t")
+), pending_inventory)
+pending_output <- file.path(release_test_dir, "pending-manifest.tsv")
+pending_result <- suppressWarnings(system2(
+  "bash",
+  c(shQuote(release_script), shQuote(pending_inventory), shQuote(pending_output)),
+  stdout = TRUE,
+  stderr = TRUE
+))
+stopifnot(
+  identical(attr(pending_result, "status"), 65L),
+  !file.exists(pending_output)
+)
+
+approved_inventory <- file.path(release_test_dir, "approved.tsv")
+writeLines(c(
+  "role\tsource_path\tsubmission_name\tapproval_status",
+  paste(
+    "manuscript",
+    source_file,
+    "manuscript.pdf",
+    "approved_by_corresponding_author",
+    sep = "\t"
+  )
+), approved_inventory)
+approved_output <- file.path(release_test_dir, "release-manifest.tsv")
+approved_result <- system2(
+  "bash",
+  c(shQuote(release_script), shQuote(approved_inventory), shQuote(approved_output)),
+  stdout = TRUE,
+  stderr = TRUE
+)
+release_manifest <- read.delim(
+  approved_output,
+  sep = "\t",
+  quote = "",
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+stopifnot(
+  is.null(attr(approved_result, "status")),
+  nrow(release_manifest) == 1L,
+  release_manifest$submission_name == "manuscript.pdf",
+  release_manifest$file_size_bytes == file.info(source_file)$size,
+  grepl("^[0-9a-f]{64}$", release_manifest$sha256),
+  grepl("^[0-9a-f]{40}$", release_manifest$repository_commit)
 )
 
 message("Journal choice and review-only submission package verified.")
