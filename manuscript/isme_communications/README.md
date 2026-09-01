@@ -20,6 +20,10 @@ disclosure. See `researcher_authorship_remediation.md`.
 - `submission_checklist.md`: verified checks and remaining submission gates.
 - `researcher_authorship_remediation.md`: mandatory human-authoring and AI-use
   disclosure gate for this journal.
+- `author_decision_register.tsv`: fillable decision register with every human
+  and collaborator gate initially unresolved.
+- `scientific_review_checklist.md`: evidence-linked scientific and figure review
+  checklist for named authors.
 - `prior_publication_metadata.md`: metadata recovered from the published study,
   kept separate from decisions that the authors must make for this manuscript.
 - `submission_review_manuscript.md`: derived, journal-formatted author-review

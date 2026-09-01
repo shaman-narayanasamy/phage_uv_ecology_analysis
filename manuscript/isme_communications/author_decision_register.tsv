@@ -1,0 +1,21 @@
+decision_id	category	required_decision_or_confirmation	evidence_source	owner	status	decision	decided_by	decision_date	notes
+D01	journal	Confirm ISME Communications as the target after reviewing design and AI-policy risks	docs/journal_selection_and_conformance.md	corresponding_author	pending_human				
+D02	authorship_policy	Confirm independent researcher authorship remediation is complete	manuscript/isme_communications/researcher_authorship_remediation.md	all_authors	pending_human				
+D03	ai_disclosure	Approve a complete and accurate AI-use disclosure	manuscript/isme_communications/researcher_authorship_remediation.md	corresponding_author	pending_human				
+D04	16s	Include or formally defer the collaborator-owned 16S result	issue_30;notes/handoff-2026-08-20-16s-collaborator.md	corresponding_author	pending_external				
+D05	scientific_interpretation	Approve the system-specific heterogeneous restructuring interpretation	manuscript/claim_evidence_registry.tsv	all_authors	pending_human				
+D06	design_boundary	Approve explicit condition-membrane confounding and non-causal language	docs/submission_claim_audit.md	all_authors	pending_human				
+D07	population_genomics	Approve descriptive five-MAG boundary without damage mutation or adaptation inference	docs/population_genomics_descriptive.md	all_authors	pending_human				
+D08	host_phage	Approve Supplementary Figure S8 as historical CRISPR evidence only	manuscript/claim_evidence_registry.tsv#C26	all_authors	pending_human				
+D09	title	Approve final title and running title	manuscript/isme_communications/title_page.md	all_authors	pending_human				
+D10	authors	Confirm author inclusion and order	manuscript/isme_communications/title_page.md	all_authors	pending_human				
+D11	corresponding_author	Confirm submitting and corresponding author details	manuscript/isme_communications/title_page.md	all_authors	pending_human				
+D12	affiliations	Confirm current affiliations addresses emails and ORCIDs	manuscript/isme_communications/title_page.md	all_authors	pending_human				
+D13	credit	Approve CRediT roles for the reanalysis	manuscript/isme_communications/prior_publication_metadata.md	all_authors	pending_human				
+D14	funding	Confirm funding for the reanalysis and publication charges	manuscript/isme_communications/prior_publication_metadata.md	corresponding_author	pending_human				
+D15	competing_interests	Obtain current declarations from every author	manuscript/isme_communications/submission_checklist.md	all_authors	pending_human				
+D16	acknowledgements	Approve acknowledgements and permissions	manuscript/isme_communications/prior_publication_metadata.md	all_authors	pending_human				
+D17	data_code	Approve final data software repository and persistent-release statements	manuscript/upstream_repository_provenance.tsv;manuscript/upstream_software_provenance.tsv	corresponding_author	pending_human				
+D18	figures_supplement	Approve four main figures eight supplementary figures legends and file summaries	manuscript/figure_legends.md	all_authors	pending_human				
+D19	reviewers	Approve three independent suggested reviewers and any opposed reviewers	manuscript/isme_communications/submission_checklist.md	corresponding_author	pending_human				
+D20	final_approval	Approve the frozen byte-addressed package for submission	issue_34	corresponding_author	pending_human				

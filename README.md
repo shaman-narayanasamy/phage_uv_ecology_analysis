@@ -44,6 +44,10 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `manuscript/manuscript_skeleton.md`: complete working manuscript draft;
 - `manuscript/isme_communications/researcher_authorship_remediation.md`:
   mandatory researcher-authoring and AI-disclosure gate for the current target;
+- `manuscript/isme_communications/author_decision_register.tsv`: unresolved
+  issue #33 decisions, owners, evidence, and approval fields;
+- `manuscript/isme_communications/scientific_review_checklist.md`: evidence-linked
+  scientific and figure checklist for named authors;
 - `manuscript/figure_legends.md`: descriptive main and supplementary legends;
 - `manuscript/references.bib`: bibliography for import into Zotero;
 - `docs/citation_audit.md`: verified reference roles and live-Zotero boundary;
