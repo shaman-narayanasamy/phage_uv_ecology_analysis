@@ -144,6 +144,16 @@ Validate manifest structure after changing tracked inputs or outputs:
 bash scripts/validate_manifests.sh
 ```
 
+Run the data-independent repository checks locally with:
+
+```sh
+bash scripts/run_repository_static_checks.sh
+```
+
+The same lightweight shell, Python, base-R, whitespace, and generated-artifact
+checks run on pull requests and pushes to `main` or `dev`. Project-scale tests
+that require managed external data remain in `scripts/run_pre_submission_audit.sh`.
+
 Use `git diff --check` before committing. Generated tables, figures, logs,
 caches, workflow state, and large datasets belong outside Git unless a manifest
 explicitly records a small versioned artifact.
