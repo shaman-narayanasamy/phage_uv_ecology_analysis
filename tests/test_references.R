@@ -4,13 +4,23 @@ repo_root <- normalizePath(getwd())
 bib_path <- file.path(repo_root, "manuscript", "references.bib")
 manuscript_path <- file.path(repo_root, "manuscript", "manuscript_skeleton.md")
 legend_path <- file.path(repo_root, "manuscript", "figure_legends.md")
+handoff_path <- file.path(
+  repo_root,
+  "notes",
+  "handoff-2026-08-27-full-manuscript-draft.md"
+)
 
 bib_lines <- readLines(bib_path, warn = FALSE)
 manuscript_lines <- readLines(manuscript_path, warn = FALSE)
 legend_lines <- readLines(legend_path, warn = FALSE)
+handoff_text <- paste(readLines(handoff_path, warn = FALSE), collapse = "\n")
 
 entry_starts <- grep("^@[[:alpha:]]+\\{[^,]+,", bib_lines)
 stopifnot(length(entry_starts) == 16L)
+stopifnot(
+  grepl("16 unique DOI-addressed records", handoff_text, fixed = TRUE),
+  !grepl("14 unique DOI-addressed records", handoff_text, fixed = TRUE)
+)
 
 entry_ends <- c(entry_starts[-1L] - 1L, length(bib_lines))
 entries <- Map(

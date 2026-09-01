@@ -1,6 +1,6 @@
 # Handoff: PRJEB79569 full manuscript draft
 
-Date: 2026-08-27; updated 2026-08-30
+Date: 2026-08-27; updated 2026-09-01
 
 This is the controlling scientific handoff. Start here, then read
 `docs/codex_context.md`. Do not reconstruct the project from chat, storage
@@ -22,6 +22,8 @@ the full editorial pass on 2026-08-29.
 - Editorial audit: `docs/manuscript_editorial_audit.md`.
 - Pre-submission reproducibility audit:
   `docs/pre_submission_reproducibility_audit.md`.
+- Exact upstream repository execution states:
+  `manuscript/upstream_repository_provenance.tsv`.
 - Canonical figure output:
   `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_figure_candidates/`.
 
@@ -81,6 +83,7 @@ without renaming files. The working draft uses:
 10. Supplementary Figure S5: `supplementary-population-genomics.pdf`.
 11. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
 12. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
+13. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
 
 The earlier `global-transcriptome-structure.pdf` and
 `functional-organism-restructuring.pdf` layouts remain checksum-governed for
@@ -117,8 +120,10 @@ apply in every main and supplementary figure.
   trajectory-cluster analyses are prohibited from the manuscript and
   supplement.
 - Population genomics is descriptive and limited to a selected five-MAG set.
-- Host-phage links remain deferred unless they materially clarify a supported
-  organism-level result.
+- Host-phage links are allocated only as Supplementary Figure S8, a descriptive
+  CRISPR/SpacePHARER historical-exposure evidence audit. They do not establish
+  active infection, validated host range, treatment response, or causal linkage
+  to transcription.
 - The 16S analysis is owned by the external expert collaborator. Do not manage
   or rerun it from this workstream. Review the returned package only for sample
   mapping, provenance, inference, and manuscript integration under issue #30.
@@ -129,6 +134,11 @@ apply in every main and supplementary figure.
   been returned at that check.
 
 ## Google Docs and Zotero
+
+The Google Docs history below is a verified historical snapshot, not a claim
+about the present live document. The live document has not been re-read in the
+current session, and the user is populating it and making comments. Do not edit,
+replace, or reformat it until the user explicitly asks.
 
 The existing Google Doc is:
 `https://docs.google.com/document/d/1BwtV8cU5anyC8yFYUmiG09fIa-buT0t425bkm1tiTXs/edit?tab=t.0`.
@@ -170,7 +180,7 @@ prose for further editing, work only in Suggesting mode unless explicitly asked
 to replace it.
 
 No direct Zotero connector was available to the agent. GitHub issue #28 closed
-the current citation audit on 2026-08-29. The 14 unique DOI-addressed records in
+the current citation audit on 2026-08-29. The 16 unique DOI-addressed records in
 `manuscript/references.bib` are the verified import queue, and
 `docs/citation_audit.md` records their roles and verification basis. Import them
 into Zotero, then use Zotero field codes in Google Docs. Do not pretend that
@@ -179,7 +189,7 @@ only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
-All 20 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 21 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -227,7 +237,7 @@ Doc previews.
 - `Rscript tests/test_taxonomic_timeseries_layouts.R`.
 - `bash scripts/validate_manifests.sh`.
 - `Rscript tests/test_quarto_entrypoints.R`.
-- Quarto 1.9.37 structure renders for all 20 `scripts/*.qmd` notebooks with
+- Quarto 1.9.37 structure renders for all 21 `scripts/*.qmd` notebooks with
   execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.
@@ -239,23 +249,25 @@ PDFs are governed by the candidate registry and checksum inventory. The
 remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
 
-The complete pre-16S audit passed on 2026-08-30 through
-`bash scripts/run_pre_submission_audit.sh`: all 10 R tests, manifest checks,
-all 20 no-execute Quarto structure renders, the Pandoc manuscript build,
-figure checksums, and repository hygiene. Issue #31 remains open because issue
-#30 has not returned and because exact upstream versions for CoverM, Bakta,
-CAT/BAT, the GTDB release, and CheckV still need recovery or an explicit
-unavailable-provenance statement.
+The complete pre-16S audit passed on 2026-09-01 through
+`bash scripts/run_pre_submission_audit.sh`: all 15 R tests, manifest checks,
+all 21 no-execute Quarto structure renders, the Pandoc manuscript build,
+figure checksums, and repository hygiene. Bakta, CAT/BAT, CheckV, and inStrain
+versions are verified; unrecoverable CoverM and GTDB-release details are
+explicitly recorded rather than inferred. Exact multiomics and host-phage
+repository execution states are checksum-bound in
+`manuscript/upstream_repository_provenance.tsv`. Issue #31 remains open only
+because issue #30 has not returned and a final post-decision audit may be needed.
 
 ## Submission-readiness roadmap
 
 GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issues #26
-through #29 have frozen the evidence boundary, finalized and visually audited
-the figure allocation, completed the citation audit, and edited the complete
-manuscript. Issue #30 integrates the collaborator-owned 16S result if
-informative; #31 performs the final reproducibility audit; #32 selects and
-conforms to a defensible journal; #33 obtains author and coauthor approval; and
-#34 submits and archives the approved release.
+through #29 completed the evidence, figures, citations, and manuscript edit.
+Issue #30 remains collaborator-owned. The agent-addressable pre-16S work for
+#31 and #32 is complete and audited; both remain human-gated by the 16S
+decision, author review, declarations, and live submission-day checks. Issue
+#33 obtains author and coauthor approval, and #34 submits and archives only the
+approved release.
 
 Work one issue at a time and close it only after its acceptance criteria are
 evidenced. Once the user supplies revised or accepted prose, all agent changes
