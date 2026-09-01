@@ -55,6 +55,10 @@ Rscript tests/test_upstream_software_provenance.R || failures=$((failures + 1))
 printf '\nChecking journal review package...\n'
 Rscript tests/test_journal_review_package.R || failures=$((failures + 1))
 
+printf '\nChecking ISME submission-review manuscript...\n'
+python3 scripts/build_isme_submission_review.py || failures=$((failures + 1))
+Rscript tests/test_isme_submission_review.R || failures=$((failures + 1))
+
 printf '\nChecking UV signature table...\n'
 awk -F '\t' '
   NR == 1 { next }
@@ -92,12 +96,18 @@ done < <(
 
 printf '\nChecking HPC Conda-prefix policy...\n'
 scratch_conda_pattern='(CONDA_PREFIX_DIR|--conda-prefix|conda create|mamba create).*scratch/users/snarayanasamy/phage_uv_treatment'
-if rg -n --glob '*.sh' --glob '*.yml' --glob '*.yaml' \
-    "${scratch_conda_pattern}" launchers config; then
+scratch_search_status=0
+grep -R -n -E \
+  --include='*.sh' --include='*.yml' --include='*.yaml' \
+  -- "${scratch_conda_pattern}" launchers config || scratch_search_status=$?
+if [[ "${scratch_search_status}" -eq 0 ]]; then
   printf 'PROHIBITED: Conda environment or prefix under project scratch.\n' >&2
   failures=$((failures + 1))
-else
+elif [[ "${scratch_search_status}" -eq 1 ]]; then
   printf 'OK: no project-scratch Conda prefixes in launchers or config\n'
+else
+  printf 'ERROR: unable to search launchers and config for project-scratch Conda prefixes.\n' >&2
+  failures=$((failures + 1))
 fi
 
 expected_conda_prefix='CONDA_PREFIX_DIR="/work/projects/bioinformatics_platform/cache/conda"'
@@ -113,11 +123,16 @@ do
   fi
 done
 
-if rg -n --fixed-strings -- '--notemp' launchers; then
+notemp_search_status=0
+grep -R -n -F -- '--notemp' launchers || notemp_search_status=$?
+if [[ "${notemp_search_status}" -eq 0 ]]; then
   printf 'PROHIBITED: routine launcher disables Snakemake temp cleanup.\n' >&2
   failures=$((failures + 1))
-else
+elif [[ "${notemp_search_status}" -eq 1 ]]; then
   printf 'OK: Snakemake temp cleanup is not disabled\n'
+else
+  printf 'ERROR: unable to search launchers for disabled Snakemake temp cleanup.\n' >&2
+  failures=$((failures + 1))
 fi
 
 if [[ "$failures" -ne 0 ]]; then

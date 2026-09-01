@@ -89,13 +89,13 @@ main_positions <- vapply(
 )
 stopifnot(all(main_positions > 0L), identical(order(main_positions), 1:4))
 
-supp_labels <- paste0("Supplementary Figure S", 1:7)
+supp_labels <- paste0("Supplementary Figure S", 1:8)
 supp_positions <- vapply(
   supp_labels,
   function(label) regexpr(label, results_flat, fixed = TRUE)[[1L]],
   integer(1L)
 )
-stopifnot(all(supp_positions > 0L), identical(order(supp_positions), 1:7))
+stopifnot(all(supp_positions > 0L), identical(order(supp_positions), 1:8))
 
 required_result_signals <- c(
   "No named family exceeded 6.6% mean relative abundance",
@@ -103,7 +103,8 @@ required_result_signals <- c(
   "BH FDR range 0.642 to 0.892",
   "175 MAG-level gene sets",
   "6,985 met the five-of-six-cell recurrence rule",
-  "Five MAGs passed the pairwise and organism-level coverage rules"
+  "Five MAGs passed the pairwise and organism-level coverage rules",
+  "86 deduplicated SpacePHARER pairs"
 )
 stopifnot(all(vapply(
   required_result_signals,

@@ -1,6 +1,7 @@
 # Manuscript figure plan
 
-Status: pre-16S allocation frozen after complete visual review on 2026-08-29.
+Status: pre-16S allocation frozen after complete visual review on 2026-08-29;
+Supplementary Figure S8 added after host-phage evidence audit on 2026-09-01.
 Artifact filenames remain unnumbered so the allocation can be revised without
 breaking provenance.
 
@@ -25,6 +26,7 @@ renaming the canonical artifacts.
    pairwise landscapes, respectively.
 7. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
 8. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
+9. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
 
 ## Current candidate set
 
@@ -114,6 +116,21 @@ every sample. That dominance is an informative high-level catalogue result, but
 it leaves little longitudinal taxonomic restructuring to display. The viral
 panel is therefore supplementary context unless a more resolved, prespecified
 viral question earns a main-text role.
+
+## Host-phage network allocation
+
+`host-phage-network-evidence-audit.pdf` restores the interaction layer visible
+in the original poster without reusing its quarantined subset-first expression
+filter. It contains 86 deduplicated SpacePHARER host-phage candidate pairs
+linking 80 MAGs to 85 phage contigs. The host overlay uses only the current
+complete-transcriptome adjusted membrane coefficient. The accompanying audit
+shows that 12 linked phage representatives have current catalogue annotation
+and none passes the manuscript's high-quality classified-vOTU filter.
+
+This is allocated as Supplementary Figure S8. The links are compatible with
+historical CRISPR exposure, but do not demonstrate active infection, treatment
+response, host range, adsorption through biofilm, or causal connection to the
+MAG transcriptional coefficient.
 
 ## Current supplementary set
 

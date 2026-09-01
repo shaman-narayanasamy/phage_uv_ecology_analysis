@@ -50,8 +50,10 @@ cleaning cycles. Regrowth of transmembrane pressure remained delayed, although
 bacterial-cell and protein removal declined over successive cycles
 (Myshkevych et al., 2025).
 
-Whether this changing engineering performance reflects a uniform microbial
-response is less clear. The repeated-cycle study reported transcriptional
+Membrane biofilms are dynamic communities whose membership and functional
+potential can change during colonisation and maturation (Lu et al., 2016;
+Cheng et al., 2019). Whether this changing engineering performance reflects a
+uniform microbial response is less clear. The repeated-cycle study reported transcriptional
 changes in selected biofilm-forming organisms and proposed that repeated
 exposure could favour adaptation (Myshkevych et al., 2025). Yet a signal in
 selected organisms or stress genes need not represent the wider community. It
@@ -318,6 +320,14 @@ Figure S6; Supplementary Figure S7). These classification-derived diagrams
 describe recovered taxonomic breadth. They are not sequence phylogenies and do
 not encode a treatment response or host-phage linkage.
 
+CRISPR-derived candidate linkage connected 80 host MAGs to 85 phage contigs
+through 86 deduplicated SpacePHARER pairs (Supplementary Figure S8). Forty-nine
+linked hosts also carried a supported adjusted-membrane MAG coefficient, but
+the direction was mixed. Only 12 linked phage representatives had a current
+catalogue annotation, and none passed the manuscript's high-quality classified-
+vOTU filter. The network therefore records candidate historical exposure rather
+than active infection, validated host range, or treatment response.
+
 ## Discussion
 
 The complete metatranscriptome changes the scale of the biological
@@ -374,8 +384,9 @@ samples. They cannot support a general causal estimate for phage-UV cleaning.
 The delegated 16S analysis can add a complementary amplicon-based view of
 community composition and test whether broad taxonomic turnover is consistent
 with the metagenomic profile. It samples the same experimental units and cannot
-create treatment replication. Host-phage links should likewise enter the story
-only if they clarify a supported organism-level result. The present evidence
+create treatment replication. The host-phage network adds a record of candidate
+historical exposure, but it does not identify active infections or connect those
+links causally to the observed transcriptional structure. The present evidence
 supports a precise conclusion: the two repeatedly sampled membranes developed
 broad, bidirectional, organism-resolved differences in their RNA landscapes,
 whereas a uniform DNA-damage or adaptation programme was not supported.
@@ -412,6 +423,16 @@ Dahl EM, Neer E, Bowie KR, Leung ET, Karstens L. 2022. microshades: An R package
 for improving color accessibility and organization of microbiome data.
 *Microbiology Resource Announcements* 11:e00795-22.
 https://doi.org/10.1128/mra.00795-22
+
+Cheng H, Cheng D, Mao J, Lu T, Hong P-Y. 2019. Identification and
+characterization of core sludge and biofilm microbiota in anaerobic membrane
+bioreactors. *Environment International* 133:105165.
+https://doi.org/10.1016/j.envint.2019.105165
+
+Lu H, Xue Z, Saikaly P, Nunes SP, Bluver TR, Liu W-T. 2016. Membrane
+biofouling in a wastewater nitrification reactor: microbial succession from
+autotrophic colonization to heterotrophic domination. *Water Research*
+88:337-345. https://doi.org/10.1016/j.watres.2015.10.013
 
 Maslowska KH, Makiela-Dzbenska K, Fijalkowska IJ. 2019. The SOS system: a
 complex and tightly regulated response to DNA damage. *Environmental and
@@ -581,6 +602,20 @@ CheckV (Nayfach et al., 2021), grouped into 45 taxonomic paths. Point colour
 denotes realm and point size denotes group size. (B) Number
 of qualifying vOTUs in each realm. The cladogram is not a sequence phylogeny
 and does not encode treatment response or host-phage linkage.
+
+**Supplementary Figure S8. CRISPR-derived host-phage candidate-link evidence
+audit.** (A) Eighty host MAGs and 85 phage contigs connected by 86 deduplicated
+SpacePHARER candidate pairs. Host-node colour denotes GTDB phylum, phage-node
+shape denotes the mapped viral realm, edge width denotes the number of
+SpacePHARER hits, and edge colour overlays the support and direction of the host
+MAG's current adjusted membrane coefficient. Labels identify the six host MAGs
+linked to two phage candidates and the single phage candidate linked to two
+hosts. (B) Linked host MAGs by current complete-transcriptome support and
+direction. (C) Linked phage representatives by current catalogue-annotation
+status. The network represents CRISPR-derived candidate links, not direct
+infection, treatment response, or host-range validation. None of the linked
+phage representatives passes the manuscript's high-quality classified-vOTU
+filter.
 
 ## Editorial insertion note, not manuscript text
 

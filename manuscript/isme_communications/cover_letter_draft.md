@@ -4,7 +4,7 @@ Status: local draft only; not approved for sending or submission.
 
 Dear Editors,
 
-We submit the Research Article, "Heterogeneous organism-resolved
+We submit the Original Article, "Heterogeneous organism-resolved
 transcriptional restructuring across repeated phage-UV cleaning of anaerobic
 membrane biofilms," for consideration in *ISME Communications*.
 

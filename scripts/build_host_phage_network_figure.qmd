@@ -1,0 +1,339 @@
+---
+title: "Build current host-phage network figure"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook rebuilds the host-phage network from the verified consolidated
+SpacePHARER links. It deliberately does not reuse the poster-era selection of
+"up-regulated biofilm MAGs", because that subset-first differential-expression
+analysis is quarantined. Run with:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_host_phage_network_figure.qmd \
+  /Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569 \
+  /Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/host_phage_network_review
+```
+
+```{r}
+#| label: build-host-phage-network
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+data_root <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_DATA_ROOT")
+out_root <- if (length(args) >= 2L) args[[2L]] else file.path(data_root, "derived", "host_phage_network_review")
+if (!nzchar(data_root) || !dir.exists(data_root)) stop("Provide the PRJEB79569 data root.")
+
+script_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+if (!nzchar(script_path)) {
+  candidates <- c(
+    file.path(getwd(), "scripts", "build_host_phage_network_figure.qmd"),
+    file.path(getwd(), "build_host_phage_network_figure.qmd")
+  )
+  script_path <- candidates[file.exists(candidates)][[1L]]
+}
+repo_root <- dirname(dirname(normalizePath(script_path)))
+source(file.path(repo_root, "R", "figure_style.R"))
+
+dir.create(file.path(out_root, "figures"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(out_root, "tables"), recursive = TRUE, showWarnings = FALSE)
+
+paths <- list(
+  links = file.path(data_root, "host_phage_linking", "full", "summary_data", "host_phage_links.tsv"),
+  clusters = file.path(data_root, "viromics", "votu_clustering", "cluster_summary.tsv"),
+  cenote = file.path(data_root, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "cenotetaker3", "output", "output_virus_summary.tsv"),
+  checkv = file.path(data_root, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "checkv", "quality_summary.tsv"),
+  mag_context = file.path(data_root, "derived", "manuscript_figure_candidates", "tables", "mag_taxonomic_context.tsv"),
+  mag_coherence = file.path(data_root, "derived", "full_de_interpretation", "tables", "mag_coherence.tsv")
+)
+missing <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing)) stop("Missing input(s): ", paste(missing, collapse = ", "))
+
+links <- fread(paths$links)
+raw_rows <- nrow(links)
+exact_unique_rows <- nrow(unique(links))
+edges <- links[, .(
+  MAG_ID,
+  phage_id = phage_id_or_vOTU_id,
+  n_hits = as.integer(n_hits),
+  score = as.numeric(score)
+)]
+setorder(edges, MAG_ID, phage_id, -n_hits, -score)
+edges <- edges[, .SD[1L], by = .(MAG_ID, phage_id)]
+
+linked_ids <- unique(edges$phage_id)
+clusters <- fread(paths$clusters, select = c("representative", "members"))
+clusters <- clusters[vapply(
+  strsplit(members, ",", fixed = TRUE),
+  function(members) any(members %chin% linked_ids),
+  logical(1L)
+)]
+member_map <- clusters[, .(
+  phage_id = unlist(strsplit(members, ",", fixed = TRUE))
+), by = representative][phage_id %chin% linked_ids]
+if (uniqueN(member_map$phage_id) != uniqueN(edges$phage_id)) {
+  stop("Every linked phage ID must map to one vOTU representative.")
+}
+
+cenote <- fread(paths$cenote, select = c("input_name", "organism", "taxonomy_hierarchy"))
+setorder(cenote, input_name, taxonomy_hierarchy, na.last = TRUE)
+cenote <- cenote[, .SD[1L], by = input_name]
+checkv <- fread(paths$checkv, select = c(
+  "contig_id", "miuvig_quality", "viral_genes", "completeness"
+))
+viral <- merge(cenote, checkv, by.x = "input_name", by.y = "contig_id", all = FALSE)
+viral[, has_taxonomy := !is.na(taxonomy_hierarchy) & nzchar(taxonomy_hierarchy)]
+viral[, passes_manuscript_filter :=
+  miuvig_quality == "High-quality" & viral_genes > 0L & has_taxonomy]
+
+realm_from_lineage <- function(lineage) {
+  vapply(strsplit(lineage, ";", fixed = TRUE), function(parts) {
+    hits <- parts[startsWith(parts, "-_")]
+    if (length(hits) < 2L) return("Unclassified")
+    sub("^-_", "", hits[[2L]])
+  }, character(1L))
+}
+viral[, realm := realm_from_lineage(taxonomy_hierarchy)]
+
+phages <- merge(member_map, viral, by.x = "representative", by.y = "input_name", all.x = TRUE)
+phages[, evidence_status := fifelse(
+  is.na(organism),
+  "No current catalogue annotation",
+  fifelse(
+    realm == "Duplodnaviria",
+    "Annotated genome fragment: Duplodnaviria",
+    "Annotated genome fragment: unclassified"
+  )
+)]
+phages[is.na(realm), realm := "Unclassified"]
+phages[, realm_display := fifelse(realm == "Duplodnaviria", "Duplodnaviria", "Unclassified")]
+
+mag_context <- fread(paths$mag_context)
+mag_context <- unique(mag_context[, .(MAG_ID, phylum, genus, deepest_taxon, phylum_display)])
+coherence <- fread(paths$mag_coherence)[coefficient == "condition_adjusted"]
+coherence[, response_state := fifelse(
+  FDR >= 0.05,
+  "Not supported",
+  fifelse(Direction == "Up", "Phage-UV higher", "Control higher")
+)]
+coherence <- unique(coherence[, .(MAG_ID, response_state, FDR, median_logFC)])
+
+hosts <- merge(
+  unique(edges[, .(MAG_ID)]),
+  mag_context,
+  by = "MAG_ID",
+  all.x = TRUE
+)
+hosts <- merge(hosts, coherence, by = "MAG_ID", all.x = TRUE)
+hosts[is.na(response_state), response_state := "Not supported"]
+hosts[is.na(phylum_display) | !nzchar(phylum_display), phylum_display := "Other"]
+hosts[, degree := edges[, .N, by = MAG_ID][.SD, on = "MAG_ID", x.N]]
+hosts[, host_label := fifelse(!is.na(deepest_taxon) & nzchar(deepest_taxon), deepest_taxon, phylum)]
+top_host_phyla <- hosts[, .N, by = phylum_display][order(-N, phylum_display)][seq_len(min(8L, .N)), phylum_display]
+hosts[!phylum_display %chin% top_host_phyla, phylum_display := "Other"]
+setorder(hosts, phylum_display, response_state, MAG_ID)
+hosts[, host_y := seq_len(.N)]
+
+edges <- merge(edges, hosts[, .(MAG_ID, host_y, response_state)], by = "MAG_ID")
+edges <- merge(edges, phages[, .(phage_id, representative, realm_display, evidence_status)], by = "phage_id")
+phage_positions <- edges[, .(
+  connected_host_y = mean(host_y),
+  phage_degree = uniqueN(MAG_ID),
+  realm_display = realm_display[[1L]],
+  evidence_status = evidence_status[[1L]]
+), by = .(phage_id, representative)]
+setorder(phage_positions, connected_host_y, representative)
+phage_positions[, phage_y := seq(1, nrow(hosts), length.out = .N)]
+edges <- merge(
+  edges,
+  phage_positions[, .(phage_id, phage_y, phage_degree)],
+  by = "phage_id"
+)
+
+edge_colours <- c(
+  "Control higher" = unname(phage_uv_condition_colours[["control"]]),
+  "Not supported" = "#A6A6A6",
+  "Phage-UV higher" = unname(phage_uv_condition_colours[["treatment"]])
+)
+state_order <- c("Control higher", "Not supported", "Phage-UV higher")
+hosts[, response_state := factor(response_state, levels = state_order)]
+edges[, response_state := factor(response_state, levels = state_order)]
+
+label_hosts <- hosts[degree > 1L]
+label_phages <- phage_positions[phage_degree > 1L]
+label_phages[, shared_label := "Shared candidate (2 hosts)"]
+
+p_network <- ggplot() +
+  geom_curve(
+    data = edges,
+    aes(x = 0, y = host_y, xend = 1, yend = phage_y,
+        colour = response_state, linewidth = n_hits),
+    curvature = 0.06,
+    alpha = 0.55,
+    lineend = "round"
+  ) +
+  geom_point(
+    data = hosts,
+    aes(x = 0, y = host_y, fill = phylum_display),
+    shape = 21,
+    size = 2.3,
+    stroke = 0.3,
+    colour = "#202124"
+  ) +
+  geom_point(
+    data = phage_positions,
+    aes(x = 1, y = phage_y, shape = realm_display),
+    size = 2.1,
+    stroke = 0.45,
+    fill = "white",
+    colour = "#202124"
+  ) +
+  geom_text(
+    data = label_hosts,
+    aes(x = -0.015, y = host_y, label = host_label),
+    hjust = 1,
+    size = 2.2,
+    colour = "#202124"
+  ) +
+  geom_text(
+    data = label_phages,
+    aes(x = 0.985, y = phage_y, label = shared_label),
+    hjust = 1,
+    size = 2.0,
+    colour = "#202124"
+  ) +
+  scale_colour_manual(values = edge_colours, drop = FALSE) +
+  scale_fill_manual(values = phage_uv_phylum_colours, drop = FALSE) +
+  scale_shape_manual(values = c(Duplodnaviria = 23, Unclassified = 25)) +
+  scale_linewidth_continuous(trans = "log1p", range = c(0.15, 1.25), breaks = c(1, 3, 10, 30, 88)) +
+  scale_x_continuous(
+    breaks = c(0, 1),
+    labels = c("Host MAGs", "Linked phage contigs"),
+    limits = c(-0.18, 1.08),
+    expand = c(0, 0)
+  ) +
+  labs(
+    x = NULL, y = NULL, colour = "Host adjusted membrane coefficient",
+    fill = "Host phylum", shape = "Viral realm", linewidth = "SpacePHARER hits"
+  ) +
+  theme_phage_uv() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    legend.key.height = unit(0.35, "cm"),
+    plot.margin = margin(5.5, 12, 5.5, 45)
+  )
+
+host_counts <- hosts[, .N, by = response_state]
+host_counts[, response_state := factor(response_state, levels = state_order)]
+p_hosts <- ggplot(host_counts, aes(response_state, N, fill = response_state)) +
+  geom_col(width = 0.68, colour = "#202124", linewidth = 0.25) +
+  geom_text(aes(label = N), vjust = -0.35, size = 3.2) +
+  scale_fill_manual(values = edge_colours, drop = FALSE) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+  labs(x = NULL, y = "Linked host MAGs") +
+  coord_flip(clip = "off") +
+  theme_phage_uv() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.y = element_blank(),
+    plot.margin = margin(5.5, 18, 5.5, 5.5)
+  )
+
+phage_counts <- unique(phages[, .(representative, evidence_status)])[, .N, by = evidence_status]
+status_order <- c(
+  "No current catalogue annotation",
+  "Annotated genome fragment: unclassified",
+  "Annotated genome fragment: Duplodnaviria"
+)
+phage_counts[, evidence_status := factor(evidence_status, levels = status_order)]
+levels(phage_counts$evidence_status) <- c(
+  "No current catalogue\nannotation",
+  "Annotated genome fragment:\nunclassified",
+  "Annotated genome fragment:\nDuplodnaviria"
+)
+status_colours <- c(
+  "No current catalogue\nannotation" = "#BDBDBD",
+  "Annotated genome fragment:\nunclassified" = "#8C8C8C",
+  "Annotated genome fragment:\nDuplodnaviria" = phage_uv_viral_realm_colours[["Duplodnaviria"]]
+)
+p_phages <- ggplot(phage_counts, aes(evidence_status, N, fill = evidence_status)) +
+  geom_col(width = 0.68, colour = "#202124", linewidth = 0.25) +
+  geom_text(aes(label = N), vjust = -0.35, size = 3.2) +
+  scale_fill_manual(values = status_colours, drop = FALSE) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+  labs(x = NULL, y = "Linked phage representatives") +
+  coord_flip(clip = "off") +
+  theme_phage_uv() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.y = element_blank(),
+    plot.margin = margin(5.5, 18, 5.5, 5.5)
+  )
+
+figure <- p_network / (p_hosts | p_phages) +
+  plot_layout(heights = c(2.4, 1)) +
+  plot_annotation(tag_levels = "A")
+
+figure_path <- file.path(out_root, "figures", "host-phage-network-evidence-audit.pdf")
+ggsave(
+  figure_path,
+  figure,
+  width = 11.7,
+  height = 9.2,
+  units = "in",
+  device = grDevices::pdf,
+  useDingbats = FALSE
+)
+
+fwrite(edges, file.path(out_root, "tables", "deduplicated_host_phage_edges.tsv"), sep = "\t")
+fwrite(hosts, file.path(out_root, "tables", "linked_host_context.tsv"), sep = "\t")
+fwrite(unique(phages), file.path(out_root, "tables", "linked_phage_catalogue_audit.tsv"), sep = "\t")
+
+summary <- data.table(
+  metric = c(
+    "raw_link_rows", "exact_unique_rows", "deduplicated_host_phage_pairs",
+    "linked_hosts", "linked_phages", "host_degree_two", "shared_phages",
+    "linked_hosts_current_mag_supported", "linked_phages_currently_annotated",
+    "linked_phages_passing_high_quality_classified_filter"
+  ),
+  value = c(
+    raw_rows, exact_unique_rows, nrow(edges), uniqueN(edges$MAG_ID), uniqueN(edges$phage_id),
+    sum(hosts$degree > 1L), sum(phage_positions$phage_degree > 1L),
+    sum(hosts$response_state != "Not supported"),
+    uniqueN(phages[!is.na(organism), representative]),
+    uniqueN(phages[passes_manuscript_filter == TRUE, representative])
+  )
+)
+fwrite(summary, file.path(out_root, "tables", "host_phage_network_summary.tsv"), sep = "\t")
+
+stopifnot(
+  raw_rows == 148L,
+  exact_unique_rows == 121L,
+  nrow(edges) == 86L,
+  uniqueN(edges$MAG_ID) == 80L,
+  uniqueN(edges$phage_id) == 85L,
+  sum(hosts$degree > 1L) == 6L,
+  sum(phage_positions$phage_degree > 1L) == 1L,
+  sum(hosts$response_state != "Not supported") == 49L,
+  uniqueN(phages[!is.na(organism), representative]) == 12L,
+  uniqueN(phages[passes_manuscript_filter == TRUE, representative]) == 0L,
+  file.info(figure_path)$size > 10000L
+)
+
+message("Built current host-phage network evidence audit: ", figure_path)
+```

@@ -10,7 +10,7 @@ manuscript_lines <- readLines(manuscript_path, warn = FALSE)
 legend_lines <- readLines(legend_path, warn = FALSE)
 
 entry_starts <- grep("^@[[:alpha:]]+\\{[^,]+,", bib_lines)
-stopifnot(length(entry_starts) == 14L)
+stopifnot(length(entry_starts) == 16L)
 
 entry_ends <- c(entry_starts[-1L] - 1L, length(bib_lines))
 entries <- Map(
@@ -34,7 +34,7 @@ keys <- vapply(entries, extract_key, character(1L))
 dois <- tolower(vapply(entries, extract_field, character(1L), field = "doi"))
 
 required_keys <- c(
-  "Aroney2025", "Benjamini1995", "Dahl2022", "Maslowska2019",
+  "Aroney2025", "Benjamini1995", "Cheng2019", "Dahl2022", "Lu2016", "Maslowska2019",
   "Myshkevych2025", "Nayfach2021", "Olm2021", "Parks2022",
   "Robinson2010edgeR", "Robinson2010TMM", "Scarascia2021",
   "Schwengers2021", "vonMeijenfeldt2019", "Wu2012"
@@ -82,7 +82,9 @@ body_and_legends <- gsub("[[:space:]]+", " ", body_and_legends)
 required_citation_text <- c(
   "Aroney et al., 2025",
   "Benjamini and Hochberg, 1995",
+  "Cheng et al., 2019",
   "Dahl et al. (2022)",
+  "Lu et al., 2016",
   "Maslowska et al., 2019",
   "Myshkevych et al., 2025",
   "Nayfach et al., 2021",

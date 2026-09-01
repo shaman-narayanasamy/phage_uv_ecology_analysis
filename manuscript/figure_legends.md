@@ -151,3 +151,17 @@ denotes realm and point size denotes the number of vOTUs in
 the group. (B) Number of qualifying vOTUs in each realm. The cladogram is not a
 sequence phylogeny and does not encode treatment response or host-phage
 linkage.
+
+**Supplementary Figure S8. CRISPR-derived host-phage candidate-link evidence
+audit.** (A) Eighty host MAGs and 85 phage
+contigs connected by 86 deduplicated SpacePHARER candidate pairs. Host-node
+colour denotes GTDB phylum, phage-node shape denotes the mapped viral realm,
+edge width denotes the number of SpacePHARER hits, and edge colour overlays the
+support and direction of the host MAG's current adjusted membrane coefficient.
+Labels identify the six host MAGs linked to two phage candidates and the single
+phage candidate linked to two hosts. (B) Linked host MAGs by current
+complete-transcriptome support and direction. (C) Linked phage representatives
+by current catalogue-annotation status. The network represents CRISPR-derived
+candidate links, not direct infection, treatment response, or host-range
+validation. None of the linked phage representatives passes the manuscript's
+high-quality classified-vOTU filter.

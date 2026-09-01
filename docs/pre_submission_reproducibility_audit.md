@@ -1,23 +1,26 @@
 # Pre-submission reproducibility audit
 
-Audit date: 2026-08-30
+Audit date: 2026-09-01
 
 Status: complete for the current pre-16S manuscript; final issue #31 remains
 open until the collaborator-owned 16S decision in issue #30 is resolved.
 
 ## Verified current state
 
-- All 11 repository R tests pass, including the synthetic full-transcriptome
+- All 14 repository R tests pass, including the synthetic full-transcriptome
   edgeR run and checksum validation of the complete manuscript figure suite.
 - `scripts/validate_manifests.sh` passes every metadata, 16S input-contract,
   Quarto-entrypoint, citation, manuscript-structure, data-path, and HPC Conda
   policy check.
-- All 20 canonical `scripts/*.qmd` notebooks structure-render to HTML with
-  execution disabled under the RStudio-bundled Quarto 1.9.37.
+- All 21 canonical `scripts/*.qmd` notebooks structure-render to GFM with
+  execution disabled under the RStudio-bundled Quarto 1.9.37. GFM is used for
+  this structural gate because HTML rendering opens Quarto's macOS user-level
+  Sass cache, which is intentionally unwritable in a restricted audit runtime.
 - The manuscript builds to DOCX with Pandoc 3.10 and the canonical BibTeX file.
-- The 13 candidate PDFs remain byte-identical to the checksums recorded during
-  the complete visual audit in `docs/figure_visual_qa_2026-08-29.md`. The later
-  manuscript edit did not modify the figure files.
+- The original 13 candidate PDFs remain byte-identical to the checksums recorded
+  during the complete visual audit in `docs/figure_visual_qa_2026-08-29.md`.
+  The visually inspected host-phage evidence-audit PDF is separately bound by
+  SHA-256 and allocated as Supplementary Figure S8.
 - The repository has no uncommitted, untracked, or ignored generated artifacts.
   One ignored root-level `Rplots.pdf` found at audit start was moved to
   `/private/tmp/phage_uv_Rplots_pre_issue31.pdf`; the complete test suite did not
@@ -77,8 +80,9 @@ provenance gaps, not silently imputed versions.
   treatment claim.
 - The MAG and vOTU diagrams are labelled as taxonomy-derived context rather
   than sequence phylogenies.
-- Host-phage links remain excluded because they do not currently clarify a
-  supported global result.
+- Host-phage links enter only as the Supplementary Figure S8 historical-exposure
+  evidence audit. They are not interpreted as active infection, validated host
+  range, treatment response, or causal linkage to transcription.
 - The manuscript states that RNA counts were not normalized to matched DNA
   abundance and therefore do not isolate per-cell regulation.
 

@@ -3,7 +3,7 @@
 Status: local review draft prepared 2026-08-30.
 
 This directory adapts the venue-neutral manuscript for an ISME Communications
-Research Article submission. It is a review package, not a submitted package.
+Original Article submission. It is a review package, not a submitted package.
 The canonical scientific draft remains
 `manuscript/manuscript_skeleton.md`; this directory does not fork or silently
 rewrite that text.
@@ -15,6 +15,10 @@ rewrite that text.
 - `submission_checklist.md`: verified checks and remaining submission gates.
 - `prior_publication_metadata.md`: metadata recovered from the published study,
   kept separate from decisions that the authors must make for this manuscript.
+- `submission_review_manuscript.md`: derived, journal-formatted author-review
+  manuscript with numbered citations, references, figure previews, and alt text.
+- `oxford-journals-scimed-numeric.csl`: the current official Zotero style used
+  to render Oxford SciMed numbered references.
 
 ## Action boundary
 
