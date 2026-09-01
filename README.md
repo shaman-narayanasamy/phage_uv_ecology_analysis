@@ -10,11 +10,11 @@ project storage.
 
 The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
 six-cell recurrence interpretation, and the manuscript workflow rebuild are
-complete. Four main figures and eight supplementary figures are allocated and
-visually verified. The candidate store contains 13 PDFs because it also retains
-two analysis-led predecessor layouts for provenance. A fifth main figure is a
-conditional insertion point for the delegated 16S result, not a guaranteed
-allocation. The evidence-led venue-neutral manuscript, descriptive legend set,
+complete. The author-selected Figure 1 now describes microbial and phage
+community structure; four later main figures and nine supplementary figures are
+allocated in the working architecture. The delegated 16S result may refine or
+extend the community opening but does not own a reserved figure number. The
+evidence-led venue-neutral manuscript, descriptive legend set,
 Zotero-importable bibliography, citation audit, editorial audit, and
 machine-readable claim audit are ready for author review. No subset-first
 expression model is valid.
@@ -91,7 +91,7 @@ scripts/      Quarto analysis notebooks, runners, and validation helpers
 
 ## Quarto notebook workflow
 
-The 22 standalone R analysis entrypoints are maintained as Quarto notebooks in
+The 23 standalone R analysis entrypoints are maintained as Quarto notebooks in
 `scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
 chunk while inspecting objects inline. Automatic execution during rendering is
 disabled because several notebooks write or replace project outputs.

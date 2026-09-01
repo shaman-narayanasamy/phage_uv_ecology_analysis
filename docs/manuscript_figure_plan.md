@@ -1,7 +1,8 @@
 # Manuscript figure plan
 
-Status: pre-16S allocation frozen after complete visual review on 2026-08-29;
-Supplementary Figure S8 added after host-phage evidence audit on 2026-09-01.
+Status: author-directed allocation revised on 2026-09-01. Figure 1 describes
+the microbial and phage communities. Supplementary Figure S8 contains the
+host-phage evidence audit and S9 contains detailed community-abundance tests.
 Artifact filenames remain unnumbered so the allocation can be revised without
 breaking provenance.
 
@@ -9,37 +10,47 @@ The current main-text and supplementary candidates have been reviewed together.
 Every candidate and supplementary figure must use
 `R/figure_style.R` and the fixed visual mappings in `docs/figure_visual_grammar.md`.
 
-## Frozen pre-16S manuscript allocation
+## Current author-directed manuscript allocation
 
 The working draft uses the following labels so that every quantitative claim has
 an explicit destination. These labels can change during author review without
 renaming the canonical artifacts.
 
-1. Figure 1: `community-transcriptome-trajectory.pdf`.
-2. Figure 2: `transcriptome-response-architecture.pdf`.
-3. Figure 3: `recurrent-gene-structure.pdf`.
-4. Figure 4: `population-genomic-heterogeneity.pdf`.
-5. Figure 5: conditional insertion point for the delegated 16S result; it is
-   included only if the returned analysis materially improves the story.
+1. Figure 1: `community-structure-figure-one.pdf`.
+2. Figure 2: `global-transcriptome-structure.pdf`.
+3. Figure 3: `transcriptome-response-architecture.pdf`.
+4. Figure 4: `recurrent-gene-structure.pdf`.
+5. Figure 5: `population-genomic-heterogeneity.pdf`.
 6. Supplementary Figures S1-S5: model diagnostics, cycle interactions, all
    functional coefficients, all MAG coefficients, and all five population-genomic
    pairwise landscapes, respectively.
 7. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
 8. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
 9. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
+10. Supplementary Figure S9: `community-differential-abundance.pdf`.
+
+The independently delegated 16S result has no reserved figure number. If the
+returned analysis materially improves the community story, it will refine
+Figure 1 or be allocated during author review without displacing verified work
+in advance.
 
 ## Current candidate set
 
-1. Experimental system, community trajectory, and transcriptome geometry:
+1. Experimental system and microbial and phage community structure:
    - one membrane per condition across three cycles and two phases;
    - aligned top-25 family profiles from MAG-mapped metagenomic reads;
-   - sample-level expression geometry after the community has been shown.
-2. Transcriptome-wide, functional, and organism-resolved restructuring:
+   - high-level vOTU realm profiles across the same observations;
+   - microbial and vOTU Bray-Curtis ordinations with exhaustive paired-label
+     tests and explicit exploratory-design boundaries.
+2. Global transcriptome structure:
+   - filtered-expression geometry across all 12 physical samples;
+   - complete-universe adjusted-condition effect landscape.
+3. Transcriptome-wide, functional, and organism-resolved restructuring:
    - complete-universe adjusted-condition effect landscape;
    - competitive tests for all eight frozen functional categories;
    - supported MAGs in both expression directions;
    - the strongest organism-level effects with taxonomic context.
-3. Six-cell recurrent gene differences:
+4. Six-cell recurrent gene differences:
    - built as `recurrent-gene-structure.pdf` and visually checked;
    - sequential provenance from 361,907 tested features to 6,985 recurrent
      predeclared candidates;
@@ -47,19 +58,17 @@ renaming the canonical artifacts.
      versus six-of-six cell concordance visible;
    - 12 genes per direction selected deterministically by condition FDR, then
      absolute condition log2 fold-change, for a legible six-cell heatmap.
-4. Descriptive population-genomic heterogeneity:
+5. Descriptive population-genomic heterogeneity:
    - built as `population-genomic-heterogeneity.pdf` and visually checked;
    - strain membership across five coverage-qualified MAGs;
    - median and range of pairwise consensus differences per callable Mbp;
    - a focused *Propionicimonas* pairwise landscape;
    - coverage-qualified structure for the five scoped MAGs;
    - no damage, mutagenesis, adaptation, accumulation, or treatment-effect inference.
-5. Delegated 16S community structure:
-   - reserved until the external collaborator returns the verified analysis;
-   - expected to contribute community composition and ordination, without blocking
-     the current figure work;
-   - expected to validate or extend the community layer introduced in Figure 1,
-     not to postpone all community context until the end of the story.
+6. Delegated 16S community structure:
+   - remains collaborator-owned until a verified result is returned;
+   - may validate or extend the community layer introduced in Figure 1;
+   - is not an active blocker and has no preallocated figure number.
 
 ## Preserved earlier layouts
 
@@ -149,6 +158,11 @@ MAG transcriptional coefficient.
      coefficients.
 5. `supplementary-population-genomics.pdf`:
    - complete coverage-qualified pairwise landscapes for all five scoped MAGs.
+6. `community-differential-abundance.pdf`:
+   - poster-style and design-aware MAG and vOTU abundance comparisons;
+   - matched CLR and exhaustive paired-label sensitivity tests;
+   - allocated as Supplementary Figure S9 because no robust community-wide or
+     feature-level pattern survives the full sensitivity analysis.
 
 The six-cell recurrence figure already contains its selection provenance,
 direction-concordance counts, and a balanced gene catalogue, so no redundant

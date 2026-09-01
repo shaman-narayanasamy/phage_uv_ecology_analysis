@@ -6,8 +6,8 @@ main and supplementary figures.
 
 ## Main figures
 
-**Figure 1. Experimental system, community trajectory, and transcriptome
-geometry.** (A) One
+**Figure 1. Microbial and phage community structure across three cleaning
+cycles.** (A) One
 control membrane and one phage-UV membrane sampled during the initial and
 backflush phases of three cleaning cycles, giving 12 physical samples. (B)
 Relative abundance among MAG-mapped metagenomic reads for the top 25 classified
@@ -16,11 +16,25 @@ phylum-linked microshades adapted from Dahl et al. (2022); pale shades pool
 remaining or unresolved families within the same phylum, and grey denotes phyla
 outside the displayed set. The
 profile is descriptive and does not constitute a replicated treatment test.
-(C) Leading log-fold-change dimensions calculated from the TMM-normalised
-filtered expression matrix. Point colour denotes membrane, point shape denotes
-phase, and labels denote cycle.
+(C) Bray-Curtis principal-coordinate representation of MAG-mapped community
+composition. (D) Relative abundance of high-quality classified vOTU reads at
+viral realm level across the same aligned observations. (E) Bray-Curtis
+principal-coordinate representation of vOTU composition. In C and E, lines
+connect matched cycle-phase observations, point colour denotes membrane, point
+shape denotes phase, and labels denote cycle. Insets report exhaustive paired
+label-swap tests, phase- and cycle-adjusted differential-abundance counts, and
+matched CLR sensitivity results. With one membrane per condition, all
+condition-associated comparisons are exploratory and do not estimate a
+replicated treatment effect.
 
-**Figure 2. Transcriptome-wide, functional, and organism-resolved structure.**
+**Figure 2. Global transcriptome structure.** Leading log-fold-change
+dimensions calculated from the TMM-normalised filtered expression matrix and
+the complete-universe adjusted-condition effect landscape. Point colour denotes
+membrane, point shape denotes phase, and labels denote cycle. Filled effect
+points passed BH FDR < 0.05; open grey points are a deterministic context
+sample. Condition remains confounded with membrane identity.
+
+**Figure 3. Transcriptome-wide, functional, and organism-resolved structure.**
 (A) Average log2 counts per million and phage-UV-minus-control log2 fold-change
 for the phase- and cycle-adjusted edgeR coefficient. Filled points passed BH FDR
 < 0.05 and are coloured by the direction of higher expression; open grey points
@@ -36,7 +50,7 @@ selected by FDR and then absolute median log2 fold-change. Squares denote GTDB
 phylum and circles denote the direction of higher-ranked genes. Full functional
 and MAG-level statistics are provided in the interpretation tables.
 
-**Figure 3. Recurrent gene-level differences across six phase-cycle cells.**
+**Figure 4. Recurrent gene-level differences across six phase-cycle cells.**
 (A) Sequential counts after the adjusted-condition FDR and effect-size filter,
 sample-detection filter, annotation filter, and five-of-six-cell recurrence
 rule. (B) Numbers of phage-UV-higher and control-higher recurrent genes with
@@ -47,7 +61,7 @@ log2 fold-change. Columns represent the initial and backflush fractions in
 cycles 1 to 3. Full candidate statistics are provided in the recurrent-gene
 table.
 
-**Figure 4. Coverage-qualified population-genomic heterogeneity.** (A) Strain
+**Figure 5. Coverage-qualified population-genomic heterogeneity.** (A) Strain
 cluster assignment across the observed samples for five MAGs with at least 10
 qualified pairs spanning at least six samples. Blank cells indicate absent or
 coverage-failing sample profiles. (B) Median and range of pairwise consensus
@@ -58,9 +72,9 @@ coverage-qualified *Propionicimonas* sp023458095 profiles. Pairs required at
 least 1 Mbp and 50% of the callable genome. Full pair and MAG quality-control
 metrics are provided in the population-genomics tables.
 
-**Figure 5. Delegated 16S community analysis.** Reserved for the external
-collaborator's verified result. Panel content and legend will be added only
-after the analysis and provenance have been returned.
+The collaborator-owned 16S analysis has no reserved figure number. Its verified
+result may refine Figure 1 or be added during author review if it materially
+improves the community story.
 
 ## Additional unallocated candidates
 
@@ -165,3 +179,14 @@ by current catalogue-annotation status. The network represents CRISPR-derived
 candidate links, not direct infection, treatment response, or host-range
 validation. None of the linked phage representatives passes the manuscript's
 high-quality classified-vOTU filter.
+
+**Supplementary Figure S9. Exploratory microbial and phage differential
+abundance.** Condition-only and phase- and cycle-adjusted DESeq2 feature
+landscapes are shown with matched-cell CLR sensitivity estimates and
+Bray-Curtis community tests. The poster-style microbial model reproduced zero
+FDR-supported features. The adjusted models supported one of 348 tested MAGs
+and zero of 560 tested vOTUs, while matched CLR tests supported zero features
+in either community after BH correction. Exhaustive paired-label Bray-Curtis
+tests gave exact p = 0.125 for MAGs and p = 0.0625 for vOTUs. These are
+exploratory system-specific comparisons because membrane identity is
+confounded with condition.

@@ -76,16 +76,16 @@ The submission-readiness claim audit is recorded in
 counts: 2,671 phage-UV-higher and 2,709 control-higher genes agree in all six
 cells, while 663 and 942, respectively, agree in five of six.
 
-## Frozen pre-16S figure allocation
+## Current author-directed figure allocation
 
 Canonical artifacts remain unnumbered so the authors can reallocate them
 without renaming files. The working draft uses:
 
-1. Figure 1: `community-transcriptome-trajectory.pdf`.
-2. Figure 2: `transcriptome-response-architecture.pdf`.
-3. Figure 3: `recurrent-gene-structure.pdf`.
-4. Figure 4: `population-genomic-heterogeneity.pdf`.
-5. Figure 5: reserved for the independently delegated 16S result.
+1. Figure 1: `community-structure-figure-one.pdf`.
+2. Figure 2: `global-transcriptome-structure.pdf`.
+3. Figure 3: `transcriptome-response-architecture.pdf`.
+4. Figure 4: `recurrent-gene-structure.pdf`.
+5. Figure 5: `population-genomic-heterogeneity.pdf`.
 6. Supplementary Figure S1: `supplementary-model-diagnostics.pdf`.
 7. Supplementary Figure S2: `supplementary-cycle-interaction-landscape.pdf`.
 8. Supplementary Figure S3: `supplementary-functional-coefficients.pdf`.
@@ -94,8 +94,9 @@ without renaming files. The working draft uses:
 11. Supplementary Figure S6: `mag-taxonomic-context.pdf`.
 12. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
 13. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
+14. Supplementary Figure S9: `community-differential-abundance.pdf`.
 
-The earlier `global-transcriptome-structure.pdf` and
+The earlier combined `community-transcriptome-trajectory.pdf` and
 `functional-organism-restructuring.pdf` layouts remain checksum-governed for
 provenance but are no longer proposed as manuscript figures. Two descriptive
 taxonomic candidates are allocated to the supplement:
@@ -137,7 +138,8 @@ apply in every main and supplementary figure.
 - The 16S analysis is owned by the external expert collaborator. Do not manage
   or rerun it from this workstream. Review the returned package only for sample
   mapping, provenance, inference, and manuscript integration under issue #30.
-  Figure 5 is a conditional working slot, not a guaranteed allocation.
+  The returned result has no reserved figure number and may refine Figure 1
+  only if it materially improves the community story.
 - The original `smarbas` repository invitation expired and was replaced on
   2026-08-29. GitHub write permission was confirmed on 2026-09-01, with no
   pending invitation remaining. A read-only audit found no
@@ -200,7 +202,7 @@ only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
-All 22 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 23 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
