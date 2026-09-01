@@ -7,7 +7,7 @@ open until the collaborator-owned 16S decision in issue #30 is resolved.
 
 ## Verified current state
 
-- All 14 repository R tests pass, including the synthetic full-transcriptome
+- All 15 repository R tests pass, including the synthetic full-transcriptome
   edgeR run and checksum validation of the complete manuscript figure suite.
 - `scripts/validate_manifests.sh` passes every metadata, 16S input-contract,
   Quarto-entrypoint, citation, manuscript-structure, data-path, and HPC Conda
@@ -61,6 +61,17 @@ preserved in the staged run log. Upstream workflow provenance is recorded in
 checksums. Verified entries are Bakta 1.12.0 with full database 6.0 dated
 2025-02-24, CAT/BAT 6.0.1 with a GTDB-derived database build dated 2023-11-21,
 CheckV 1.1.1 with database v1.5, and inStrain 1.10.0.
+
+Exact upstream repository states are separately bound in
+`manuscript/upstream_repository_provenance.tsv`. The host-phage workflow is
+linked to the clean tracked execution commit
+`604db81b73f2550bdea08e5eaa08f35186d21f53` and its completed Snakemake log.
+The multiomics execution checkout had retained nine executed but uncommitted
+files. That preserved state was reconstructed byte-for-byte on base commit
+`46b62b4b1dc12a6251d4fb477d90deb39a4d53d9`, verified against the complete
+tracked-diff and two untracked-file SHA-256 checksums, and versioned as commit
+`5f7dfe4c42ba65a8188589f437667a61285a5bea`. No unverified branch tip is
+substituted for either executed state.
 
 The exact CoverM package version is not recoverable. Its archived Snakemake
 metadata retains the exact command, inputs, nine reported metrics, 24 threads,

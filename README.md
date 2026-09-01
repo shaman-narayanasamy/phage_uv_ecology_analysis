@@ -10,7 +10,7 @@ project storage.
 
 The transcriptome-wide model, its functional, taxonomic, MAG-resolved, and
 six-cell recurrence interpretation, and the manuscript workflow rebuild are
-complete. Four main figures and seven supplementary figures are allocated and
+complete. Four main figures and eight supplementary figures are allocated and
 visually verified. The candidate store contains 13 PDFs because it also retains
 two analysis-led predecessor layouts for provenance. A fifth main figure is a
 conditional insertion point for the delegated 16S result, not a guaranteed
