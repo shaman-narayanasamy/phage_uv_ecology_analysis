@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Reconstructed the original poster's condition-only MAG community analysis
+  and added phase/cycle-adjusted DESeq2, matched CLR, exact sign-flip, and
+  paired restricted-permutation analyses for both 348 MAGs and 616
+  high-quality vOTUs. The poster MAG null was reproduced; no abundance signal
+  was robust across the adjusted, matched, and global analyses.
 - Completed GitHub #22 with a transcriptome-wide edgeR quasi-likelihood
   workflow: 23 technical runs collapse to 12 physical samples, the full gene
   universe enters filtering and multiplicity correction, and outputs include

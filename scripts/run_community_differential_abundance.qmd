@@ -1,0 +1,329 @@
+---
+title: "Community Differential-Abundance Analysis"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook reconstructs the condition-only community analysis present in the
+original poster workflow and adds design-aware sensitivity analyses for the MAG
+and high-quality vOTU communities. The experiment contains one membrane per
+condition; consequently, every treatment coefficient is explicitly exploratory
+and cannot separate treatment from membrane identity.
+
+```sh
+bash scripts/run_qmd.sh scripts/run_community_differential_abundance.qmd [output-directory]
+```
+
+```{r}
+#| label: community-differential-abundance
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(DESeq2)
+  library(ggplot2)
+  library(patchwork)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+promote_file <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  incoming <- paste0(destination, ".incoming-", Sys.getpid())
+  if (!file.copy(source, incoming, overwrite = TRUE, copy.mode = TRUE)) {
+    abort("Failed to stage %s", basename(destination))
+  }
+  if (file.exists(destination)) unlink(destination)
+  if (!file.rename(incoming, destination)) abort("Failed to promote %s", basename(destination))
+}
+
+extract_accession <- function(x) sub(".*(ERR[0-9]+).*", "\\1", x)
+
+bray_curtis <- function(x) {
+  x <- as.matrix(x)
+  n <- nrow(x)
+  answer <- matrix(0, n, n, dimnames = list(rownames(x), rownames(x)))
+  for (i in seq_len(n - 1L)) for (j in (i + 1L):n) {
+    denominator <- sum(x[i, ] + x[j, ])
+    value <- if (denominator > 0) sum(abs(x[i, ] - x[j, ])) / denominator else 0
+    answer[i, j] <- answer[j, i] <- value
+  }
+  as.dist(answer)
+}
+
+partial_pseudo_f <- function(distance, reduced, full) {
+  n <- attr(distance, "Size")
+  delta <- as.matrix(distance)^2
+  centering <- diag(n) - matrix(1 / n, n, n)
+  gower <- -0.5 * centering %*% delta %*% centering
+  projection <- function(x) x %*% qr.solve(crossprod(x), t(x))
+  h_reduced <- projection(reduced)
+  h_full <- projection(full)
+  df_term <- qr(full)$rank - qr(reduced)$rank
+  df_residual <- n - qr(full)$rank
+  ss_term <- sum(diag((h_full - h_reduced) %*% gower))
+  ss_residual <- sum(diag((diag(n) - h_full) %*% gower))
+  c(F = (ss_term / df_term) / (ss_residual / df_residual),
+    R2_partial = ss_term / (ss_term + ss_residual),
+    df_term = df_term, df_residual = df_residual)
+}
+
+paired_permanova <- function(counts, metadata) {
+  relative <- sweep(counts, 1L, rowSums(counts), "/")
+  distance <- bray_curtis(relative)
+  reduced <- model.matrix(~ phase + cycle, metadata)
+  full <- model.matrix(~ phase + cycle + condition, metadata)
+  observed <- partial_pseudo_f(distance, reduced, full)
+  cells <- interaction(metadata$phase, metadata$cycle, drop = TRUE)
+  if (any(table(cells) != 2L)) abort("Restricted permutations require two conditions per phase-cycle cell")
+  cell_levels <- levels(cells)
+  patterns <- as.matrix(expand.grid(rep(list(c(FALSE, TRUE)), length(cell_levels))))
+  permuted_f <- apply(patterns, 1L, function(swaps) {
+    permuted <- metadata
+    for (k in seq_along(cell_levels)) {
+      idx <- which(cells == cell_levels[[k]])
+      if (swaps[[k]]) permuted$condition[idx] <- rev(permuted$condition[idx])
+    }
+    full_permuted <- model.matrix(~ phase + cycle + condition, permuted)
+    partial_pseudo_f(distance, reduced, full_permuted)[["F"]]
+  })
+  c(observed, exact_p = mean(permuted_f >= observed[["F"]] - 1e-12),
+    permutations = length(permuted_f))
+}
+
+matched_clr <- function(feature_counts, metadata, pseudocount = 0.5) {
+  log_counts <- log(feature_counts + pseudocount)
+  clr <- sweep(log_counts, 2L, colMeans(log_counts), "-")
+  cells <- unique(metadata[, .(phase, cycle)])
+  setorder(cells, cycle, phase)
+  differences <- vapply(seq_len(nrow(cells)), function(i) {
+    control <- metadata[phase == cells$phase[[i]] & cycle == cells$cycle[[i]] & condition == "control", sample_title]
+    treatment <- metadata[phase == cells$phase[[i]] & cycle == cells$cycle[[i]] & condition == "treatment", sample_title]
+    clr[, treatment] - clr[, control]
+  }, numeric(nrow(feature_counts)))
+  rownames(differences) <- rownames(feature_counts)
+  patterns <- as.matrix(expand.grid(rep(list(c(-1, 1)), ncol(differences))))
+  observed <- abs(rowMeans(differences))
+  exact_p <- vapply(seq_len(nrow(differences)), function(i) {
+    permuted <- abs(as.vector(patterns %*% differences[i, ]) / ncol(differences))
+    mean(permuted >= observed[[i]] - 1e-12)
+  }, numeric(1))
+  data.table(
+    feature_id = rownames(differences),
+    mean_clr_difference = rowMeans(differences),
+    median_clr_difference = apply(differences, 1L, median),
+    treatment_higher_cells = rowSums(differences > 0),
+    control_higher_cells = rowSums(differences < 0),
+    exact_signflip_p = exact_p,
+    exact_signflip_fdr = p.adjust(exact_p, "BH"),
+    matched_cells = ncol(differences),
+    pseudocount = pseudocount
+  )
+}
+
+run_deseq <- function(feature_counts, metadata, design, model_name) {
+  rounded <- round(feature_counts)
+  storage.mode(rounded) <- "integer"
+  col_data <- as.data.frame(metadata[match(colnames(rounded), sample_title)])
+  rownames(col_data) <- col_data$sample_title
+  dds <- DESeqDataSetFromMatrix(
+    countData = rounded,
+    colData = col_data,
+    design = design
+  )
+  keep <- rowSums(counts(dds) >= 10L) >= 3L
+  dds <- dds[keep, ]
+  dds <- DESeq(dds, fitType = "local", quiet = TRUE)
+  result <- as.data.table(as.data.frame(
+    results(dds, contrast = c("condition", "treatment", "control"), alpha = 0.05)
+  ), keep.rownames = "feature_id")
+  result[, absolute_log2_fold_change := abs(log2FoldChange)]
+  setorder(result, padj, pvalue, -absolute_log2_fold_change, na.last = TRUE)
+  result[, `:=`(
+    model = model_name,
+    tested = !is.na(pvalue),
+    supported_fdr05 = !is.na(padj) & padj < 0.05,
+    supported_fdr05_lfc1 = !is.na(padj) & padj < 0.05 & abs(log2FoldChange) >= 1
+  )]
+  result
+}
+
+make_pcoa <- function(sample_counts, metadata, layer) {
+  relative <- sweep(sample_counts, 1L, rowSums(sample_counts), "/")
+  ordination <- cmdscale(bray_curtis(relative), k = 2L, eig = TRUE, add = TRUE)
+  points <- data.table(
+    sample_title = rownames(ordination$points),
+    axis1 = ordination$points[, 1L], axis2 = ordination$points[, 2L],
+    axis1_percent = 100 * ordination$eig[[1L]] / sum(ordination$eig[ordination$eig > 0]),
+    axis2_percent = 100 * ordination$eig[[2L]] / sum(ordination$eig[ordination$eig > 0]),
+    community = layer
+  )
+  merge(points, metadata, by = "sample_title", all.x = TRUE, sort = FALSE)
+}
+
+repo_root <- normalizePath(getwd())
+if (!file.exists(file.path(repo_root, "R", "figure_style.R"))) abort("Run from the repository root")
+project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+args <- commandArgs(trailingOnly = TRUE)
+output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
+  file.path(project_data, "derived", "community_differential_abundance")
+if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
+staging <- file.path(dirname(output_dir), sprintf(".community-da-staging-%d", Sys.getpid()))
+dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+paths <- list(
+  counts = file.path(project_data, "quantification", "mags_votu", "coverage", "metagenomics", "coverm", "output-Read_Count.tsv"),
+  metadata = file.path(repo_root, "metadata", "sample_metadata.tsv"),
+  mag_context = file.path(project_data, "derived", "manuscript_figure_candidates", "tables", "mag_taxonomic_context.tsv"),
+  checkv = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "checkv", "quality_summary.tsv"),
+  cenote = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "cenotetaker3", "output", "output_virus_summary.tsv")
+)
+missing <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+metadata <- fread(paths$metadata)[, .(sample_title, condition, phase, cycle, metagenome_run_accession)]
+metadata[, `:=`(
+  condition = factor(condition, levels = c("control", "treatment")),
+  phase = factor(phase, levels = c("initial", "backflush")),
+  cycle = factor(cycle, levels = c("1", "2", "3"))
+)]
+setorder(metadata, cycle, phase, condition)
+
+checkv <- fread(paths$checkv, select = c("contig_id", "viral_genes", "miuvig_quality"))
+cenote <- fread(paths$cenote, select = c("input_name", "virus_seq_length", "taxonomy_hierarchy"))
+setnames(cenote, "input_name", "contig_id")
+votu <- merge(cenote, checkv, by = "contig_id", all.x = TRUE)
+setorder(votu, contig_id, -virus_seq_length, taxonomy_hierarchy, na.last = TRUE)
+votu <- votu[, .SD[1L], by = contig_id]
+votu <- votu[miuvig_quality == "High-quality" & viral_genes > 0]
+if (nrow(votu) != 616L) abort("Expected 616 high-quality vOTUs with viral genes, found %d", nrow(votu))
+
+message("Reading current 12-sample CoverM count matrix...")
+coverm <- fread(paths$counts)
+count_columns <- setdiff(names(coverm), "Contig")
+accessions <- extract_accession(count_columns)
+if (!setequal(accessions, metadata$metagenome_run_accession)) abort("CoverM columns do not match 12-sample metadata")
+setnames(coverm, count_columns, metadata$sample_title[match(accessions, metadata$metagenome_run_accession)])
+sample_order <- metadata$sample_title
+
+mag_rows <- coverm[grepl("_MAGScoT_", Contig, fixed = TRUE)]
+mag_rows[, feature_id := vapply(strsplit(Contig, "_", fixed = TRUE), function(x) paste(x[1:4], collapse = "_"), character(1))]
+mag <- mag_rows[, lapply(.SD, sum, na.rm = TRUE), by = feature_id, .SDcols = sample_order]
+if (nrow(mag) != 348L) abort("Expected 348 MAGs, found %d", nrow(mag))
+mag_matrix <- as.matrix(mag[, ..sample_order]); rownames(mag_matrix) <- mag$feature_id
+
+votu_counts <- coverm[Contig %chin% votu$contig_id]
+if (nrow(votu_counts) != 616L) abort("CoverM matrix does not contain all 616 selected vOTUs")
+votu_matrix <- as.matrix(votu_counts[, ..sample_order]); rownames(votu_matrix) <- votu_counts$Contig
+rm(coverm, mag_rows, votu_counts); invisible(gc())
+
+mag_condition <- run_deseq(mag_matrix, metadata, ~ condition, "poster_condition_only")
+mag_adjusted <- run_deseq(mag_matrix, metadata, ~ phase + cycle + condition, "phase_cycle_adjusted")
+votu_condition <- run_deseq(votu_matrix, metadata, ~ condition, "poster_condition_only")
+votu_adjusted <- run_deseq(votu_matrix, metadata, ~ phase + cycle + condition, "phase_cycle_adjusted")
+mag_clr <- matched_clr(mag_matrix, metadata)
+votu_clr <- matched_clr(votu_matrix, metadata)
+
+mag_context <- fread(paths$mag_context)
+mag_annotation_columns <- intersect(c("MAG_ID", "phylum", "family", "genus", "species", "deepest_taxon"), names(mag_context))
+mag_annotations <- unique(mag_context[, ..mag_annotation_columns])
+setnames(mag_annotations, "MAG_ID", "feature_id")
+votu_annotations <- votu[, .(
+  feature_id = contig_id,
+  taxonomy_hierarchy = fifelse(is.na(taxonomy_hierarchy) | !nzchar(taxonomy_hierarchy), "Unclassified", taxonomy_hierarchy)
+)]
+for (object_name in c("mag_condition", "mag_adjusted", "mag_clr")) {
+  assign(object_name, merge(get(object_name), mag_annotations, by = "feature_id", all.x = TRUE, sort = FALSE))
+}
+for (object_name in c("votu_condition", "votu_adjusted", "votu_clr")) {
+  assign(object_name, merge(get(object_name), votu_annotations, by = "feature_id", all.x = TRUE, sort = FALSE))
+}
+
+permanova <- rbindlist(list(
+  as.list(paired_permanova(t(mag_matrix), metadata)) |> as.data.table() |> transform(community = "MAG"),
+  as.list(paired_permanova(t(votu_matrix), metadata)) |> as.data.table() |> transform(community = "vOTU")
+), fill = TRUE)
+setcolorder(permanova, c("community", setdiff(names(permanova), "community")))
+pcoa <- rbindlist(list(make_pcoa(t(mag_matrix), metadata, "MAG"), make_pcoa(t(votu_matrix), metadata, "vOTU")), fill = TRUE)
+
+summary_table <- rbindlist(list(
+  mag_condition[, .(community = "MAG", model = unique(model), features_tested = sum(tested), fdr05 = sum(supported_fdr05), fdr05_abs_lfc1 = sum(supported_fdr05_lfc1))],
+  mag_adjusted[, .(community = "MAG", model = unique(model), features_tested = sum(tested), fdr05 = sum(supported_fdr05), fdr05_abs_lfc1 = sum(supported_fdr05_lfc1))],
+  votu_condition[, .(community = "vOTU", model = unique(model), features_tested = sum(tested), fdr05 = sum(supported_fdr05), fdr05_abs_lfc1 = sum(supported_fdr05_lfc1))],
+  votu_adjusted[, .(community = "vOTU", model = unique(model), features_tested = sum(tested), fdr05 = sum(supported_fdr05), fdr05_abs_lfc1 = sum(supported_fdr05_lfc1))]
+))
+summary_table[, boundary := "Exploratory: condition is confounded with membrane identity"]
+
+for (entry in list(
+  list(mag_condition, "mag_deseq2_condition_only.tsv"), list(mag_adjusted, "mag_deseq2_phase_cycle_adjusted.tsv"),
+  list(mag_clr, "mag_matched_clr.tsv"), list(votu_condition, "votu_deseq2_condition_only.tsv"),
+  list(votu_adjusted, "votu_deseq2_phase_cycle_adjusted.tsv"), list(votu_clr, "votu_matched_clr.tsv"),
+  list(permanova, "community_restricted_permanova.tsv"), list(pcoa, "community_pcoa.tsv"),
+  list(summary_table, "analysis_summary.tsv")
+)) fwrite(entry[[1L]], file.path(staging, "tables", entry[[2L]]), sep = "\t")
+
+source(file.path(repo_root, "R", "figure_style.R"))
+condition_colours <- c(control = phage_uv_condition_colours[["control"]], treatment = phage_uv_condition_colours[["phage_uv"]])
+p_ordination <- ggplot(pcoa, aes(axis1, axis2, colour = condition, shape = phase)) +
+  geom_path(aes(group = interaction(condition, phase)), colour = "#C8C8C8", linewidth = 0.35) +
+  geom_point(size = 2.6) + facet_wrap(~ community, scales = "free") +
+  geom_text(aes(label = cycle), size = 2.3, colour = "white", show.legend = FALSE) +
+  scale_colour_manual(values = condition_colours, labels = c("Control", "Phage-UV")) +
+  labs(x = "PCoA axis 1", y = "PCoA axis 2", colour = NULL, shape = "Phase", tag = "A") +
+  theme_phage_uv(9)
+
+volcano_data <- rbindlist(list(
+  mag_adjusted[, .(
+    feature_id, log2FoldChange, padj, supported_fdr05_lfc1,
+    label = fifelse(supported_fdr05_lfc1, fifelse(!is.na(family) & nzchar(family), family, feature_id), ""),
+    community = "MAG"
+  )],
+  votu_adjusted[, .(
+    feature_id, log2FoldChange, padj, supported_fdr05_lfc1,
+    label = fifelse(supported_fdr05_lfc1, feature_id, ""), community = "vOTU"
+  )]
+))
+volcano_data[, support := fifelse(supported_fdr05_lfc1, "FDR < 0.05 and |log2FC| >= 1", "Not supported")]
+p_da <- ggplot(volcano_data, aes(log2FoldChange, -log10(pmax(padj, .Machine$double.xmin)), colour = support)) +
+  geom_point(alpha = 0.72, size = 1.25) + facet_wrap(~ community, scales = "free_y") +
+  geom_text(aes(label = label), size = 2.4, nudge_y = 0.04, check_overlap = TRUE, show.legend = FALSE) +
+  scale_colour_manual(values = c("FDR < 0.05 and |log2FC| >= 1" = "#6A3D9A", "Not supported" = "#BDBDBD")) +
+  geom_vline(xintercept = c(-1, 1), linetype = 3, colour = "#777777") +
+  labs(x = expression(log[2]("Phage-UV / control abundance")), y = expression(-log[10]("BH FDR")), colour = NULL, tag = "B") +
+  theme_phage_uv(9)
+
+figure <- p_ordination / p_da + plot_annotation(
+  title = "Exploratory microbial and viral community differences",
+  caption = paste(strwrap(paste(
+    "Condition-only poster replication and phase/cycle-adjusted DESeq2 screens use repeated samples from one membrane per condition.",
+    "They do not establish a replicated treatment effect; matched CLR and restricted-permutation results are provided in the source tables."
+  ), width = 145), collapse = "\n"), tag_levels = NULL
+)
+ggsave(file.path(staging, "figures", "community-differential-abundance.pdf"), figure, width = 12, height = 9, device = grDevices::pdf)
+
+writeLines(c(
+  "# Community differential-abundance run", "",
+  "- Reconstructs the original condition-only MAG DESeq2 analysis.",
+  "- Adds phase/cycle-adjusted DESeq2 screens for 348 MAGs and 616 high-quality vOTUs with viral genes.",
+  "- Adds six-cell matched CLR effect sizes and exhaustive 2^6 sign-flip tests.",
+  "- Adds paired restricted-permutation Bray-Curtis pseudo-F tests.",
+  "- All condition results are exploratory because one membrane represents each condition."
+), file.path(staging, "README.md"))
+
+files <- list.files(staging, recursive = TRUE, full.names = TRUE)
+files <- files[file.info(files)$isdir %in% FALSE]
+checksums <- data.table(
+  path = sub(paste0("^", normalizePath(staging), "/"), "", normalizePath(files)),
+  bytes = file.info(files)$size,
+  md5 = unname(tools::md5sum(files))
+)
+fwrite(checksums, file.path(staging, "output_checksums.md5.tsv"), sep = "\t")
+if (!file.rename(staging, output_dir)) abort("Failed to atomically promote output directory")
+cat(sprintf("Community differential-abundance analysis written to %s\n", output_dir))
+```
