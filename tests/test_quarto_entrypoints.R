@@ -13,6 +13,7 @@ scripts_dir <- file.path(repo_root, "scripts")
 expected <- sort(c(
   "build_16s_ena_manifests.qmd",
   "build_candidate_ecology_figures.qmd",
+  "build_community_figure_one.qmd",
   "build_host_phage_network_figure.qmd",
   "build_mag_genomic_variation_dossiers.qmd",
   "build_manuscript_figure_candidates.qmd",
@@ -53,7 +54,7 @@ documentation_text <- vapply(
   character(1L)
 )
 stopifnot(
-  all(grepl("22", documentation_text, fixed = TRUE)),
+  all(grepl("23", documentation_text, fixed = TRUE)),
   !any(grepl("20 standalone", documentation_text, fixed = TRUE)),
   !any(grepl("all 20 no-execute", documentation_text, fixed = TRUE))
 )

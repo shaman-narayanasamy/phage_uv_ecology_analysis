@@ -85,7 +85,7 @@ effects.
 
 ## Executable analysis sources
 
-The 22 standalone analysis entrypoints are canonical Quarto notebooks under
+The 23 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -110,11 +110,11 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   80 MAGs to 85 phage contigs. Treat it as historical-exposure context only,
   not active infection, validated host range, treatment response, or causal
   linkage to transcription.
-- Canonical figure filenames remain unnumbered. The story-reorganized working
-  draft begins with `community-transcriptome-trajectory.pdf`, then
-  `transcriptome-response-architecture.pdf`, followed by the recurrence and
-  population-genomics candidates. Figure 5 remains a conditional insertion
-  point for delegated 16S.
+- Canonical figure filenames remain unnumbered. By author decision, Figure 1 is
+  `community-structure-figure-one.pdf`, combining the design, aligned microbial
+  and vOTU composition, and their Bray-Curtis ordinations. It is followed by
+  global transcriptome structure, functional and organism-resolved structure,
+  recurrence, and population genomics. Delegated 16S has no reserved number.
   Use the fixed mappings in `docs/figure_visual_grammar.md` throughout.
 - Supplementary Figures S6 and S7 provide MAG and vOTU taxonomic context. They
   are taxonomy-derived dendrograms, not sequence phylogenies, and do not broaden
@@ -122,6 +122,8 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 - Supplementary Figure S8 provides the CRISPR-derived candidate-link network
   and its host-signal and viral-catalogue audits. None of its linked phage
   representatives passes the manuscript's high-quality classified-vOTU filter.
+- Supplementary Figure S9 contains the detailed exploratory microbial and vOTU
+  differential-abundance and sensitivity analyses.
 - A separate taxonomic-resolution exploration compares top-25 family, genus,
   and species stacked profiles using phylum-hued microshades remainders. It also
   contains an information-retention audit and a family heat-tree time-series
@@ -137,8 +139,8 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 
 ## Current manuscript state
 
-The complete evidence-led venue-neutral manuscript, story-reorganized main
-figures, eight supplementary figures, descriptive legends, bibliography, and
+The complete evidence-led venue-neutral manuscript scaffold, author-directed
+main-figure architecture, nine supplementary figures, descriptive legends, bibliography, and
 claim audit form a verified evidence and authoring scaffold. The local candidate suite contains 13
 PDFs, including two reader-facing opening figures and their two preserved
 analysis-led predecessors. Supplementary Figure S8 is the descriptive
@@ -174,8 +176,7 @@ be used as an evidence map, but not as submission prose for ISME
 Communications. If the user supplies researcher-authored or accepted prose, use
 Suggesting mode for agent changes and limit assistance to the journal's
 permitted scope.
-Do not manage the delegated 16S analysis; preserve its conditional Figure 5
-insertion point.
+Do not manage the delegated 16S analysis or preallocate it a figure number.
 
 The full pre-16S reproducibility audit passed on 2026-09-01. Upstream software
 provenance is now versioned in `manuscript/upstream_software_provenance.tsv`:

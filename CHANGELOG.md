@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added the author-selected Figure 1 describing microbial and phage community
+  structure across the six aligned cycle-phase observations, with verified
+  provenance, exploratory community statistics, and reproducibility tests.
+- Reallocated the main story to community, global transcriptome, functional and
+  organism-resolved structure, recurrence, and population genomics; detailed
+  abundance testing is Supplementary Figure S9 and delegated 16S has no
+  reserved figure number.
 - Reconstructed the original poster's condition-only MAG community analysis
   and added phase/cycle-adjusted DESeq2, matched CLR, exact sign-flip, and
   paired restricted-permutation analyses for both 348 MAGs and 616
