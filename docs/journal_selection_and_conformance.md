@@ -1,6 +1,6 @@
 # Journal selection and conformance
 
-Research checked: 2026-08-30
+Research checked: 2026-08-31
 
 Status: provisional author decision recorded 2026-08-30. The target sequence
 below is approved for preparation and author review, not for submission. Final
@@ -31,7 +31,7 @@ genomics. This overlap requires an explicit novelty audit before submission.
 ## Current manuscript fit
 
 - Working title: 12 words.
-- Abstract: 222 words excluding keywords.
+- Submission-review abstract: 226 words excluding keywords.
 - Introduction: 249 words.
 - Methods: 1,057 words.
 - Results: 924 words.
@@ -44,7 +44,7 @@ genomics. This overlap requires an explicit novelty audit before submission.
   treatment-induced mutation, adaptation, or uniform DNA-damage claim.
 
 The manuscript is already comfortably below the verified 5,000-word main-text
-limit for an ISME Communications Research Article. Journal selection should be
+limit for an ISME Communications Original Article. Journal selection should be
 driven by editorial fit and design tolerance, not by the need to shorten the
 current scientific body.
 
@@ -52,7 +52,7 @@ current scientific body.
 
 | Rank | Journal | Scope and audience fit | One-membrane design assessment | Current format and cost evidence | Editorial risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **ISME Communications** | Direct fit for microbial ecology, engineered microbiomes, spatial and temporal dynamics, and discovery- or methods-oriented work. The society describes the journal as emphasizing research quality and diversity. | Defensible only as a longitudinal two-system analysis. The broad transcriptome result and explicit negative DNA-damage conclusion are stronger than a treatment-efficacy pitch. Reviewers may still consider the lack of independent membranes limiting. | Research Articles have a 5,000-word main-body limit in the current indexed Oxford guidance. Fully OA. The current DOAJ record lists EUR 2,200; ISME states a 10% member discount and a case-by-case waiver route. Confirm the live OUP price and any institutional agreement at submission. | Moderate to high desk-review risk, but the best combination of audience, narrative, and quality-based scope. | **Recommended target**, subject to author approval and a clean novelty-overlap statement. |
+| 1 | **ISME Communications** | Direct fit for microbial ecology, engineered microbiomes, spatial and temporal dynamics, and discovery- or methods-oriented work. The society describes the journal as emphasizing research quality and diversity. | Defensible only as a longitudinal two-system analysis. The broad transcriptome result and explicit negative DNA-damage conclusion are stronger than a treatment-efficacy pitch. Reviewers may still consider the lack of independent membranes limiting. | Original Articles have a 5,000-word main-body limit, 250-word abstract, 100-reference limit, and maximum of eight main display items. Fully OA. The current DOAJ record lists EUR 2,200; ISME states a 10% member discount and a case-by-case waiver route. Confirm the live OUP price and any institutional agreement at submission. | Moderate to high desk-review risk, but the best combination of audience, narrative, and quality-based scope. | **Recommended target**, subject to author approval and a clean novelty-overlap statement. |
 | 2 | **FEMS Microbiology Ecology** | Strong fit for microbial ecology in managed or artificial systems, community dynamics, ecological interactions, and omics. The society asks for a significant original ecological contribution. | The design is acceptable only if the paper is framed around system-resolved ecological structure rather than generalized treatment response. The original-contribution test may be harder if the paper reads as an incremental reanalysis. | Fully OA and format-free at initial submission. The current DOAJ record lists GBP 2,500. FEMS states a 20% discount for members of affiliated societies and possible full coverage through OUP Read and Publish agreements. Confirm the live OUP price and institutional eligibility. | Moderate to high. Scope is excellent; novelty and replication will be the decisive editorial questions. | **Fallback 1**. |
 | 3 | **Environmental Microbiome** | Direct fit for microbial communities in managed and engineered environments and for metagenomic, metatranscriptomic, and systems-level analyses. | Probably the most forgiving scope match if the system-specific boundary is explicit, but the journal does not waive the need for honest design reporting. The paper should follow STREAMS reporting guidance. | Fully OA. The official fee page lists GBP 1,890, USD 2,590, or EUR 2,190 plus applicable tax. The journal requires public data availability and points microbiome studies to STREAMS. | Moderate. Less audience prestige than the ISME route, but a realistic home for a rigorously bounded engineered-microbiome study. | **Fallback 2**. |
 
@@ -140,6 +140,20 @@ change.
   local path, temporary launcher, or untracked artifact is present.
 - [ ] Obtain explicit author approval immediately before submission.
 
+Live ISME Communications requirements verified on 2026-08-31:
+
+- article type: Original Article;
+- main text: maximum 5,000 words;
+- unstructured abstract: maximum 250 words, without citations or abbreviations;
+- keywords: 3 to 10;
+- references: maximum 100, Oxford SciMed numbered style with square-bracket
+  citations;
+- main data displays: maximum 8 tables or figures;
+- title: maximum 150 characters; running title: maximum 40 characters;
+- graphical abstract or featured image required, otherwise Figure 1 is used by
+  default;
+- alt text required directly beneath every main-figure legend.
+
 ## Source record
 
 Primary journal and society sources:
@@ -150,8 +164,8 @@ Primary journal and society sources:
   <https://www.isme-microbes.org/public/publish-with-isme/>
 - ISME APC waiver route:
   <https://www.isme-microbes.org/public/apc-waivers/>
-- Oxford instructions for ISME Communications:
-  <https://academic.oup.com/ismecommun/pages/general-instructions>
+- Oxford author guidelines for ISME Communications:
+  <https://academic.oup.com/ismecommun/pages/author-guidelines>
 - The ISME Journal scope and significance language:
   <https://www.isme-microbes.org/public/isme-journal/>
 - FEMS Microbiology Ecology scope, article types, format-free submission, and

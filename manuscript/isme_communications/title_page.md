@@ -4,7 +4,7 @@ Package status: review draft only; not approved for submission.
 
 ## Article type
 
-Research Article
+Original Article
 
 ## Title
 
@@ -13,7 +13,7 @@ phage-UV cleaning of anaerobic membrane biofilms
 
 ## Running title
 
-Organism-resolved change across repeated phage-UV cleaning
+Biofilm response to repeated phage-UV
 
 ## Authors
 
@@ -54,12 +54,12 @@ record; none has been inferred]
 
 ## Current manuscript counts
 
-- Abstract: 222 words, excluding keywords.
-- Main text from Introduction through Discussion: approximately 2,786 words.
-- Main figures: 4 complete, with Figure 5 reserved for the delegated 16S
-  analysis.
+- Abstract: 226 words, excluding keywords.
+- Main text from Introduction through Discussion: below the 5,000-word limit.
+- Main figures: 4 complete. The delegated 16S result remains pending and is not
+  represented as a result in the current review manuscript.
 - Supplementary figures: 7.
-- References: 14 in the current Zotero-importable bibliography.
+- References: 16 in the current Zotero-importable bibliography.
 
 Counts must be recalculated after 16S integration and journal-specific edits.
 

@@ -27,6 +27,7 @@ printf '\nRunning complete R test inventory...\n'
 for test_file in \
   tests/test_full_de_interpretation.R \
   tests/test_full_transcriptome_edger.R \
+  tests/test_host_phage_network_figure.R \
   tests/test_manuscript_figure_candidates.R \
   tests/test_manuscript_registry.R \
   tests/test_taxonomic_resolution_exploration.R \
@@ -44,13 +45,13 @@ for notebook in scripts/*.qmd; do
   cp "${notebook}" "${staged_notebook}"
   "${quarto_bin}" render "${staged_notebook}" \
     --no-execute \
-    --to html \
+    --to gfm \
     --output-dir "${render_root}"
   notebook_count=$((notebook_count + 1))
 done
 
-if [[ "${notebook_count}" -ne 20 ]]; then
-  printf 'Expected 20 Quarto notebooks, found %s.\n' "${notebook_count}" >&2
+if [[ "${notebook_count}" -ne 21 ]]; then
+  printf 'Expected 21 Quarto notebooks, found %s.\n' "${notebook_count}" >&2
   exit 1
 fi
 

@@ -19,6 +19,11 @@ __pycache__/
 nohup.out
 nohup_logs/
 slurm/
+manuscript/isme_communications/review_assets/
+manuscript/isme_communications/rendered_review/
+manuscript/isme_communications/*_unsanitized.docx
+manuscript/isme_communications/*_styled.docx
+manuscript/isme_communications/phage_uv_submission_review.docx
 outputs/
 scratch/
 config/local*.yml

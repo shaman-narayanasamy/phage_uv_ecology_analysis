@@ -1,61 +1,75 @@
-# Working manuscript draft v1
+Heterogeneous organism-resolved transcriptional restructuring across repeated phage-UV cleaning of anaerobic membrane biofilms
 
-Editorial status: agent-authored first draft for review. Regular editing is
-permitted until the user begins revising accepted prose. Figure numbering is
-provisional and exists only to make the argument readable. Figure 5 is reserved
-for the independently delegated 16S analysis.
+**Original Article**
 
-## Working title
+**Running title:** Biofilm response to repeated phage-UV
 
-Heterogeneous organism-resolved transcriptional restructuring across repeated
-phage-UV cleaning of anaerobic membrane biofilms
+Yevhen Myshkevych^1^, Giantommaso Scarascia^1^, Julie Sanchez Medina^1^,
+Shaman Narayanasamy^1,2^, Venkata Satagopam^2^, and Pei-Ying Hong^1^
+
+^1^ Environmental Science and Engineering Program, Biological and Environmental
+Sciences & Engineering Division, King Abdullah University of Science and
+Technology, Thuwal 23955-6900, Saudi Arabia
+
+^2^ Luxembourg Centre for Systems Biomedicine, ELIXIR Luxembourg, University of
+Luxembourg, Belval L-4367, Luxembourg
+
+**Corresponding author:** Pei-Ying Hong, King Abdullah University of Science and
+Technology, Thuwal 23955, Saudi Arabia; peiying.hong@kaust.edu.sa
+
+**Author review note:** The author list, order, current affiliations,
+corresponding-author designation, ORCID identifiers, contribution statement,
+funding, and competing-interest declaration require confirmation. The list and
+corresponding author above are inherited from the publication describing the
+experimental system and are not treated as approved for this reanalysis. The
+collaborator-owned 16S analysis is pending and is not represented as a result in
+this version.
 
 ## Abstract
 
-Combined bacteriophage and ultraviolet C cleaning can delay fouling of
-anaerobic membrane bioreactors, but the community-wide context of this response
-is unresolved. We analysed all expressed features from one control membrane and
-one phage-UV membrane sampled during two phases of three cleaning cycles.
-MAG-mapped metagenomes showed diverse, changing community profiles, while the
-global metatranscriptome was organised primarily by cleaning cycle. Of
+Combined bacteriophage and ultraviolet C cleaning can delay fouling of anaerobic
+membrane bioreactors, but the community-wide context of this response is
+unresolved. We analysed all expressed features from one control membrane and
+one treated membrane sampled during two phases of three cleaning cycles.
+Genome-resolved metagenomes showed diverse, changing community profiles, while
+the global metatranscriptome was organised primarily by cleaning cycle. Of
 1,734,019 input features, 361,907 passed a predeclared filter. After adjustment
-for phase and cycle, 7,703 differed between membranes at a
-Benjamini-Hochberg false discovery rate below 0.05, with 7,699 also exceeding an
-absolute log2 fold-change of 1. The signal was broad but bidirectional and its
-functional support was narrow. SOS-response genes were collectively
-higher-ranked in the phage-UV membrane, but the median log2 fold-change was
-0.136 and the other seven predefined repair and stress categories were
-unsupported. By contrast, 175 of 340 eligible metagenome-assembled genomes
-carried coherent gene-set signals, split between 100 phage-UV-higher and 75
-control-higher sets. A predeclared recurrence filter retained 6,985 genes across
-the six phase-cycle cells, again in both directions. Five coverage-qualified
-genomes showed organism-specific population stability and turnover without a
-uniform membrane-associated pattern. Because each condition is represented by
-one membrane, treatment and membrane identity are confounded. Repeated cleaning
-therefore coincided with broad, organism-resolved transcriptional
-restructuring in this system, not a uniform DNA-damage or adaptation programme.
+for phase and cycle, 7,703 differed between membranes at a Benjamini-Hochberg
+false discovery rate below 0.05, with 7,699 also exceeding an absolute log2
+fold-change of 1. The signal was broad and bidirectional, while its functional
+support was narrow. Genes assigned to the canonical bacterial damage-response
+regulatory system were collectively higher-ranked in the treated membrane, but
+the median log2 fold-change was 0.136 and the other seven predefined repair and
+stress categories were unsupported. By contrast, 175 of 340 eligible
+metagenome-assembled genomes carried coherent gene-set signals, split between
+100 treated-membrane-higher and 75 control-membrane-higher sets. A predeclared
+recurrence filter retained 6,985 genes across the six phase-cycle cells, again
+in both directions. Five coverage-qualified genomes showed organism-specific
+population stability and turnover without a uniform membrane-associated
+pattern. Because each condition is represented by one membrane, treatment and
+membrane identity are confounded. Repeated cleaning therefore coincided with
+broad, organism-resolved transcriptional restructuring in this system, not a
+uniform damage-response or adaptation programme.
 
-Keywords: anaerobic membrane bioreactor; bacteriophage; UV-C; biofouling;
+**Keywords:** anaerobic membrane bioreactor; bacteriophage; UV-C; biofouling;
 metatranscriptomics; genome-resolved analysis
 
 ## Introduction
 
 Membrane biofouling constrains anaerobic membrane bioreactors and creates a
-recurring need for cleaning. A combined bacteriophage and UV-C procedure was
+recurring need for cleaning [@Scarascia2021]. A combined bacteriophage and ultraviolet C (UV-C) procedure was
 developed as a chemical-free alternative to conventional cleaning. In the
 initial proof-of-concept, this procedure reduced membrane-associated cells and
-extracellular polymeric substances while maintaining membrane flux (Scarascia
-et al., 2021). A subsequent experiment extended the procedure across three
+extracellular polymeric substances while maintaining membrane flux [@Scarascia2021]. A subsequent experiment extended the procedure across three
 cleaning cycles. Regrowth of transmembrane pressure remained delayed, although
 bacterial-cell and protein removal declined over successive cycles
-(Myshkevych et al., 2025).
+[@Myshkevych2025].
 
 Membrane biofilms are dynamic communities whose membership and functional
-potential can change during colonisation and maturation (Lu et al., 2016;
-Cheng et al., 2019). Whether this changing engineering performance reflects a
+potential can change during colonisation and maturation [@Lu2016; @Cheng2019]. Whether this changing engineering performance reflects a
 uniform microbial response is less clear. The repeated-cycle study reported transcriptional
 changes in selected biofilm-forming organisms and proposed that repeated
-exposure could favour adaptation (Myshkevych et al., 2025). Yet a signal in
+exposure could favour adaptation [@Myshkevych2025]. Yet a signal in
 selected organisms or stress genes need not represent the wider community. It
 can be embedded in shifts in community composition, organism abundance,
 physiological state, membrane history, or sampled fraction. Resolving that
@@ -73,7 +87,7 @@ membrane identity. We therefore seek reproducible structure within this
 longitudinal two-membrane system, not a population-level causal treatment
 effect.
 
-## Methods
+## Materials and Methods
 
 ### Experimental design and sequencing data
 
@@ -94,8 +108,8 @@ first data record from the headerless inputs and rejected conflicting duplicate
 feature records. Features were represented by coordinate-aware identifiers
 containing the contig, start, end, gene identifier, and strand.
 
-MAG-level community profiles were calculated from the metagenomic CoverM
-read-count matrix (Aroney et al., 2025). Archived workflow metadata preserves
+Metagenome-assembled genome (MAG)-level community profiles were calculated from the metagenomic CoverM
+read-count matrix [@Aroney2025]. Archived workflow metadata preserves
 the exact command and reported metrics, but not the resolved CoverM package
 version because the unpinned runtime environment was removed. Read counts were
 joined to the CAT/BAT-GTDB classification and summed by family within each
@@ -103,24 +117,23 @@ physical sample.
 Relative abundance was calculated within the MAG-mapped read total. The 25
 families with the highest mean relative abundance were displayed using a
 microshades-inspired hierarchy in which phylum determined hue and taxonomic
-resolution determined shade (Dahl et al., 2022). The resulting profiles
+resolution determined shade [@Dahl2022]. The resulting profiles
 describe the recovered MAG fraction rather than absolute whole-community
 abundance.
 
 The staged viral catalogue contained 607 deduplicated, classified,
-high-quality vOTUs after quality assessment with CheckV 1.1.1 and database
-v1.5 (Nayfach et al., 2021). Viral taxonomy was summarized as classification
+high-quality viral operational taxonomic units (vOTUs) after quality assessment with CheckV 1.1.1 and database
+v1.5 [@Nayfach2021]. Viral taxonomy was summarised as classification
 paths and realms. These summaries describe catalogue composition; they are not
 sequence phylogenies or measurements of treatment response.
 
 ### Complete-universe differential expression
 
-Differential expression was performed in R 4.5.1 using edgeR 4.8.2 (Robinson et
-al., 2010). The unfiltered matrix contained 1,734,019 features across the 12
+Differential expression was performed in R 4.5.1 using edgeR 4.8.2 [@Robinson2010edgeR]. The unfiltered matrix contained 1,734,019 features across the 12
 physical samples. Features were retained with `edgeR::filterByExpr` using a
 minimum count of 10, a minimum total count of 15, and the phase- and
 cycle-adjusted design. Library composition was normalised by the trimmed mean
-of M-values method (Robinson and Oshlack, 2010).
+of M-values (TMM) method [@Robinson2010TMM].
 
 Two negative-binomial quasi-likelihood models were fitted. The main design,
 `~ phase + cycle + condition`, estimated the phage-UV-minus-control coefficient
@@ -129,18 +142,16 @@ after adjustment for phase and cycle. The interaction design,
 the cycle-1 membrane contrast and a two-degree-of-freedom condition-by-cycle
 omnibus test. The interaction coefficients are departures from cycle 1, not
 standalone membrane contrasts within cycles 2 or 3. Raw P values were adjusted
-by the Benjamini-Hochberg method within each predeclared coefficient family
-(Benjamini and Hochberg, 1995). Function, taxonomy, and effect direction were
+by the Benjamini-Hochberg (BH) false discovery rate (FDR) method within each predeclared coefficient family
+[@Benjamini1995]. Function, taxonomy, and effect direction were
 not used to select features before fitting.
 
 ### Functional annotation and competitive gene-set tests
 
 Primary gene annotations generated with Bakta 1.12.0 and the full Bakta
 database 6.0 build dated 2025-02-24 were joined to the model results by
-metagenome-assembled genome (MAG) and gene identifier (Schwengers et al.,
-2021). MAG taxonomy was joined from the staged CAT/BAT 6.0.1 classification
-against a GTDB-derived database build dated 2023-11-21 (von Meijenfeldt et al.,
-2019; Parks et al., 2022). The exact GTDB release tag was not preserved and is
+MAG and gene identifier [@Schwengers2021]. MAG taxonomy was joined from the staged CAT/BAT 6.0.1 classification
+against a Genome Taxonomy Database (GTDB)-derived database build dated 2023-11-21 [@vonMeijenfeldt2019; @Parks2022]. The exact GTDB release tag was not preserved and is
 not inferred from other projects. Annotation and taxonomy failures were
 retained as explicit audit categories.
 
@@ -154,7 +165,7 @@ and de-duplicated within category. The competitive background contained all
 For one-degree-of-freedom coefficients, the signed gene statistic was defined as
 `sign(logFC) x sqrt(F)`. Categories were tested with the rank-based `cameraPR`
 competitive test in limma 3.66.0, using a preset inter-gene correlation of 0.01
-(Wu and Smyth, 2012). The omnibus statistic was `sqrt(F)` and was tested without
+[@Wu2012]. The omnibus statistic was `sqrt(F)` and was tested without
 direction. Categories required at least 10 tested features. Benjamini-Hochberg
 adjustment was applied across the eight categories separately for each
 coefficient.
@@ -185,7 +196,7 @@ genes. They were not treated as a second hypothesis test.
 ### Descriptive population-genomic comparisons
 
 Population-genomic comparisons used the scoped priority-20 inStrain 1.10.0
-analysis (Olm et al., 2021). A sample pair was retained when at least 1 Mbp and
+analysis [@Olm2021]. A sample pair was retained when at least 1 million base pairs (Mbp) and
 50% of the callable genome were compared. A MAG was retained for the descriptive
 panel when it had at least 10 qualified pairs spanning at least six samples.
 Consensus differences were divided by callable bases and expressed per Mbp. No
@@ -246,7 +257,7 @@ increase in cycle-specific differential expression.
 Among the tested features, 4,119 mapped to at least one of the eight predefined
 repair and stress categories. SOS-response genes were collectively
 higher-ranked for the adjusted membrane coefficient (523 genes; `cameraPR` raw
-P = 2.58 x 10^-4, BH FDR = 2.07 x 10^-3; Figure 2B). The category-level result
+P = 2.58 × 10^-4, BH FDR = 2.07 × 10^-3; Figure 2B). The category-level result
 was statistically supported, but the gene-level shift was modest. Median log2
 fold-change was 0.136, and 57.9% of SOS genes had positive coefficients.
 
@@ -254,8 +265,8 @@ Photoreactivation, nucleotide-excision repair, recombination repair,
 base-excision and oxidative repair, oxidative stress, redox stress, and general
 stress were unsupported for the adjusted membrane coefficient (BH FDR range
 0.642 to 0.892; Figure 2B). Redox-stress genes were higher-ranked for the
-cycle-2 interaction coefficient (1,227 genes; raw P = 1.19 x 10^-3, BH FDR =
-9.51 x 10^-3). No category was supported for the cycle-3 interaction or the
+cycle-2 interaction coefficient (1,227 genes; raw P = 1.19 × 10^-3, BH FDR =
+9.51 × 10^-3). No category was supported for the cycle-3 interaction or the
 condition-by-cycle omnibus (Supplementary Figure S3). The functional evidence
 did not define a broad or recurrent DNA repair programme.
 
@@ -345,7 +356,7 @@ the median shift was small, almost 42% of SOS genes had negative coefficients,
 and none of the other seven repair and stress categories was supported for the
 same coefficient. Transcription of an SOS-associated gene set is not a direct
 measurement of DNA lesions because SOS induction is a regulated response that
-varies across organisms and physiological contexts (Maslowska et al., 2019).
+varies across organisms and physiological contexts [@Maslowska2019].
 Calling this a community-wide DNA-damage response would exceed the evidence.
 
 The organism-level analysis explains why a narrow pathway account was
@@ -381,114 +392,61 @@ not create independent treatment replicates. The reported P values and FDRs are
 useful for organising internally consistent signals across the observed
 samples. They cannot support a general causal estimate for phage-UV cleaning.
 
-The delegated 16S analysis can add a complementary amplicon-based view of
-community composition and test whether broad taxonomic turnover is consistent
-with the metagenomic profile. It samples the same experimental units and cannot
-create treatment replication. The host-phage network adds a record of candidate
-historical exposure, but it does not identify active infections or connect those
-links causally to the observed transcriptional structure. The present evidence
-supports a precise conclusion: the two repeatedly sampled membranes developed
-broad, bidirectional, organism-resolved differences in their RNA landscapes,
-whereas a uniform DNA-damage or adaptation programme was not supported.
+The present evidence supports a precise conclusion: the two repeatedly sampled
+membranes developed broad, bidirectional, organism-resolved differences in
+their transcriptomes, whereas a uniform damage-response or adaptation
+programme was not supported. Future replicated experiments should separate
+membrane identity from cleaning treatment and pair metagenomic abundance with
+transcription at each time point.
 
-## Data and code availability
+
+## Acknowledgments
+
+We thank the KAUST FM Utilities team for providing access to raw wastewater
+samples. [AUTHOR CONFIRMATION REQUIRED]
+
+## Author contributions
+
+Proposed CRediT statement for author review: Yevhen Myshkevych: investigation,
+methodology, and writing - review and editing. Giantommaso Scarascia:
+investigation, conceptualisation, and writing - review and editing. Julie
+Sanchez Medina: methodology, investigation, and writing - review and editing.
+Shaman Narayanasamy: conceptualisation, data curation, formal analysis,
+methodology, software, visualisation, writing - original draft, and writing -
+review and editing. Venkata Satagopam: resources, software, and writing - review
+and editing. Pei-Ying Hong: conceptualisation, funding acquisition, project
+administration, resources, supervision, and writing - review and editing. All
+roles require confirmation by the authors.
+
+## Funding
+
+The experimental study was supported by KAUST baseline grant BAS/1/1033-01-01
+awarded to Pei-Ying Hong. The authors must confirm whether this grant supported
+the present reanalysis and identify any additional support before submission.
+
+## Conflict of interest
+
+The authors declare no competing interests. [ALL AUTHORS TO RECONFIRM]
+
+
+## Data availability
 
 Raw sequencing data are available from the European Nucleotide Archive under
 PRJEB79569 (secondary study accession ERP163720). Analysis code, sample
 metadata, software versions, explicit upstream provenance gaps, input
 checksums, output checksums, and exact output provenance are versioned in the
-project repository and its manifests. The complete statistical tables
+project repository (https://github.com/shaman-narayanasamy/phage_uv_ecology_analysis) and its manifests. The complete statistical tables
 underlying all displayed summaries are retained in the project-derived data
 store.
 
-## Declarations
-
-Author contributions: [to be completed by the authors].
-
-Funding: [to be completed from the published study and current project record].
-
-Competing interests: [to be confirmed by the authors].
-
 ## References
 
-Aroney STN, Newell RJP, Nissen JN, Camargo AP, Tyson GW, Woodcroft BJ. 2025.
-CoverM: read alignment statistics for metagenomics. *Bioinformatics* 41:btaf147.
-https://doi.org/10.1093/bioinformatics/btaf147
+::: {#refs}
+:::
 
-Benjamini Y, Hochberg Y. 1995. Controlling the false discovery rate: a practical
-and powerful approach to multiple testing. *Journal of the Royal Statistical
-Society Series B* 57:289-300. https://doi.org/10.1111/j.2517-6161.1995.tb02031.x
+## Figures
 
-Dahl EM, Neer E, Bowie KR, Leung ET, Karstens L. 2022. microshades: An R package
-for improving color accessibility and organization of microbiome data.
-*Microbiology Resource Announcements* 11:e00795-22.
-https://doi.org/10.1128/mra.00795-22
-
-Cheng H, Cheng D, Mao J, Lu T, Hong P-Y. 2019. Identification and
-characterization of core sludge and biofilm microbiota in anaerobic membrane
-bioreactors. *Environment International* 133:105165.
-https://doi.org/10.1016/j.envint.2019.105165
-
-Lu H, Xue Z, Saikaly P, Nunes SP, Bluver TR, Liu W-T. 2016. Membrane
-biofouling in a wastewater nitrification reactor: microbial succession from
-autotrophic colonization to heterotrophic domination. *Water Research*
-88:337-345. https://doi.org/10.1016/j.watres.2015.10.013
-
-Maslowska KH, Makiela-Dzbenska K, Fijalkowska IJ. 2019. The SOS system: a
-complex and tightly regulated response to DNA damage. *Environmental and
-Molecular Mutagenesis* 60:368-384. https://doi.org/10.1002/em.22267
-
-Myshkevych Y, Scarascia G, Sanchez Medina J, Narayanasamy S, Satagopam V, Hong
-P-Y. 2025. Effectiveness of combined UV-C and bacteriophage approach over
-repeated cleaning cycles to alleviate membrane fouling of anaerobic
-bioreactors. *Chemical Engineering Journal Advances* 24:100796.
-https://doi.org/10.1016/j.ceja.2025.100796
-
-Nayfach S, Camargo AP, Schulz F, Eloe-Fadrosh E, Roux S, Kyrpides NC. 2021.
-CheckV assesses the quality and completeness of metagenome-assembled viral
-genomes. *Nature Biotechnology* 39:578-585.
-https://doi.org/10.1038/s41587-020-00774-7
-
-Olm MR, Crits-Christoph A, Bouma-Gregson K, Firek BA, Morowitz MJ, Banfield JF.
-2021. inStrain profiles population microdiversity from metagenomic data and
-sensitively detects shared microbial strains. *Nature Biotechnology* 39:727-736.
-https://doi.org/10.1038/s41587-020-00797-0
-
-Parks DH, Chuvochina M, Rinke C, Mussig AJ, Chaumeil P-A, Hugenholtz P. 2022.
-GTDB: an ongoing census of bacterial and archaeal diversity through a
-phylogenetically consistent, rank normalized and complete genome-based
-taxonomy. *Nucleic Acids Research* 50:D785-D794.
-https://doi.org/10.1093/nar/gkab776
-
-Robinson MD, McCarthy DJ, Smyth GK. 2010. edgeR: a Bioconductor package for
-differential expression analysis of digital gene expression data.
-*Bioinformatics* 26:139-140. https://doi.org/10.1093/bioinformatics/btp616
-
-Robinson MD, Oshlack A. 2010. A scaling normalization method for differential
-expression analysis of RNA-seq data. *Genome Biology* 11:R25.
-https://doi.org/10.1186/gb-2010-11-3-r25
-
-Scarascia G, Fortunato L, Myshkevych Y, Cheng H, Leiknes T, Hong P-Y. 2021. UV
-and bacteriophages as a chemical-free approach for cleaning membranes from
-anaerobic bioreactors. *Proceedings of the National Academy of Sciences of the
-United States of America* 118:e2016529118.
-https://doi.org/10.1073/pnas.2016529118
-
-Schwengers O, Jelonek L, Dieckmann MA, Beyvers S, Blom J, Goesmann A. 2021.
-Bakta: rapid and standardized annotation of bacterial genomes via
-alignment-free sequence identification. *Microbial Genomics* 7:000685.
-https://doi.org/10.1099/mgen.0.000685
-
-von Meijenfeldt FAB, Arkhipova K, Cambuy DD, Coutinho FH, Dutilh BE. 2019.
-Robust taxonomic classification of uncharted microbial sequences and bins with
-CAT and BAT. *Genome Biology* 20:217.
-https://doi.org/10.1186/s13059-019-1817-x
-
-Wu D, Smyth GK. 2012. Camera: a competitive gene set test accounting for
-inter-gene correlation. *Nucleic Acids Research* 40:e133.
-https://doi.org/10.1093/nar/gks461
-
-## Working main-figure legends
+![](manuscript/isme_communications/review_assets/figure1.png){width=6.5in}
 
 **Figure 1. Experimental system, community trajectory, and transcriptome
 geometry.** (A) One
@@ -503,6 +461,12 @@ replicated treatment test.
 (C) Leading log-fold-change dimensions calculated from the TMM-normalised
 filtered expression matrix. Point colour denotes membrane, point shape denotes
 phase, and labels denote cycle.
+
+Alt text: Three-panel figure showing the two-membrane sampling design, stacked family-level community profiles across six aligned cycle-phase observations, and leading log-fold-change coordinates for the 12 metatranscriptomic samples.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/figure2.png){width=6.5in}
 
 **Figure 2. Transcriptome-wide, functional, and organism-resolved structure.**
 (A) Average log2 counts per million and phage-UV-minus-control log2 fold-change
@@ -520,6 +484,12 @@ selected by FDR and then absolute median log2 fold-change. Squares denote GTDB
 phylum and circles denote the direction of higher-ranked genes. Full functional
 and MAG-level statistics are provided in the interpretation tables.
 
+Alt text: Four-panel figure showing the adjusted membrane expression landscape, competitive repair and stress category results, counts of supported genome-level gene sets by direction, and median effects for the strongest supported organisms.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/figure3.png){width=6.5in}
+
 **Figure 3. Recurrent gene-level differences across six phase-cycle cells.**
 (A) Sequential counts after the adjusted-condition FDR and effect-size filter,
 sample-detection filter, annotation filter, and five-of-six-cell recurrence
@@ -530,6 +500,12 @@ Phage-UV-minus-control differences in TMM-normalised log2 counts per million for
 log2 fold-change. Columns represent the initial and backflush fractions in
 cycles 1 to 3. Full candidate statistics are provided in the recurrent-gene
 table.
+
+Alt text: Three-panel figure showing the recurrent-gene selection funnel, counts by directional agreement across six cells, and a heatmap of cell-level differences for 24 deterministically selected genes.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/figure4.png){width=6.5in}
 
 **Figure 4. Coverage-qualified population-genomic heterogeneity.** (A) Strain
 cluster assignment across the observed samples for five MAGs with at least 10
@@ -542,11 +518,11 @@ coverage-qualified *Propionicimonas* sp023458095 profiles. Pairs required at
 least 1 Mbp and 50% of the callable genome. Full pair and MAG quality-control
 metrics are provided in the population-genomics tables.
 
-**Figure 5. Delegated 16S community analysis.** Reserved for the external
-collaborator's verified result. Panel content and legend will be added only
-after the analysis and provenance have been returned.
+Alt text: Three-panel figure showing strain-cluster membership for five coverage-qualified genomes, their pairwise consensus-difference summaries, and the pairwise landscape for Propionicimonas sp023458095.
 
-## Working supplementary-figure legends
+## Supplementary figures
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s1.png){width=6.5in}
 
 **Supplementary Figure S1. Feature, library, and model diagnostics.** (A) Number
 of input features and features retained by the predeclared expression filter.
@@ -557,6 +533,12 @@ interquartile range of trended dispersion, tagwise dispersion, and
 quasi-likelihood posterior variance for the adjusted-condition and
 condition-by-cycle models.
 
+Alt text: Three-panel diagnostic figure summarising feature filtering, retained and effective library sizes, and model-dispersion estimates.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s2.png){width=6.5in}
+
 **Supplementary Figure S2. Complete-universe condition-by-cycle interaction
 landscapes.** (A) Average log2 counts per million and interaction log2
 fold-change for the cycle-2 and cycle-3 departures from the cycle-1 membrane
@@ -565,12 +547,24 @@ context samples. (B) Average log2 counts per million and -log10(BH FDR) for the
 two-degree-of-freedom condition-by-cycle omnibus. The dotted line marks BH FDR
 = 0.05.
 
+Alt text: Expression landscapes for cycle-2 and cycle-3 interaction coefficients and the two-degree-of-freedom interaction omnibus.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s3.png){width=6.5in}
+
 **Supplementary Figure S3. Predefined functional categories across all
 coefficients.** Competitive rank-test results for eight repair and stress
 categories in the adjusted membrane, cycle-2 interaction, cycle-3 interaction,
 and interaction-omnibus coefficients. Directional coefficients are signed by
 gene-rank direction. Omnibus values are non-directional and positive. Filled
 points passed BH FDR < 0.05; open points did not.
+
+Alt text: Competitive rank-test results for eight predefined repair and stress categories across four model coefficients.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s4.png){width=6.5in}
 
 **Supplementary Figure S4. MAG-level coherence across directional
 coefficients.** (A) Number of eligible MAG gene sets passing BH FDR < 0.05 in
@@ -580,11 +574,23 @@ fold-change and -log10(BH FDR) for all eligible MAG sets. Filled points passed
 BH FDR < 0.05; open points did not. Interaction coefficients are departures
 from cycle 1.
 
+Alt text: Counts and effect summaries for eligible genome-level gene sets across the adjusted membrane and two interaction coefficients.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s5.png){width=6.5in}
+
 **Supplementary Figure S5. Coverage-qualified pairwise population-genomic
 landscapes.** Pairwise consensus differences per callable Mbp for all five MAGs
 passing the organism-level coverage rules. Grey cells indicate unavailable or
 coverage-failing comparisons. Pairs required at least 1 Mbp and 50% of the
 callable genome.
+
+Alt text: Coverage-qualified pairwise consensus-difference matrices for the five genomes retained for descriptive population-genomic analysis.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s6.png){width=6.5in}
 
 **Supplementary Figure S6. MAG taxonomic context and family-level community
 profile.** (A) Taxonomy-derived circular dendrogram of 348 dereplicated MAGs.
@@ -596,12 +602,24 @@ among MAG-mapped metagenomic reads. Control is aligned above phage-UV across the
 six cycle-phase observations. The dendrogram is classification-derived, not a
 sequence phylogeny, and the abundance profiles are descriptive.
 
+Alt text: Taxonomy-derived circular dendrogram for 348 genomes with quality and transcriptomic rings, paired with aligned stacked family-level metagenomic profiles.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s7.png){width=6.5in}
+
 **Supplementary Figure S7. vOTU taxonomic context.** (A) Taxonomy-derived
 cladogram of 607 deduplicated high-quality vOTUs after quality assessment with
-CheckV (Nayfach et al., 2021), grouped into 45 taxonomic paths. Point colour
+CheckV [@Nayfach2021], grouped into 45 taxonomic paths. Point colour
 denotes realm and point size denotes group size. (B) Number
 of qualifying vOTUs in each realm. The cladogram is not a sequence phylogeny
 and does not encode treatment response or host-phage linkage.
+
+Alt text: Taxonomy-derived cladogram for 607 high-quality viral operational taxonomic units, grouped into 45 taxonomic paths, with realm-level catalogue counts.
+
+\newpage
+
+![](manuscript/isme_communications/review_assets/supplementary_figure_s8.png){width=6.5in}
 
 **Supplementary Figure S8. CRISPR-derived host-phage candidate-link evidence
 audit.** (A) Eighty host MAGs and 85 phage contigs connected by 86 deduplicated
@@ -617,12 +635,4 @@ infection, treatment response, or host-range validation. None of the linked
 phage representatives passes the manuscript's high-quality classified-vOTU
 filter.
 
-## Editorial insertion note, not manuscript text
-
-The delegated 16S analysis remains a separate workstream. When the collaborator
-returns the verified ordination, composition, statistical outputs, and exact
-provenance, integrate them at three points only: i) a short Methods subsection,
-ii) one Results subsection with working Figure 5, and iii) a Discussion paragraph
-testing whether community composition clarifies the organism-resolved
-transcriptome. Do not invent a result or hold the current draft open while that
-analysis is pending.
+Alt text: Bipartite evidence-audit network connecting 80 host genomes to 85 phage contigs through 86 deduplicated CRISPR-derived candidate links, with host-expression and viral-catalogue context.

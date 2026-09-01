@@ -91,8 +91,11 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   it from this workstream; audit only the returned package for integration.
 - A fresh write invitation for `smarbas` is pending as of 2026-08-29 after the
   earlier invitation expired. No returned result or pull request was present.
-- Host-phage integration is deferred. Use it only if it materially clarifies a
-  supported global result.
+- The verified CRISPR-derived host-phage evidence audit is allocated as
+  Supplementary Figure S8. It contains 86 deduplicated candidate pairs linking
+  80 MAGs to 85 phage contigs. Treat it as historical-exposure context only,
+  not active infection, validated host range, treatment response, or causal
+  linkage to transcription.
 - Canonical figure filenames remain unnumbered. The story-reorganized working
   draft begins with `community-transcriptome-trajectory.pdf`, then
   `transcriptome-response-architecture.pdf`, followed by the recurrence and
@@ -102,6 +105,9 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 - Supplementary Figures S6 and S7 provide MAG and vOTU taxonomic context. They
   are taxonomy-derived dendrograms, not sequence phylogenies, and do not broaden
   the treatment or host-phage claims.
+- Supplementary Figure S8 provides the CRISPR-derived candidate-link network
+  and its host-signal and viral-catalogue audits. None of its linked phage
+  representatives passes the manuscript's high-quality classified-vOTU filter.
 - A separate taxonomic-resolution exploration compares top-25 family, genus,
   and species stacked profiles using phylum-hued microshades remainders. It also
   contains an information-retention audit and a family heat-tree time-series

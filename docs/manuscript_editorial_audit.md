@@ -32,7 +32,7 @@ than holding the current narrative open.
 | Abstract | Moves from engineering problem to community context, global geometry, quantitative transcriptome result, organism resolution, and design boundary | Ready for author review |
 | Introduction | Establishes the ecological scale problem created by selected-gene interpretation and states the three connected questions | Ready for author review |
 | Methods | Preserves exact experimental units, preprocessing, models, thresholds, provenance, and inferential limits | Ready for technical review |
-| Results | Cites Figures 1-4 and Supplementary Figures S1-S7 in first-appearance order; reports positive and negative results | Ready for author review |
+| Results | Cites Figures 1-4 and Supplementary Figures S1-S8 in first-appearance order; reports positive and negative results | Ready for author review |
 | Discussion | Interprets scale and heterogeneity, separates RNA structure from per-cell regulation, and states the experimental-unit limit | Ready for author review |
 | Declarations | Explicit placeholders remain for author contributions, funding, and competing interests | Requires author input before submission |
 

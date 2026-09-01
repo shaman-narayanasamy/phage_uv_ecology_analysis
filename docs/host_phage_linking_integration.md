@@ -1,9 +1,8 @@
 # Host-Phage Linking Integration
 
-This analysis is required for the manuscript story. vOTU ecology and MAG/rMAG
-ecology are not enough by themselves; the project needs an explicit
-phage-host interaction layer before the UV and SNV results can be interpreted
-as a connected system.
+This analysis supplies a descriptive phage-host interaction layer for the
+manuscript. It does not connect the UV, transcriptomic, or population-genomic
+results causally.
 
 ## Source Repository
 
@@ -93,23 +92,29 @@ The useful logic is:
 Do not preserve old absolute paths. Move the logic into manifest-driven scripts
 or Quarto sections.
 
-## Current Blockers
+## Current Verified State
 
-- The current local PRJEB79569 table cache does not contain the host-phage link
-  outputs.
-- Iris was under maintenance on 2026-07-21, so live path discovery and fetch
-  were blocked.
-- Once Iris returns, search both:
-  - `/scratch/users/snarayanasamy/phage_uv_treatment`
-  - the actual host-phage pipeline output root, if different.
+- The consolidated local link table contains 148 raw rows, 121 exact unique
+  rows, and 86 deduplicated MAG-phage pairs.
+- The deduplicated network links 80 MAGs to 85 phage contigs.
+- Forty-nine linked MAGs carry a supported current adjusted-membrane MAG
+  coefficient, with mixed direction.
+- Twelve linked phage representatives have a current catalogue annotation.
+- No linked phage representative passes the manuscript's high-quality
+  classified-vOTU filter.
+- `scripts/build_host_phage_network_figure.qmd` produces the verified evidence
+  audit allocated as Supplementary Figure S8.
+
+These links are compatible with historical CRISPR exposure. They do not
+demonstrate active infection, treatment response, validated host range,
+adsorption through biofilm, or a causal connection to transcription.
 
 ## Acceptance Criteria
 
-- A host-phage link table is staged and listed in
+- The host-phage link table and evidence-audit output are staged and listed in
   `manifests/data_manifest.tsv`.
-- Every `MAG_ID` and `vOTU_id` in the link table can be mapped to staged
-  quality/taxonomy tables.
-- The manuscript analysis can produce at least:
-  - count of host-linked vOTUs by condition/cycle,
-  - count of phage-linked MAGs by condition/cycle,
-  - prioritized MAG-vOTU pairs with UV signature context.
+- Host identifiers map to current MAG taxonomy and complete-transcriptome
+  context; phage identifiers map through the current vOTU clustering audit.
+- The manuscript includes the complete deduplicated candidate-link network,
+  host-signal summary, and viral-catalogue annotation audit as Supplementary
+  Figure S8.

@@ -13,6 +13,7 @@ scripts_dir <- file.path(repo_root, "scripts")
 expected <- sort(c(
   "build_16s_ena_manifests.qmd",
   "build_candidate_ecology_figures.qmd",
+  "build_host_phage_network_figure.qmd",
   "build_mag_genomic_variation_dossiers.qmd",
   "build_manuscript_figure_candidates.qmd",
   "build_population_genomics_descriptive.qmd",
