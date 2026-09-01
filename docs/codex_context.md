@@ -89,8 +89,10 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   selected five-MAG set. See `docs/population_genomics_descriptive.md`.
 - The 16S analysis is owned by a separate collaborator. Do not manage or rerun
   it from this workstream; audit only the returned package for integration.
-- A fresh write invitation for `smarbas` is pending as of 2026-08-29 after the
-  earlier invitation expired. No returned result or pull request was present.
+- GitHub write access for `smarbas` was confirmed on 2026-09-01. The invitation
+  is no longer pending. A read-only audit found no collaborator-authored commit,
+  branch, pull request, or issue update, so no returned 16S package is available
+  for integration yet.
 - The verified CRISPR-derived host-phage evidence audit is allocated as
   Supplementary Figure S8. It contains 86 deduplicated candidate pairs linking
   80 MAGs to 85 phage contigs. Treat it as historical-exposure context only,

@@ -138,10 +138,11 @@ apply in every main and supplementary figure.
   or rerun it from this workstream. Review the returned package only for sample
   mapping, provenance, inference, and manuscript integration under issue #30.
   Figure 5 is a conditional working slot, not a guaranteed allocation.
-- The original `smarbas` repository invitation had expired. It was replaced on
-  2026-08-29 with active pending write invitation `330960159`, and the
-  collaborator was notified on GitHub issue #30. No result or pull request had
-  been returned at that check.
+- The original `smarbas` repository invitation expired and was replaced on
+  2026-08-29. GitHub write permission was confirmed on 2026-09-01, with no
+  pending invitation remaining. A read-only audit found no
+  collaborator-authored commit, branch, pull request, or issue update. The
+  collaborator has access, but no returned 16S package is available yet.
 
 ## Google Docs and Zotero
 
