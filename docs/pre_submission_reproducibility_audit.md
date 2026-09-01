@@ -12,7 +12,7 @@ open until the collaborator-owned 16S decision in issue #30 is resolved.
 - `scripts/validate_manifests.sh` passes every metadata, 16S input-contract,
   Quarto-entrypoint, citation, manuscript-structure, data-path, and HPC Conda
   policy check.
-- All 21 canonical `scripts/*.qmd` notebooks structure-render to GFM with
+- All 22 canonical `scripts/*.qmd` notebooks structure-render to GFM with
   execution disabled under the RStudio-bundled Quarto 1.9.37. GFM is used for
   this structural gate because HTML rendering opens Quarto's macOS user-level
   Sass cache, which is intentionally unwritable in a restricted audit runtime.

@@ -200,7 +200,7 @@ only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
-All 21 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 22 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -241,6 +241,24 @@ imply unobserved continuity and turn the MAG families into thin ribbons. These
 are review candidates and have not replaced the manuscript figures or Google
 Doc previews.
 
+### Community differential abundance
+
+The original poster's condition-only MAG analysis has now been reconstructed
+from the current 12-sample CoverM matrix in
+`scripts/run_community_differential_abundance.qmd`. It returned zero
+FDR-supported MAGs, reproducing the poster's null community statement. The
+current workflow also includes phase/cycle-adjusted DESeq2, six matched-cell
+CLR effects with exhaustive sign-flip tests, and paired restricted-permutation
+Bray-Curtis tests for 348 MAGs and 616 high-quality vOTUs with viral genes.
+
+The adjusted screen returned one MAG and zero vOTUs at FDR below 0.05; neither
+community contained matched-CLR features after BH correction. Global exact
+p-values were 0.125 for MAGs and 0.0625 for vOTUs. Treat all condition
+coefficients as exploratory because condition remains confounded with membrane
+identity. Canonical outputs are under
+`PRJEB79569/derived/community_differential_abundance/`; the vector PDF is a
+supplementary candidate and has not been inserted into Google Docs.
+
 ## Validation completed
 
 - `Rscript tests/test_manuscript_registry.R`.
@@ -248,7 +266,7 @@ Doc previews.
 - `Rscript tests/test_taxonomic_timeseries_layouts.R`.
 - `bash scripts/validate_manifests.sh`.
 - `Rscript tests/test_quarto_entrypoints.R`.
-- Quarto 1.9.37 structure renders for all 21 `scripts/*.qmd` notebooks with
+- Quarto 1.9.37 structure renders for all 22 `scripts/*.qmd` notebooks with
   execution disabled.
 - `pandoc manuscript/manuscript_skeleton.md --bibliography=manuscript/references.bib`.
 - `git diff --check`.
@@ -261,8 +279,8 @@ remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
 
 The complete pre-16S audit passed on 2026-09-01 through
-`bash scripts/run_pre_submission_audit.sh`: all 15 R tests, manifest checks,
-all 21 no-execute Quarto structure renders, the Pandoc manuscript build,
+`bash scripts/run_pre_submission_audit.sh`: all 16 R tests, manifest checks,
+all 22 no-execute Quarto structure renders, the Pandoc manuscript build,
 figure checksums, and repository hygiene. Bakta, CAT/BAT, CheckV, and inStrain
 versions are verified; unrecoverable CoverM and GTDB-release details are
 explicitly recorded rather than inferred. Exact multiomics and host-phage

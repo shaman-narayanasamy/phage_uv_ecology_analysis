@@ -43,6 +43,16 @@ The defensible interpretation is heterogeneous organism-resolved
 transcriptional restructuring. SOS-associated transcription is not direct
 evidence of DNA damage, mutagenesis, or adaptation.
 
+The original poster's community-abundance claim has also been reconstructed.
+The condition-only MAG DESeq2 model returned zero FDR-supported MAGs, matching
+the poster. A phase/cycle-adjusted screen returned one MAG, but no MAG survived
+BH correction in the six-cell matched CLR analysis. For 616 high-quality vOTUs,
+two condition-only hits disappeared after phase/cycle adjustment and none
+survived matched-CLR correction. Paired restricted-permutation Bray-Curtis tests
+were not significant for MAGs (exact p = 0.125) or vOTUs (exact p = 0.0625).
+These are exploratory system-specific comparisons, not replicated treatment
+effects.
+
 ## Canonical paths
 
 - Local data root:
@@ -53,6 +63,8 @@ evidence of DNA damage, mutagenesis, or adaptation.
   `PRJEB79569/derived/full_de_interpretation/`
 - Complete figure suite and registry:
   `PRJEB79569/derived/manuscript_figure_candidates/`
+- Community differential-abundance output:
+  `PRJEB79569/derived/community_differential_abundance/`
 - Working manuscript:
   `manuscript/manuscript_skeleton.md`
 - Descriptive legends:
@@ -73,7 +85,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 21 standalone analysis entrypoints are canonical Quarto notebooks under
+The 22 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
