@@ -1,8 +1,18 @@
 # ISME Communications submission checklist
 
 Status: working checklist for author review. A checked item means the local
-evidence was verified on 2026-08-31; it does not mean that submission is
+evidence was verified through 2026-09-01; it does not mean that submission is
 authorized.
+
+## Publication-policy compliance
+
+- [x] Live ISME Communications LLM policy checked and recorded on 2026-09-01.
+- [ ] Researchers independently author the submitted manuscript from the
+  verified evidence package; the current agent-authored prose is a scaffold.
+- [ ] Corresponding author approves a complete AI-use disclosure covering text,
+  code, analysis, figures, tables, references, and data processing.
+- [ ] Obtain written editorial guidance before submission if any intended AI
+  use is outside the journal's explicitly permitted categories.
 
 ## Journal choice and scientific boundary
 
@@ -19,8 +29,10 @@ authorized.
 ## Format and content
 
 - [x] Current main body is below the 5,000-word Original Article limit.
-- [x] Current abstract is 226 words, below the 250-word limit and contains no
-  citations.
+- [x] Current scaffold abstract is 226 words, below the 250-word limit and
+  contains no citations.
+- [ ] Researcher-authored abstract removes abbreviations, including `UV-C`, as
+  required by the current journal instructions.
 - [x] Title is below 150 characters and running title is 37 characters.
 - [x] Current 16-reference bibliography is below the 100-reference limit and
   uses the official Zotero Oxford SciMed numeric style.
@@ -34,6 +46,7 @@ authorized.
   accessibility rules.
 - [ ] Recalculate all word, figure, table, and reference counts after final
   edits.
+- [ ] Provide a summary of no more than 50 words for each supplementary file.
 - [ ] Visually inspect every final figure and the compiled manuscript.
 
 ## Authorship and declarations
@@ -47,6 +60,7 @@ authorized.
 - [ ] Approve acknowledgements and any present-address statements.
 - [ ] Confirm originality, preprint status, related manuscripts, permissions,
   and exclusive-submission declarations.
+- [ ] Suggest three independent reviewers without conflicts of interest.
 
 ## References, data, code, and reproducibility
 
@@ -68,8 +82,11 @@ authorized.
 
 ## Costs and authorization
 
-- [ ] Check the live article-processing charge, University of Luxembourg or
-  KAUST agreement eligibility, ISME membership discount, and waiver options.
+- [x] Record the live listed CC BY charge as EUR 2,426 excluding tax on
+  2026-09-01.
+- [ ] Check University of Luxembourg or KAUST agreement eligibility, ISME
+  membership discount, waiver options, and the final charge for the selected
+  corresponding author.
 - [ ] Submit a graphical abstract or featured image, or explicitly approve use
   of Figure 1 as the journal default.
 - [ ] Corresponding author approves the final cover letter.
