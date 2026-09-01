@@ -78,7 +78,7 @@ scripts/      Quarto analysis notebooks, runners, and validation helpers
 
 ## Quarto notebook workflow
 
-The 20 standalone R analysis entrypoints are maintained as Quarto notebooks in
+The 21 standalone R analysis entrypoints are maintained as Quarto notebooks in
 `scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
 chunk while inspecting objects inline. Automatic execution during rendering is
 disabled because several notebooks write or replace project outputs.

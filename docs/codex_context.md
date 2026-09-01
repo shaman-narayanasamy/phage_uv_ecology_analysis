@@ -73,7 +73,7 @@ evidence of DNA damage, mutagenesis, or adaptation.
 
 ## Executable analysis sources
 
-The 20 standalone analysis entrypoints are canonical Quarto notebooks under
+The 21 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -123,20 +123,17 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 
 ## Current manuscript state
 
-The complete evidence-led venue-neutral manuscript, story-reorganized main figures,
-supplementary figures, two taxonomic-context candidates, descriptive legends,
-bibliography, and claim audit are ready for author review. The local candidate
-suite contains 13 PDFs, including two reader-facing opening figures and their
-two preserved analysis-led predecessors. The versioned Google Doc still
-contains the complete draft and its previous 11 figure previews,
-including the two taxonomic-context candidates at the end of the gallery. The
-MAG preview now includes the family-level metagenomic community profile and
-the quality-first ring order. Its control and phage-UV profiles are vertically
-aligned at the same six cycle-phase positions, and missing family assignments
-are explicitly distinguished from collapsed classified families. The
-pre-replacement, nine-preview, initial 11-preview, revised-MAG, and aligned-MAG
-states are named in version history. It has not yet been replaced with the two
-story-reorganized previews. The revised argument begins with longitudinal
+The complete evidence-led venue-neutral manuscript, story-reorganized main
+figures, eight supplementary figures, descriptive legends, bibliography, and
+claim audit are ready for author review. The local candidate suite contains 13
+PDFs, including two reader-facing opening figures and their two preserved
+analysis-led predecessors. Supplementary Figure S8 is the descriptive
+host-phage evidence audit. The last verified Google Doc snapshot contained the
+complete draft and 11 figure previews, including the two taxonomic-context
+candidates. That historical snapshot has named versions, but the live document
+has not been re-read in the current session and must not be represented as
+current. The user is editing and commenting in the live document; do not touch
+it until explicitly asked. The local revised argument begins with longitudinal
 community context, then moves through cycle-led transcriptome geometry, a broad
 bidirectional adjusted membrane coefficient, narrow functional support,
 widespread organism-level coherence, recurrent gene-level structure, and
@@ -145,9 +142,11 @@ descriptive population-genomic heterogeneity.
 ## Next decision
 
 The evidence boundary, complete figure allocation, visual QA, citation audit,
-and full manuscript edit are complete under GitHub issues #26 through #29.
+full manuscript edit, and pre-16S reproducibility audit are complete under
+GitHub issues #26 through #31, with #31 retained open only for the external 16S
+decision and any consequent final rerun.
 Proceed to issue #30 only when the collaborator-owned 16S result is returned;
-integrate it only if informative. Import the 14 records in
+integrate it only if informative. Import the 16 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
 remain in regular editing mode while the user comments and suggests. If the
@@ -155,10 +154,15 @@ user supplies revised or accepted prose, use Suggesting mode for agent changes.
 Do not manage the delegated 16S analysis; preserve its conditional Figure 5
 insertion point.
 
-The full pre-16S reproducibility audit passed on 2026-08-30. Upstream software
+The full pre-16S reproducibility audit passed on 2026-09-01. Upstream software
 provenance is now versioned in `manuscript/upstream_software_provenance.tsv`:
 Bakta 1.12.0/database 6.0, CAT/BAT 6.0.1/database build 2023-11-21, CheckV
 1.1.1/database v1.5, and inStrain 1.10.0 are verified. The exact executed
 CoverM version and exact GTDB release tag are explicitly not recoverable and
 must not be inferred from unrelated cached environments or other projects.
-Final issue #31 closure still requires the issue #30 decision.
+Exact repository execution states are bound separately in
+`manuscript/upstream_repository_provenance.tsv`: multiomics commit
+`5f7dfe4c42ba65a8188589f437667a61285a5bea` reconstructs the preserved executed
+worktree byte-for-byte, and host-phage commit
+`604db81b73f2550bdea08e5eaa08f35186d21f53` is tied to its completed full-run
+log. Final issue #31 closure still requires the issue #30 decision.

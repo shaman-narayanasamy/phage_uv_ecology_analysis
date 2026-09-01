@@ -45,11 +45,15 @@ coverage-qualified descriptive context for five selected MAGs only.
 
 ## Explicitly unresolved
 
-- Main and supplementary figure allocation remains open under issue #27.
-- Primary-literature and Zotero citation completeness remains open under issue
-  #28.
+- Main and supplementary figure allocation, including descriptive
+  Supplementary Figure S8, is complete.
+- Primary-literature and bibliography completeness is audited with 16
+  DOI-addressed records. Live Zotero field-code conversion remains an external
+  Google Docs action.
 - The delegated 16S result remains externally pending under issue #30 and will
   be included only if it materially improves the story.
-- Journal selection and journal-specific formatting remain downstream work.
+- ISME Communications conformance materials are prepared locally; authorship,
+  declarations, live submission-day checks, and submission authorization remain
+  human decisions.
 
 These unresolved items do not change the frozen inferential boundary.

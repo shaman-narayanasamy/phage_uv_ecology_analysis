@@ -41,6 +41,22 @@ observed <- sort(basename(list.files(
 )))
 stopifnot(identical(observed, expected))
 
+documentation_paths <- c(
+  file.path(repo_root, "README.md"),
+  file.path(repo_root, "docs", "codex_context.md"),
+  file.path(repo_root, "notes", "handoff-2026-08-27-full-manuscript-draft.md")
+)
+documentation_text <- vapply(
+  documentation_paths,
+  function(path) paste(readLines(path, warn = FALSE), collapse = "\n"),
+  character(1L)
+)
+stopifnot(
+  all(grepl("21", documentation_text, fixed = TRUE)),
+  !any(grepl("20 standalone", documentation_text, fixed = TRUE)),
+  !any(grepl("all 20 no-execute", documentation_text, fixed = TRUE))
+)
+
 standalone_r <- list.files(scripts_dir, pattern = "[.]R$", full.names = TRUE)
 stopifnot(length(standalone_r) == 0L)
 
