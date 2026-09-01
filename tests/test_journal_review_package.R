@@ -7,7 +7,8 @@ required_files <- c(
   "title_page.md",
   "prior_publication_metadata.md",
   "cover_letter_draft.md",
-  "submission_checklist.md"
+  "submission_checklist.md",
+  "researcher_authorship_remediation.md"
 )
 stopifnot(
   dir.exists(package_dir),
@@ -40,6 +41,12 @@ stopifnot(
   grepl("complete-universe transcriptome model", package_text[["cover_letter_draft.md"]], fixed = TRUE),
   grepl("[AUTHOR CONFIRMATION REQUIRED", all_package_text, fixed = TRUE),
   grepl("explicit immediate approval", package_text[["submission_checklist.md"]], fixed = TRUE),
+  grepl("Critical authorship-policy gate", decision, fixed = TRUE),
+  grepl("prohibit using an LLM to draft", decision, fixed = TRUE),
+  grepl("agent-authored prose is a scaffold", package_text[["submission_checklist.md"]], fixed = TRUE),
+  grepl("must not be lightly edited", package_text[["researcher_authorship_remediation.md"]], fixed = TRUE),
+  grepl("academic.oup.com/ismecommun/pages/author-guidelines", package_text[["researcher_authorship_remediation.md"]], fixed = TRUE),
+  grepl("RESEARCHER-AUTHORED AI DISCLOSURE REQUIRED", package_text[["cover_letter_draft.md"]], fixed = TRUE),
   !grepl("approved for submission", package_text[["README.md"]], fixed = TRUE)
 )
 

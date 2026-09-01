@@ -2,6 +2,11 @@
 
 Status: local draft only; not approved for sending or submission.
 
+Compliance note: this cover-letter prose is part of the agent-authored scaffold
+and must be independently written by the corresponding author. The final letter
+must accurately disclose all AI use in accordance with the journal's current
+policy; an agent cannot approve or complete that disclosure.
+
 Dear Editors,
 
 We submit the Original Article, "Heterogeneous organism-resolved
@@ -46,6 +51,10 @@ from the previously reported engineering-performance and selected-gene claims.
 
 [AUTHOR CONFIRMATION REQUIRED: originality, preprint, related-manuscript,
 author-approval, competing-interest, and exclusive-submission declarations.]
+
+[RESEARCHER-AUTHORED AI DISCLOSURE REQUIRED: accurately describe assistance
+with language, code, analysis, figures, tables, references, and data processing;
+obtain editorial guidance first if intended use is not clearly permitted.]
 
 Thank you for considering the manuscript.
 

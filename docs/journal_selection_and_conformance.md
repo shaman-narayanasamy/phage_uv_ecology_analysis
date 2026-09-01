@@ -1,11 +1,11 @@
 # Journal selection and conformance
 
-Research checked: 2026-08-31
+Research checked: 2026-09-01
 
 Status: provisional author decision recorded 2026-08-30. The target sequence
 below is approved for preparation and author review, not for submission. Final
-conformance remains blocked by issue #31 and requires a live instructions check
-plus explicit author approval immediately before submission.
+conformance remains blocked by issue #31, the journal's current LLM-authorship
+policy, and explicit author approval immediately before submission.
 
 ## Non-negotiable editorial boundary
 
@@ -28,6 +28,28 @@ transcriptome model, competitive gene-set tests, organism-level coherence,
 six-cell recurrence analysis, and coverage-qualified descriptive population
 genomics. This overlap requires an explicit novelty audit before submission.
 
+## Critical authorship-policy gate
+
+The live Oxford author guidelines checked on 2026-09-01 permit LLM assistance
+for language correction and translation, but prohibit using an LLM to draft a
+manuscript from prompts. They also require disclosure of AI use in the cover
+letter and manuscript when AI assisted with content, images, code, data
+processing, or translation.
+
+The current prose began as an agent-authored draft. It is therefore a research
+and authoring scaffold, not text that can be submitted to ISME Communications.
+Light editing or approving that prose is not a defensible workaround. The human
+researchers must independently author the submitted manuscript from the
+verified results, source tables, figures, citations, and claim registry. They
+must also decide, with the journal if necessary, how the AI-assisted code,
+analysis, and figure-development history should be disclosed and whether any
+artifact must be independently regenerated. See
+`manuscript/isme_communications/researcher_authorship_remediation.md`.
+
+This gate affects submission compliance, not the validity of the audited result
+tables. It must not be removed merely because the local manuscript passes
+structural or numerical tests.
+
 ## Current manuscript fit
 
 - Working title: 12 words.
@@ -43,7 +65,7 @@ genomics. This overlap requires an explicit novelty audit before submission.
 - Current evidence boundary: observational and system-specific, with no
   treatment-induced mutation, adaptation, or uniform DNA-damage claim.
 
-The manuscript is already comfortably below the verified 5,000-word main-text
+The current authoring scaffold is comfortably below the verified 5,000-word main-text
 limit for an ISME Communications Original Article. Journal selection should be
 driven by editorial fit and design tolerance, not by the need to shorten the
 current scientific body.
@@ -52,9 +74,30 @@ current scientific body.
 
 | Rank | Journal | Scope and audience fit | One-membrane design assessment | Current format and cost evidence | Editorial risk | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **ISME Communications** | Direct fit for microbial ecology, engineered microbiomes, spatial and temporal dynamics, and discovery- or methods-oriented work. The society describes the journal as emphasizing research quality and diversity. | Defensible only as a longitudinal two-system analysis. The broad transcriptome result and explicit negative DNA-damage conclusion are stronger than a treatment-efficacy pitch. Reviewers may still consider the lack of independent membranes limiting. | Original Articles have a 5,000-word main-body limit, 250-word abstract, 100-reference limit, and maximum of eight main display items. Fully OA. The current DOAJ record lists EUR 2,200; ISME states a 10% member discount and a case-by-case waiver route. Confirm the live OUP price and any institutional agreement at submission. | Moderate to high desk-review risk, but the best combination of audience, narrative, and quality-based scope. | **Recommended target**, subject to author approval and a clean novelty-overlap statement. |
+| 1 | **ISME Communications** | Direct fit for microbial ecology, engineered microbiomes, spatial and temporal dynamics, and discovery- or methods-oriented work. The society describes the journal as emphasizing research quality and diversity. | Defensible only as a longitudinal two-system analysis. The broad transcriptome result and explicit negative DNA-damage conclusion are stronger than a treatment-efficacy pitch. Reviewers may still consider the lack of independent membranes limiting. | Original Articles have a 5,000-word main-body limit, 250-word abstract, 100-reference limit, and maximum of eight main display items. Fully OA. The live Oxford page checked 2026-09-01 lists EUR 2,426 for CC BY, excluding taxes, with possible institutional funding, waiver routes, and a 10% ISME member discount. | High until the researcher-authorship policy gate is resolved; moderate to high desk-review risk thereafter. | **Conditional target**. Researchers must independently author the submission and resolve AI disclosure before this route is viable. |
 | 2 | **FEMS Microbiology Ecology** | Strong fit for microbial ecology in managed or artificial systems, community dynamics, ecological interactions, and omics. The society asks for a significant original ecological contribution. | The design is acceptable only if the paper is framed around system-resolved ecological structure rather than generalized treatment response. The original-contribution test may be harder if the paper reads as an incremental reanalysis. | Fully OA and format-free at initial submission. The current DOAJ record lists GBP 2,500. FEMS states a 20% discount for members of affiliated societies and possible full coverage through OUP Read and Publish agreements. Confirm the live OUP price and institutional eligibility. | Moderate to high. Scope is excellent; novelty and replication will be the decisive editorial questions. | **Fallback 1**. |
 | 3 | **Environmental Microbiome** | Direct fit for microbial communities in managed and engineered environments and for metagenomic, metatranscriptomic, and systems-level analyses. | Probably the most forgiving scope match if the system-specific boundary is explicit, but the journal does not waive the need for honest design reporting. The paper should follow STREAMS reporting guidance. | Fully OA. The official fee page lists GBP 1,890, USD 2,590, or EUR 2,190 plus applicable tax. The journal requires public data availability and points microbiome studies to STREAMS. | Moderate. Less audience prestige than the ISME route, but a realistic home for a rigorously bounded engineered-microbiome study. | **Fallback 2**. |
+
+### AI-policy comparison for the recorded sequence
+
+- **ISME Communications:** the live journal-specific page explicitly prohibits
+  LLM drafting of manuscripts from prompts. Independent researcher authorship
+  is mandatory for this route.
+- **FEMS Microbiology Ecology:** the live FEMS policy requires disclosure of AI
+  used for content, images, code, data processing, or translation, but the page
+  inspected did not state that disclosure alone makes an LLM-drafted manuscript
+  acceptable. Because it is also an Oxford journal, obtain written clarification
+  before treating the present scaffold as policy-compatible.
+- **Environmental Microbiome:** Springer Nature's current author guidance allows
+  disclosed generative-AI assistance under full human accountability, while
+  exempting pure copy-editing of human-authored prose from disclosure. It does
+  not permit AI authorship, and the journal requires submission by a named
+  author. This is the clearest recorded fallback if the researchers prefer to
+  retain disclosed AI-assisted material rather than independently author the
+  entire text, subject to a fresh journal-specific check.
+
+Policy compatibility is separate from scientific fit and does not authorize a
+target change. The author must choose after reading the current policies.
 
 ## Stretch targets not recommended for the first sequence
 
@@ -114,6 +157,11 @@ change.
 
 - [ ] Record the selected article type and the retrieval date of the live
   author instructions.
+- [ ] Replace the agent-authored prose with a manuscript independently authored
+  by the researchers from the verified evidence package.
+- [ ] Record and approve a complete AI-use disclosure covering text, code,
+  analysis, figures, tables, and references; seek written editorial guidance if
+  the intended use falls outside the explicitly permitted categories.
 - [ ] Re-check title, abstract, main-text, reference, display-item, and
   supplementary limits.
 - [ ] Add a complete title page: authors, affiliations, corresponding author,
@@ -140,7 +188,7 @@ change.
   local path, temporary launcher, or untracked artifact is present.
 - [ ] Obtain explicit author approval immediately before submission.
 
-Live ISME Communications requirements verified on 2026-08-31:
+Live ISME Communications requirements verified on 2026-09-01:
 
 - article type: Original Article;
 - main text: maximum 5,000 words;
@@ -152,7 +200,14 @@ Live ISME Communications requirements verified on 2026-08-31:
 - title: maximum 150 characters; running title: maximum 40 characters;
 - graphical abstract or featured image required, otherwise Figure 1 is used by
   default;
-- alt text required directly beneath every main-figure legend.
+- alt text required directly beneath every main-figure legend;
+- three suggested reviewers are required at submission;
+- a data-availability statement is required, and underlying data and software
+  should use persistent online sources with DOI identifiers where possible;
+- LLM drafting of manuscripts from prompts is prohibited; permitted AI use and
+  other AI assistance must be disclosed as specified by the journal;
+- live CC BY charge displayed as EUR 2,426 excluding tax, subject to agreement,
+  waiver, membership, and submission-time price checks.
 
 ## Source record
 
@@ -166,6 +221,12 @@ Primary journal and society sources:
   <https://www.isme-microbes.org/public/apc-waivers/>
 - Oxford author guidelines for ISME Communications:
   <https://academic.oup.com/ismecommun/pages/author-guidelines>
+- FEMS journal AI and authorship policies:
+  <https://academic.oup.com/Fems-journals/pages/policies>
+- Springer Nature guidance for researchers using AI in publishing:
+  <https://group.springernature.com/gp/group/ai/ai-guidance-for-our-researchers-and-communities>
+- Environmental Microbiome submission guidance:
+  <https://environmentalmicrobiome.biomedcentral.com/submission-guidelines>
 - The ISME Journal scope and significance language:
   <https://www.isme-microbes.org/public/isme-journal/>
 - FEMS Microbiology Ecology scope, article types, format-free submission, and

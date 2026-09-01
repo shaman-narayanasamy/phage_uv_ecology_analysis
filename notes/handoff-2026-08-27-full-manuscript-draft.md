@@ -9,8 +9,9 @@ cleanup, old tickets, or quarantined subset-first expression analyses.
 ## Current state
 
 The full current-evidence figure suite and a complete, evidence-led
-venue-neutral manuscript are ready for author review. GitHub issue #29 completed
-the full editorial pass on 2026-08-29.
+venue-neutral manuscript form a verified evidence and authoring scaffold.
+GitHub issue #29 completed the full editorial pass on 2026-08-29, before the
+current ISME Communications LLM policy gate was identified.
 
 - Working manuscript: `manuscript/manuscript_skeleton.md`.
 - Descriptive legends: `manuscript/figure_legends.md`.
@@ -32,9 +33,15 @@ scientific-writing and writing-voice protocols. It retains negative results,
 anchors quantitative claims to figures and tables, avoids em dashes, separates
 the RNA landscape from per-cell regulation, and ends each Results section with
 the evidence-bounded finding. Structural, terminology, citation, figure-order,
-and quantitative checks pass. It remains agent-authored text. Regular editing
-is permitted until the user begins revising accepted prose; after that, work in
-Suggesting mode.
+and quantitative checks pass. It remains agent-authored text. The live ISME
+Communications policy checked on 2026-09-01 prohibits LLM-drafted manuscripts,
+so this prose is not submission-ready and must not be made superficially
+different to conceal its origin. Human researchers must independently author
+the submitted text from the verified evidence package and resolve the AI-use
+disclosure and artifact-review gate in
+`manuscript/isme_communications/researcher_authorship_remediation.md`. Once the
+user supplies researcher-authored or accepted prose, work only in Suggesting
+mode and within the journal's permitted assistance scope.
 
 ## Working argument
 
@@ -268,6 +275,10 @@ Issue #30 remains collaborator-owned. The agent-addressable pre-16S work for
 decision, author review, declarations, and live submission-day checks. Issue
 #33 obtains author and coauthor approval, and #34 submits and archives only the
 approved release.
+
+ISME Communications is now a conditional target: the human-authoring and
+AI-disclosure remediation must be completed before issue #33 can treat any
+manuscript as approvable for that journal.
 
 Work one issue at a time and close it only after its acceptance criteria are
 evidenced. Once the user supplies revised or accepted prose, all agent changes

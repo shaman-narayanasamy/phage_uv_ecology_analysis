@@ -125,7 +125,7 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
 
 The complete evidence-led venue-neutral manuscript, story-reorganized main
 figures, eight supplementary figures, descriptive legends, bibliography, and
-claim audit are ready for author review. The local candidate suite contains 13
+claim audit form a verified evidence and authoring scaffold. The local candidate suite contains 13
 PDFs, including two reader-facing opening figures and their two preserved
 analysis-led predecessors. Supplementary Figure S8 is the descriptive
 host-phage evidence audit. The last verified Google Doc snapshot contained the
@@ -139,6 +139,13 @@ bidirectional adjusted membrane coefficient, narrow functional support,
 widespread organism-level coherence, recurrent gene-level structure, and
 descriptive population-genomic heterogeneity.
 
+The live ISME Communications policy checked on 2026-09-01 prohibits
+LLM-drafted manuscripts. The current agent-authored prose cannot be submitted
+to that journal after superficial editing. Human researchers must independently
+author the submission from the verified evidence package and resolve the AI-use
+disclosure and artifact-review steps in
+`manuscript/isme_communications/researcher_authorship_remediation.md`.
+
 ## Next decision
 
 The evidence boundary, complete figure allocation, visual QA, citation audit,
@@ -149,8 +156,10 @@ Proceed to issue #30 only when the collaborator-owned 16S result is returned;
 integrate it only if informative. Import the 16 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
-remain in regular editing mode while the user comments and suggests. If the
-user supplies revised or accepted prose, use Suggesting mode for agent changes.
+be used as an evidence map, but not as submission prose for ISME
+Communications. If the user supplies researcher-authored or accepted prose, use
+Suggesting mode for agent changes and limit assistance to the journal's
+permitted scope.
 Do not manage the delegated 16S analysis; preserve its conditional Figure 5
 insertion point.
 

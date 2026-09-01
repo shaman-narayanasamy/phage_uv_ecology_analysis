@@ -19,6 +19,13 @@ Zotero-importable bibliography, citation audit, editorial audit, and
 machine-readable claim audit are ready for author review. No subset-first
 expression model is valid.
 
+The live ISME Communications policy checked on 2026-09-01 prohibits
+LLM-drafted manuscripts. Because the current prose began as an agent-authored
+draft, it is an evidence and authoring scaffold rather than submission-ready
+text. Human researchers must independently author the submitted manuscript and
+resolve the AI-use disclosure gate recorded in
+`manuscript/isme_communications/researcher_authorship_remediation.md`.
+
 The experimental design contains one control membrane and one treated membrane
 sampled across three cycles and two phases. Condition is therefore confounded
 with membrane identity; contrasts are reported as system-specific comparisons,
@@ -35,6 +42,8 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `notes/handoff-2026-08-20-16s-collaborator.md`: delegated expert 16S package,
   including exact ENA input manifests and analytical boundaries;
 - `manuscript/manuscript_skeleton.md`: complete working manuscript draft;
+- `manuscript/isme_communications/researcher_authorship_remediation.md`:
+  mandatory researcher-authoring and AI-disclosure gate for the current target;
 - `manuscript/figure_legends.md`: descriptive main and supplementary legends;
 - `manuscript/references.bib`: bibliography for import into Zotero;
 - `docs/citation_audit.md`: verified reference roles and live-Zotero boundary;
