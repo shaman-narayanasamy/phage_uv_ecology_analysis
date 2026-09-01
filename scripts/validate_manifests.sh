@@ -20,6 +20,7 @@ require_file "resources/uv_resistance_signatures.tsv"
 require_file "manifests/data_manifest.tsv"
 require_file "manifests/code_manifest.tsv"
 require_file "manuscript/upstream_software_provenance.tsv"
+require_file "manuscript/upstream_repository_provenance.tsv"
 
 printf '\nChecking sample metadata grouping...\n'
 awk -F '\t' '
@@ -51,6 +52,9 @@ Rscript tests/test_manuscript_structure.R || failures=$((failures + 1))
 
 printf '\nChecking upstream software provenance...\n'
 Rscript tests/test_upstream_software_provenance.R || failures=$((failures + 1))
+
+printf '\nChecking upstream repository provenance...\n'
+Rscript tests/test_upstream_repository_provenance.R || failures=$((failures + 1))
 
 printf '\nChecking journal review package...\n'
 Rscript tests/test_journal_review_package.R || failures=$((failures + 1))

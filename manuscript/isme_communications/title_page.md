@@ -58,7 +58,7 @@ record; none has been inferred]
 - Main text from Introduction through Discussion: below the 5,000-word limit.
 - Main figures: 4 complete. The delegated 16S result remains pending and is not
   represented as a result in the current review manuscript.
-- Supplementary figures: 7.
+- Supplementary figures: 8.
 - References: 16 in the current Zotero-importable bibliography.
 
 Counts must be recalculated after 16S integration and journal-specific edits.

@@ -25,7 +25,7 @@ authorized.
 - [x] Current 16-reference bibliography is below the 100-reference limit and
   uses the official Zotero Oxford SciMed numeric style.
 - [x] Four main figures are below the eight-display-item limit.
-- [x] Four complete main figures and seven supplementary figures are inventoried.
+- [x] Four complete main figures and eight supplementary figures are inventoried.
 - [x] Alt text is drafted for every main and supplementary figure.
 - [ ] Integrate or formally defer the collaborator-owned 16S result from issue
   #30 before the manuscript is submitted.
@@ -58,8 +58,8 @@ authorized.
   official Zotero Oxford SciMed CSL style.
 - [ ] Replace formatted citation text with live Zotero field codes when the
   Google Docs Zotero Connector is available.
-- [ ] Resolve the exact upstream repository commit still marked TODO in the code
-  manifest.
+- [x] Exact executed upstream repository states are versioned and bound to
+  checksummed cluster evidence in the code and repository-provenance manifests.
 - [ ] Create a persistent, versioned code release and cite its DOI if required.
 - [ ] Confirm data, code, checksum, and software statements agree between the
   final manuscript and submission form.

@@ -38,7 +38,7 @@ genomics. This overlap requires an explicit novelty audit before submission.
 - Discussion: 548 words.
 - Abstract through Discussion: 3,015 words including headings and keywords;
   the body excluding the abstract is about 2,786 words.
-- Current allocation: four main figures, one conditional 16S figure, and seven
+- Current allocation: four main figures, one conditional 16S figure, and eight
   supplementary figures.
 - Current evidence boundary: observational and system-specific, with no
   treatment-induced mutation, adaptation, or uniform DNA-damage claim.
