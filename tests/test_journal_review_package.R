@@ -8,7 +8,9 @@ required_files <- c(
   "prior_publication_metadata.md",
   "cover_letter_draft.md",
   "submission_checklist.md",
-  "researcher_authorship_remediation.md"
+  "researcher_authorship_remediation.md",
+  "author_decision_register.tsv",
+  "scientific_review_checklist.md"
 )
 stopifnot(
   dir.exists(package_dir),
@@ -27,6 +29,14 @@ package_text <- setNames(vapply(
   USE.NAMES = FALSE
 ), required_files)
 all_package_text <- paste(package_text, collapse = "\n")
+decision_register <- read.delim(
+  file.path(package_dir, "author_decision_register.tsv"),
+  sep = "\t",
+  quote = "",
+  check.names = FALSE,
+  stringsAsFactors = FALSE,
+  na.strings = character()
+)
 
 stopifnot(
   grepl("Target journal: **ISME Communications**", decision, fixed = TRUE),
@@ -47,6 +57,13 @@ stopifnot(
   grepl("must not be lightly edited", package_text[["researcher_authorship_remediation.md"]], fixed = TRUE),
   grepl("academic.oup.com/ismecommun/pages/author-guidelines", package_text[["researcher_authorship_remediation.md"]], fixed = TRUE),
   grepl("RESEARCHER-AUTHORED AI DISCLOSURE REQUIRED", package_text[["cover_letter_draft.md"]], fixed = TRUE),
+  identical(decision_register$decision_id, sprintf("D%02d", 1:20)),
+  all(decision_register$status %in% c("pending_human", "pending_external")),
+  all(is.na(decision_register$decision) | decision_register$decision == ""),
+  all(is.na(decision_register$decided_by) | decision_register$decided_by == ""),
+  all(is.na(decision_register$decision_date) | decision_register$decision_date == ""),
+  !any(grepl("approved|confirmed|complete", decision_register$status)),
+  grepl("Only[[:space:]]+named authors can approve", package_text[["scientific_review_checklist.md"]]),
   !grepl("approved for submission", package_text[["README.md"]], fixed = TRUE)
 )
 

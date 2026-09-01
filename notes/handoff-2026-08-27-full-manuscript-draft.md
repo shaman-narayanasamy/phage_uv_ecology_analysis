@@ -25,6 +25,9 @@ current ISME Communications LLM policy gate was identified.
   `docs/pre_submission_reproducibility_audit.md`.
 - Exact upstream repository execution states:
   `manuscript/upstream_repository_provenance.tsv`.
+- Human review decisions and scientific checklist:
+  `manuscript/isme_communications/author_decision_register.tsv` and
+  `manuscript/isme_communications/scientific_review_checklist.md`.
 - Canonical figure output:
   `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_figure_candidates/`.
 
