@@ -135,16 +135,17 @@ apply in every main and supplementary figure.
   CRISPR/SpacePHARER historical-exposure evidence audit. They do not establish
   active infection, validated host range, treatment response, or causal linkage
   to transcription.
-- The 16S analysis is owned by the external expert collaborator. Do not manage
-  or rerun it from this workstream. Review the returned package only for sample
-  mapping, provenance, inference, and manuscript integration under issue #30.
+- The 16S analysis is owned by the external expert collaborator. Susana's
+  summary, SharePoint delivery, and repository branch were received on
+  2026-09-03. Review `notes/handoff-2026-09-04-16s-return-receipt.md`; the
+  package is returned but still awaits canonical relocation, checksum
+  validation, and sample-contract verification under issue #30.
   The returned result has no reserved figure number and may refine Figure 1
   only if it materially improves the community story.
 - The original `smarbas` repository invitation expired and was replaced on
   2026-08-29. GitHub write permission was confirmed on 2026-09-01, with no
   pending invitation remaining. A read-only audit found no
-  collaborator-authored commit, branch, pull request, or issue update. The
-  collaborator has access, but no returned 16S package is available yet.
+  returned branch is `origin/feature/prjeb79569-16s-analysis` at `b6acbe5`.
 
 ## Google Docs and Zotero
 

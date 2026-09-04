@@ -32,7 +32,8 @@ with membrane identity; contrasts are reported as system-specific comparisons,
 not general causal treatment effects.
 
 Population-genomic variation is descriptive and coverage-qualified. The 16S
-workstream is delegated separately; this repository provides its verified input
+workstream has returned from the external collaborator and awaits local package
+and checksum validation; this repository provides its verified input
 contract and expert handoff without absorbing it into the manuscript workstream.
 
 ## Start here

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recorded receipt of the collaborator-owned 16S analysis from Gmail and the
+  new repository branch. The handoff distinguishes collaborator-reported
+  results from locally verified evidence and records the remaining SharePoint,
+  checksum, sample-contract, and branch-integration checks.
 - Added the author-selected Figure 1 describing microbial and phage community
   structure across the six aligned cycle-phase observations, with verified
   provenance, exploratory community statistics, and reproducibility tests.

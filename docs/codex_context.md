@@ -99,12 +99,11 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   `docs/expression_quarantine.md`.
 - Population genomics is descriptive, coverage-qualified, and limited to a
   selected five-MAG set. See `docs/population_genomics_descriptive.md`.
-- The 16S analysis is owned by a separate collaborator. Do not manage or rerun
-  it from this workstream; audit only the returned package for integration.
-- GitHub write access for `smarbas` was confirmed on 2026-09-01. The invitation
-  is no longer pending. A read-only audit found no collaborator-authored commit,
-  branch, pull request, or issue update, so no returned 16S package is available
-  for integration yet.
+- The 16S analysis remains owned by Susana Martinez Arbas. Her scientific
+  summary and recipient-only SharePoint folder were received by Gmail on
+  2026-09-03, and her repository branch now ends at `b6acbe5`. Treat the result
+  as returned but pending local checksum and sample-contract validation. See
+  `notes/handoff-2026-09-04-16s-return-receipt.md`.
 - The verified CRISPR-derived host-phage evidence audit is allocated as
   Supplementary Figure S8. It contains 86 deduplicated candidate pairs linking
   80 MAGs to 85 phage contigs. Treat it as historical-exposure context only,
@@ -164,12 +163,12 @@ disclosure and artifact-review steps in
 
 ## Next decision
 
-The evidence boundary, complete figure allocation, visual QA, citation audit,
-full manuscript edit, and pre-16S reproducibility audit are complete under
-GitHub issues #26 through #31, with #31 retained open only for the external 16S
-decision and any consequent final rerun.
-Proceed to issue #30 only when the collaborator-owned 16S result is returned;
-integrate it only if informative. Import the 16 records in
+The evidence boundary, figure allocation, visual QA, citation audit, manuscript
+scaffold, and pre-16S reproducibility audit are complete under GitHub issues
+#26 through #31. The collaborator-owned 16S result has now returned. Issue #30
+is active for package validation and evidence-weighted integration; do not
+close it until the canonical local copy and checksums have been verified.
+Import the 16 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
 be used as an evidence map, but not as submission prose for ISME
