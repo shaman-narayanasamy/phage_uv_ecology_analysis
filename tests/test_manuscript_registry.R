@@ -41,13 +41,14 @@ stopifnot(
   ),
   claim_registry[claim_id == "C09", allocation] == "working_Figure_3",
   claim_registry[claim_id == "C10", allocation] == "working_Figure_4",
-  claim_registry[claim_id == "C12", allocation] == "working_Figure_5_reserved",
+  claim_registry[claim_id == "C12", allocation] ==
+    "Figure_1_or_supplement_pending_validation",
   all(
     analysis_registry[status == "deprecated_superseded", manuscript_use] ==
       "provenance_only"
   ),
   analysis_registry[analysis_id == "16s_integration", status] ==
-    "delegated_external",
+    "returned_pending_validation",
   analysis_registry[analysis_id == "host_phage_links", status] ==
     "verified_deferred"
 )
