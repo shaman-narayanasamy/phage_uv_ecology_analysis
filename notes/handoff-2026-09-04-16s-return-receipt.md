@@ -38,6 +38,19 @@ manuscript-integration guide.
 These are collaborator-reported values until the checksum-addressed data
 package is relocated to the canonical project data root and verified locally.
 
+### Statistical-design audit finding
+
+The collaborator notebook currently calls
+`adonis2(d ~ cycle + phase + condition, permutations = 9999, by = "margin")`
+and `permutest(..., permutations = 9999)` without blocks or a restricted
+permutation design. This does not encode that the six observations within each
+condition come from the same physical membrane. The reported ordinations,
+descriptive effect sizes, and diversity estimates remain reviewable, but the
+PERMANOVA and dispersion p-values are not accepted as manuscript-ready until
+the permutation design is justified or replaced with a design-aware analysis.
+In particular, no permutation procedure can manufacture independent
+replication for the condition term when condition and membrane are identical.
+
 ## Scientific and technical boundaries
 
 - One membrane represents each condition. Condition is inseparable from
@@ -71,7 +84,10 @@ Pending integration checks:
    checksum, and replace Susana's machine-local paths in the manifest.
 4. Compare all 12 sample identifiers with `metadata/sample_metadata.tsv` and
    reproduce the headline tables from the flat exports.
-5. Integrate the collaborator branch without overwriting the current Figure 1,
+5. Audit and correct the unrestricted PERMANOVA and dispersion permutation
+   scheme for the repeated two-membrane design; retain descriptive effect sizes
+   even if valid inferential p-values cannot be obtained.
+6. Integrate the collaborator branch without overwriting the current Figure 1,
    manuscript allocation, audit, or Google Docs editorial state.
 
 ## Provisional manuscript placement
