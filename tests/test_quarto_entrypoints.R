@@ -30,6 +30,7 @@ expected <- sort(c(
   "compare_taxonomic_timeseries_layouts.qmd",
   "evaluate_temporal_cluster_stability.qmd",
   "explore_taxonomic_resolution_figures.qmd",
+  "integrate_16s_and_workflow.qmd",
   "interpret_full_transcriptome_de.qmd",
   "run_full_transcriptome_edger.qmd",
   "run_community_differential_abundance.qmd",
@@ -54,7 +55,7 @@ documentation_text <- vapply(
   character(1L)
 )
 stopifnot(
-  all(grepl("23", documentation_text, fixed = TRUE)),
+  all(grepl("24", documentation_text, fixed = TRUE)),
   !any(grepl("20 standalone", documentation_text, fixed = TRUE)),
   !any(grepl("all 20 no-execute", documentation_text, fixed = TRUE))
 )

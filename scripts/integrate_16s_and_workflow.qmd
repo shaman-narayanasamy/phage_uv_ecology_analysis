@@ -1,0 +1,394 @@
+---
+title: "Integrate returned 16S data and build the study workflow"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook validates the collaborator-returned 16S sample contract, derives
+descriptive longitudinal summaries, and creates two unnumbered vector figure
+candidates. It does not refit the collaborator's unrestricted PERMANOVA and it
+does not infer a replicated treatment-by-time effect from one membrane per
+condition.
+
+```sh
+bash scripts/run_qmd.sh scripts/integrate_16s_and_workflow.qmd [output-directory]
+```
+
+```{r}
+#| label: integrate-16s-and-workflow
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+  library(colorspace)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+write_checksums <- function(output_dir) {
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
+  files <- files[file.info(files)$isdir %in% FALSE & basename(files) != "output_checksums.md5.tsv"]
+  fwrite(data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  ), file.path(output_dir, "output_checksums.md5.tsv"), sep = "\t")
+}
+
+root <- normalizePath(getwd())
+if (!file.exists(file.path(root, "R", "figure_style.R"))) abort("Run from the repository root")
+source(file.path(root, "R", "figure_style.R"))
+
+project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+analysis_root <- file.path(project_data, "derived", "16s_analysis")
+args <- commandArgs(trailingOnly = TRUE)
+output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
+  file.path(project_data, "derived", "16s_manuscript_integration")
+if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
+staging <- file.path(dirname(output_dir), sprintf(".16s-integration-staging-%d", Sys.getpid()))
+dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+paths <- list(
+  metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+  sample_data = file.path(analysis_root, "05_phyloseq", "16s_sample_data.tsv"),
+  counts = file.path(analysis_root, "05_phyloseq", "16s_asv_counts_unrarefied.tsv"),
+  family = file.path(analysis_root, "06_ecology", "16s_family_profile_long.tsv"),
+  alpha = file.path(analysis_root, "06_ecology", "16s_alpha_diversity.tsv"),
+  ordination = file.path(analysis_root, "06_ecology", "16s_beta_ordination_coordinates.tsv"),
+  permanova = file.path(analysis_root, "06_ecology", "16s_beta_permanova.tsv")
+)
+missing <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+metadata <- fread(paths$metadata)[, .(sample_title, condition, phase, cycle)]
+sample_data <- fread(paths$sample_data)[, .(sample_title, condition, phase, cycle)]
+setorder(metadata, sample_title)
+setorder(sample_data, sample_title)
+contract <- merge(
+  metadata,
+  sample_data,
+  by = "sample_title",
+  all = TRUE,
+  suffixes = c("_canonical", "_returned")
+)
+contract[, `:=`(
+  present_in_canonical = sample_title %chin% metadata$sample_title,
+  present_in_return = sample_title %chin% sample_data$sample_title,
+  fields_match = condition_canonical == condition_returned &
+    phase_canonical == phase_returned & cycle_canonical == cycle_returned
+)]
+if (nrow(contract) != 12L || !all(contract$present_in_canonical) ||
+    !all(contract$present_in_return) || !all(contract$fields_match)) {
+  abort("Returned 16S sample contract does not match the canonical 12-sample design")
+}
+fwrite(contract, file.path(staging, "tables", "sample_contract_validation.tsv"), sep = "\t")
+
+sample_levels <- c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B")
+metadata[, `:=`(
+  sample_label = factor(sprintf("C%d-%s", cycle, fifelse(phase == "initial", "I", "B")), levels = sample_levels),
+  condition_label = factor(fifelse(condition == "control", "Control", "Phage-UV"), levels = c("Control", "Phage-UV")),
+  phase_label = factor(fifelse(phase == "initial", "Initial", "Backflush"), levels = c("Initial", "Backflush"))
+)]
+condition_palette <- c(
+  Control = phage_uv_condition_colours[["control"]],
+  `Phage-UV` = phage_uv_condition_colours[["phage_uv"]]
+)
+
+# Exact Bray-Curtis distances from the unrarefied ASV count table.
+counts <- fread(paths$counts)
+if (names(counts)[1L] != "asv_id") abort("Unexpected 16S count-table schema")
+count_samples <- setdiff(names(counts), "asv_id")
+if (!setequal(count_samples, metadata$sample_title)) abort("16S count-table samples do not match metadata")
+count_matrix <- t(as.matrix(counts[, ..count_samples]))
+rownames(count_matrix) <- count_samples
+storage.mode(count_matrix) <- "double"
+
+bray_pair <- function(a, b) {
+  denominator <- sum(a + b)
+  if (denominator == 0) return(NA_real_)
+  sum(abs(a - b)) / denominator
+}
+
+turnover <- rbindlist(lapply(split(metadata, by = c("condition", "phase"), keep.by = TRUE), function(x) {
+  setorder(x, cycle)
+  data.table(
+    condition = x$condition[1L],
+    phase = x$phase[1L],
+    transition = c("C1 to C2", "C2 to C3"),
+    cycle_from = c(1L, 2L),
+    cycle_to = c(2L, 3L),
+    sample_from = x$sample_title[c(1L, 2L)],
+    sample_to = x$sample_title[c(2L, 3L)],
+    bray_curtis = c(
+      bray_pair(count_matrix[x$sample_title[1L], ], count_matrix[x$sample_title[2L], ]),
+      bray_pair(count_matrix[x$sample_title[2L], ], count_matrix[x$sample_title[3L], ])
+    )
+  )
+}))
+turnover <- merge(turnover, unique(metadata[, .(condition, condition_label)]), by = "condition")
+turnover[, phase_label := factor(fifelse(phase == "initial", "Initial", "Backflush"), levels = c("Initial", "Backflush"))]
+fwrite(turnover, file.path(staging, "tables", "longitudinal_turnover.tsv"), sep = "\t")
+
+phase_distance <- rbindlist(lapply(split(metadata, by = c("condition", "cycle"), keep.by = TRUE), function(x) {
+  initial <- x[phase == "initial", sample_title]
+  backflush <- x[phase == "backflush", sample_title]
+  data.table(
+    condition = x$condition[1L],
+    cycle = x$cycle[1L],
+    initial_sample = initial,
+    backflush_sample = backflush,
+    bray_curtis = bray_pair(count_matrix[initial, ], count_matrix[backflush, ])
+  )
+}))
+phase_distance <- merge(phase_distance, unique(metadata[, .(condition, condition_label)]), by = "condition")
+fwrite(phase_distance, file.path(staging, "tables", "within_cycle_phase_distance.tsv"), sep = "\t")
+
+effect_sizes <- fread(paths$permanova)[term %chin% c("cycle", "phase", "condition"),
+  .(metric, term, df, r_squared, reported_p_value = p_value)]
+effect_sizes[, `:=`(
+  inferential_status = "effect_size_only",
+  reason = "Reported p-value used unrestricted permutations and is not manuscript-ready for repeated observations from two membranes"
+)]
+fwrite(effect_sizes, file.path(staging, "tables", "16s_effect_size_audit.tsv"), sep = "\t")
+
+# Family-level longitudinal composition. Retain the 12 most abundant named
+# families and pool the remainder without treating unclassified as classified.
+family <- fread(paths$family)
+special <- c("Other classified families", "Unclassified at family level")
+top_families <- family[!family %chin% special,
+  .(mean_abundance = mean(relative_abundance)), by = family][order(-mean_abundance)][1:12, family]
+family[, display_family := fifelse(
+  family == "Unclassified at family level", "Unclassified at family level",
+  fifelse(family %chin% top_families, family, "Other classified families")
+)]
+family_plot <- family[, .(relative_abundance = sum(relative_abundance)),
+  by = .(sample_title, condition, phase, cycle, display_family)]
+family_plot <- merge(
+  family_plot,
+  metadata[, .(sample_title, sample_label, condition_label)],
+  by = "sample_title",
+  all.x = TRUE
+)
+family_order <- c(
+  top_families,
+  "Other classified families",
+  "Unclassified at family level"
+)
+family_plot[, display_family := factor(display_family, levels = rev(family_order))]
+missing_family_colours <- setdiff(family_order, names(phage_uv_family_colours))
+if (length(missing_family_colours)) {
+  abort("The fixed manuscript family palette is missing: %s", paste(missing_family_colours, collapse = ", "))
+}
+family_colours <- phage_uv_family_colours[family_order]
+if (any(abs(family_plot[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-5)) {
+  abort("Collapsed 16S family profiles do not sum to one")
+}
+fwrite(family_plot, file.path(staging, "tables", "16s_family_top12_profile.tsv"), sep = "\t")
+fwrite(data.table(display_family = names(family_colours), colour = unname(family_colours)),
+       file.path(staging, "tables", "16s_family_colour_key.tsv"), sep = "\t")
+
+family_panel <- ggplot(family_plot, aes(sample_label, relative_abundance, fill = display_family)) +
+  geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+  facet_grid(condition_label ~ .) +
+  scale_fill_manual(values = family_colours, breaks = family_order, name = "16S family", drop = FALSE) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), breaks = seq(0, 1, 0.25), expand = expansion(mult = c(0, 0.01))) +
+  labs(x = NULL, y = "Relative abundance", tag = "A") +
+  theme_phage_uv(8.2) +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6),
+    legend.key.height = grid::unit(0.32, "cm"),
+    strip.text.y = element_text(angle = 0, face = "bold"),
+    plot.tag = element_text(face = "bold", size = 12)
+  ) +
+  guides(fill = guide_legend(ncol = 1))
+
+ordination <- fread(paths$ordination)[metric == "bray_curtis"]
+ordination <- merge(
+  ordination[, .(sample_title, axis1, axis2, axis1_percent_variance, axis2_percent_variance)],
+  metadata,
+  by = "sample_title",
+  all.x = TRUE
+)
+axis1_var <- unique(ordination$axis1_percent_variance)
+axis2_var <- unique(ordination$axis2_percent_variance)
+ordination_panel <- ggplot(ordination, aes(axis1, axis2, colour = condition_label, shape = phase_label)) +
+  geom_path(aes(group = interaction(condition_label, phase_label)), colour = "#BDBDBD", linewidth = 0.55,
+            arrow = grid::arrow(length = grid::unit(0.10, "cm"), type = "closed")) +
+  geom_point(size = 3) +
+  geom_text(aes(label = cycle), colour = "white", size = 2.2, show.legend = FALSE) +
+  scale_colour_manual(values = condition_palette, name = NULL) +
+  scale_shape_manual(values = c(Initial = 16, Backflush = 17), name = "Fraction") +
+  labs(
+    x = sprintf("Bray-Curtis PCoA 1 (%.1f%%)", axis1_var),
+    y = sprintf("Bray-Curtis PCoA 2 (%.1f%%)", axis2_var),
+    tag = "B"
+  ) +
+  theme_phage_uv(8.2) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 12))
+
+alpha <- fread(paths$alpha)
+alpha <- merge(alpha, metadata[, .(sample_title, condition_label, phase_label)], by = "sample_title", all.x = TRUE)
+alpha[, `:=`(observed_asvs = as.numeric(observed_asvs), shannon = as.numeric(shannon))]
+alpha_long <- melt(
+  alpha,
+  id.vars = c("sample_title", "condition_label", "phase_label", "cycle"),
+  measure.vars = c("observed_asvs", "shannon"),
+  variable.name = "measure",
+  value.name = "value"
+)
+alpha_long[, measure := factor(measure, levels = c("observed_asvs", "shannon"), labels = c("Observed ASVs", "Shannon diversity"))]
+alpha_panel <- ggplot(alpha_long, aes(cycle, value, colour = condition_label, shape = phase_label)) +
+  geom_line(aes(group = interaction(condition_label, phase_label)), linewidth = 0.65) +
+  geom_point(size = 2.3) +
+  facet_wrap(~ measure, scales = "free_y", ncol = 1) +
+  scale_colour_manual(values = condition_palette, name = NULL) +
+  scale_shape_manual(values = c(Initial = 16, Backflush = 17), name = "Fraction") +
+  scale_x_continuous(breaks = 1:3) +
+  labs(x = "Cleaning cycle", y = NULL, tag = "C") +
+  theme_phage_uv(8.2) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 12))
+
+turnover[, transition := factor(transition, levels = c("C1 to C2", "C2 to C3"))]
+turnover_panel <- ggplot(turnover, aes(transition, bray_curtis, colour = condition_label, shape = phase_label,
+                                       group = interaction(condition_label, phase_label))) +
+  geom_line(linewidth = 0.65) +
+  geom_point(size = 2.7) +
+  scale_colour_manual(values = condition_palette, name = NULL) +
+  scale_shape_manual(values = c(Initial = 16, Backflush = 17), name = "Fraction") +
+  scale_y_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0.03))) +
+  labs(x = "Consecutive-cycle transition", y = "Bray-Curtis turnover", tag = "D") +
+  theme_phage_uv(8.2) +
+  theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 12))
+
+longitudinal_figure <- family_panel /
+  (ordination_panel + alpha_panel + turnover_panel + plot_layout(widths = c(1.15, 0.85, 0.85))) +
+  plot_layout(heights = c(1.55, 1))
+
+longitudinal_path <- file.path(staging, "figures", "16s-longitudinal-community-context.pdf")
+ggsave(longitudinal_path, longitudinal_figure, width = 16.5, height = 10.8,
+       device = grDevices::pdf)
+
+# Study workflow. Nodes are data, not drawing instructions hidden in code, so
+# every visible box can be audited and reused in the legend.
+nodes <- data.table(
+  node_id = c(
+    "design", "16s", "mg", "mt", "16s_process", "mg_process", "mt_process",
+    "16s_evidence", "mg_evidence", "mt_evidence"
+  ),
+  stage = c(
+    "Study design", rep("Data layers", 3), rep("Processing", 3),
+    rep("Evidence products", 3)
+  ),
+  label = c(
+    "Anaerobic membrane bioreactor\nControl | Phage-UV\n3 cycles x initial/backflush\n12 physical samples",
+    "16S cDNA amplicons\n12 runs",
+    "Metagenomes\n12 runs",
+    "Metatranscriptomes\n23 runs -> 12 samples",
+    "cutadapt -> DADA2\nSILVA 138.2 | 2,700 ASVs",
+    "assembly -> dereplication\n348 MAGs | vOTU catalogue",
+    "mapping -> collapsed counts\n361,907 tested features",
+    "2,700 ASVs\ncomposition | diversity | trajectories",
+    "348 MAGs + 607 high-quality classified vOTUs\nabundance | taxonomy | 5-MAG population genomics\n86 CRISPR MAG-phage links",
+    "Full-universe edgeR\nfunctions | MAG coherence | recurrence"
+  ),
+  x = c(1.5, rep(4.7, 3), rep(7.9, 3), rep(11.5, 3)),
+  y = c(5.5, rep(c(8.5, 5.5, 2.5), 3)),
+  width = c(2.6, rep(2.5, 6), rep(3.2, 3)),
+  height = c(4.9, rep(1.45, 6), 1.55, 2.05, 1.55)
+)
+stage_fill <- c(
+  `Study design` = "#E8F1F8",
+  `Data layers` = "#E6F3EC",
+  Processing = "#F3ECFA",
+  `Evidence products` = "#FFF1DF"
+)
+nodes[, `:=`(
+  xmin = x - width / 2,
+  xmax = x + width / 2,
+  ymin = y - height / 2,
+  ymax = y + height / 2
+)]
+edges <- data.table(
+  from = c(
+    "design", "design", "design", "16s", "mg", "mt", "16s_process",
+    "mg_process", "mt_process"
+  ),
+  to = c(
+    "16s", "mg", "mt", "16s_process", "mg_process", "mt_process",
+    "16s_evidence", "mg_evidence", "mt_evidence"
+  )
+)
+edge_coords <- merge(edges, nodes[, .(from = node_id, from_x = x, from_y = y, from_width = width)], by = "from")
+edge_coords <- merge(edge_coords, nodes[, .(to = node_id, to_x = x, to_y = y, to_width = width)], by = "to")
+edge_coords[, `:=`(
+  x = fifelse(abs(to_x - from_x) > 0.1, from_x + sign(to_x - from_x) * from_width / 2, from_x),
+  y = from_y,
+  xend = fifelse(abs(to_x - from_x) > 0.1, to_x - sign(to_x - from_x) * to_width / 2, to_x),
+  yend = to_y
+)]
+fwrite(nodes[, .(node_id, stage, label)], file.path(staging, "tables", "workflow_node_registry.tsv"), sep = "\t")
+fwrite(edges, file.path(staging, "tables", "workflow_edge_registry.tsv"), sep = "\t")
+
+workflow <- ggplot() +
+  annotate("rect", xmin = 1.0, xmax = 13.0, ymin = 0.15, ymax = 1.05,
+           fill = "#E7EAF4", colour = "#425466", linewidth = 0.55) +
+  geom_segment(
+    data = edge_coords,
+    aes(x = x, y = y, xend = xend, yend = yend),
+    linewidth = 0.55,
+    colour = "#65717D",
+    arrow = grid::arrow(length = grid::unit(0.12, "cm"), type = "closed")
+  ) +
+  geom_rect(
+    data = nodes,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = stage),
+    colour = "#425466",
+    linewidth = 0.55
+  ) +
+  geom_text(data = nodes, aes(x = x, y = y, label = label), size = 3.2, lineheight = 0.95) +
+  annotate("text", x = c(1.5, 4.7, 7.9, 11.5), y = 10.05,
+           label = c("STUDY DESIGN", "DATA LAYERS", "PROCESSING", "EVIDENCE PRODUCTS"),
+           fontface = "bold", size = 3.4, colour = "#263442") +
+  annotate(
+    "text", x = 7, y = 0.60,
+    label = "INTEGRATED EVIDENCE: community trajectories | transcriptome-wide responses | population genomes | host-phage context",
+    fontface = "bold", size = 3.05, colour = "#263442"
+  ) +
+  annotate(
+    "text", x = 7, y = -0.45,
+    label = "Inference boundary: one membrane per condition; longitudinal trajectories are descriptive and treatment is confounded with membrane identity.",
+    size = 3.05, colour = "#4A4A4A"
+  ) +
+  scale_fill_manual(values = stage_fill, guide = "none") +
+  coord_cartesian(xlim = c(0, 14), ylim = c(-0.8, 10.4), clip = "off") +
+  theme_void(base_family = "sans") +
+  theme(plot.margin = margin(10, 12, 12, 12))
+
+workflow_path <- file.path(staging, "figures", "study-analysis-workflow.pdf")
+ggsave(workflow_path, workflow, width = 16.5, height = 10.2,
+       device = grDevices::pdf)
+
+required_figures <- c(longitudinal_path, workflow_path)
+if (!all(file.exists(required_figures)) || any(file.info(required_figures)$size < 5000)) {
+  abort("One or more required vector PDFs were not created correctly")
+}
+
+fwrite(
+  data.table(input = names(paths), path = unlist(paths), md5 = unname(tools::md5sum(unlist(paths)))),
+  file.path(staging, "tables", "input_provenance.tsv"),
+  sep = "\t"
+)
+write_checksums(staging)
+if (!file.rename(staging, output_dir)) abort("Failed to promote 16S integration output")
+cat(sprintf("16S manuscript integration written to %s\n", output_dir))
+```

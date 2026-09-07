@@ -68,6 +68,15 @@ phage_uv_family_colours <- c(
   UBA1135 = "#7570B3",
   UBA4823 = "#E7298A",
   `CAG-138` = "#66A61E",
+  `ST-12K33` = "#E16A86",
+  Comamonadaceae = "#B88A00",
+  Lentimicrobiaceae = "#50A315",
+  Hydrogenedensaceae = "#00AD9A",
+  Spirochaetaceae = "#00A8C3",
+  Leptotrichiaceae = "#009ADE",
+  Holophagaceae = "#9183E6",
+  Syntrophobacteraceae = "#C86DD7",
+  Methanosaetaceae = "#E063B6",
   `Unclassified at family level` = "#969696",
   `Other classified families` = "#D9D9D9"
 )

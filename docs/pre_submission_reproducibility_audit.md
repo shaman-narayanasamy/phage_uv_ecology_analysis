@@ -1,18 +1,19 @@
 # Pre-submission reproducibility audit
 
-Audit date: 2026-09-01
+Audit date: 2026-09-07
 
-Status: complete for the current pre-16S manuscript; final issue #31 remains
-open until the collaborator-owned 16S decision in issue #30 is resolved.
+Status: complete for the repository and returned-16S descriptive integration.
+The manuscript was intentionally not edited during this pass; final issues #30
+and #31 remain open for author review, allocation, and scientific wording.
 
 ## Verified current state
 
-- All 15 repository R tests pass, including the synthetic full-transcriptome
+- All 18 repository R tests pass, including the synthetic full-transcriptome
   edgeR run and checksum validation of the complete manuscript figure suite.
-- `scripts/validate_manifests.sh` passes every metadata, 16S input-contract,
-  Quarto-entrypoint, citation, manuscript-structure, data-path, and HPC Conda
-  policy check.
-- All 23 canonical `scripts/*.qmd` notebooks structure-render to GFM with
+- `scripts/validate_manifests.sh` passes every metadata, 16S input and returned
+  output contract, Quarto-entrypoint, citation, manuscript-structure,
+  data-path, and HPC Conda policy check.
+- All 24 canonical `scripts/*.qmd` notebooks structure-render to GFM with
   execution disabled under the RStudio-bundled Quarto 1.9.37. GFM is used for
   this structural gate because HTML rendering opens Quarto's macOS user-level
   Sass cache, which is intentionally unwritable in a restricted audit runtime.
@@ -21,10 +22,15 @@ open until the collaborator-owned 16S decision in issue #30 is resolved.
   during the complete visual audit in `docs/figure_visual_qa_2026-08-29.md`.
   The visually inspected host-phage evidence-audit PDF is separately bound by
   SHA-256 and allocated as Supplementary Figure S8.
-- The repository has no uncommitted, untracked, or ignored generated artifacts.
-  One ignored root-level `Rplots.pdf` found at audit start was moved to
-  `/private/tmp/phage_uv_Rplots_pre_issue31.pdf`; the complete test suite did not
-  recreate it.
+- The returned 16S integration adds two visually inspected, checksum-governed
+  vector PDFs: a longitudinal community candidate and a complete-study workflow
+  overview. Its sample contract, Bray-Curtis summaries, fixed family colours,
+  workflow graph, and PDF signatures are tested.
+- The repository has no source-adjacent or root-level generated artifacts. A
+  pre-existing untracked `Rplots.pdf`, dated before this analysis pass, was
+  preserved at
+  `/private/tmp/phage_uv_preexisting_Rplots_2026-09-07_135131.pdf`; the complete
+  test suite did not recreate it.
 - An initial direct Quarto render created source-adjacent `*_files` directories
   and `scripts/.gitignore`. They were moved to
   `/private/tmp/phage-uv-quarto-source-artifacts-20260829`. The audit runner now
@@ -99,11 +105,20 @@ provenance gaps, not silently imputed versions.
 
 ## Open items before issue #31 can close
 
-1. Receive and decide on the collaborator-owned 16S package under issue #30.
-   If included, register its exact software, database, classifier, parameters,
-   source tables, checksums, figure, and claims, then rerun this full audit.
-2. Re-run visual inspection only if any figure changes after 16S integration or
-   journal conformance.
+1. Ask the collaborator to confirm the stale checksum row for
+   `16s_return_summary.md` and approve the scientific representation of her
+   analysis.
+2. Decide whether the workflow overview and longitudinal 16S candidate belong
+   in the main text or supplement. The current pass does not alter the author's
+   live Google Doc.
+3. Review the author's tracked Google Docs changes, accept the author changes,
+   then introduce the 16S Methods, Results, legends, citations, and claim
+   registry updates through the agreed review workflow.
+4. Decide whether to retain only descriptive R-squared values or implement a
+   defensible repeated-observation sensitivity analysis. The collaborator's
+   unrestricted PERMANOVA p-values remain excluded from manuscript inference.
+5. Re-run visual inspection and this complete audit after final allocation and
+   manuscript conformance.
 
 These open items are provenance gates, not evidence for expanding the
 scientific interpretation.

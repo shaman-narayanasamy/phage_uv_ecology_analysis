@@ -103,13 +103,35 @@ Pending integration checks:
    rows, while `docs/16s_manuscript_integration.md` describes 26 files.
 3. Replace or supplement Susana's machine-local paths with canonical project
    paths without altering the preserved received package.
-4. Compare all 12 sample identifiers with `metadata/sample_metadata.tsv` and
-   reproduce the headline tables from the flat exports.
+4. Reproduce the headline inferential tables from the flat exports after a
+   defensible repeated-observation analysis has been selected.
 5. Audit and correct the unrestricted PERMANOVA and dispersion permutation
    scheme for the repeated two-membrane design; retain descriptive effect sizes
    even if valid inferential p-values cannot be obtained.
 6. Integrate the collaborator branch without overwriting the current Figure 1,
    manuscript allocation, audit, or Google Docs editorial state.
+
+## Local descriptive integration completed on 2026-09-07
+
+`scripts/integrate_16s_and_workflow.qmd` verifies that all 12 returned sample
+identifiers and their condition, phase, and cycle fields match
+`metadata/sample_metadata.tsv`. It computes exact Bray-Curtis turnover directly
+from the unrarefied ASV count table and produces two visually verified,
+unnumbered vector candidates under
+`PRJEB79569/derived/16s_manuscript_integration/`:
+
+- `16s-longitudinal-community-context.pdf`, containing aligned stacked family
+  profiles, directed Bray-Curtis trajectories, alpha-diversity trajectories,
+  and consecutive-cycle turnover;
+- `study-analysis-workflow.pdf`, connecting the experimental design and all
+  three sequencing layers to the current evidence products and limitations.
+
+All four membrane-by-phase trajectories have lower C2-to-C3 than C1-to-C2
+Bray-Curtis turnover. With only two membranes and three cycles, this is a
+descriptive recurrent pattern, not a replicated time-series or treatment
+effect. The collaborator's PERMANOVA R-squared values are retained in a
+separate effect-size audit, while the unrestricted p-values remain excluded
+from manuscript inference.
 
 ## Provisional manuscript placement
 
