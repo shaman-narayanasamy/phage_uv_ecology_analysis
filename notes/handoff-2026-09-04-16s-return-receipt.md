@@ -11,7 +11,11 @@ Susana Martinez Arbas sent two messages to `shaman.qn@gmail.com` on 2026-09-03:
 - `UV-phage 16S data analysis`, from `susana@nium.bio`, containing the complete
   scientific return summary and reporting that the analysis was committed;
 - a Microsoft 365 sharing notification for the recipient-only SharePoint folder
-  `2026_09_13_phage_uv_data_16S_analysis`.
+  `2026_09_03_phage_uv_data_16S_analysis`.
+
+Susana sent a replacement OneDrive invitation on 2026-09-07. The user
+downloaded `PRJEB79569.zip`; an independent download through the replacement
+invitation produced the same 72-file tree byte-for-byte.
 
 The repository now has `origin/feature/prjeb79569-16s-analysis`, ending at
 `b6acbe5`. The return is represented by commits `5f70997`, `12e4bf5`, and
@@ -35,8 +39,8 @@ manuscript-integration guide.
 - The measured primer-free ASV mode was 376 bp, corresponding to an amplicon of
   about 415 bp with primers, not the approximately 550 bp stated previously.
 
-These are collaborator-reported values until the checksum-addressed data
-package is relocated to the canonical project data root and verified locally.
+The flat exports and return package are now locally available. The reported
+inferential p-values remain subject to the statistical-design audit below.
 
 ### Statistical-design audit finding
 
@@ -69,19 +73,36 @@ replication for the condition term when condition and membrane are identical.
 
 ## Integration status
 
-The return is **received, not yet accepted as locally verified manuscript
-evidence**. Do not describe it as missing, blocked, or still awaiting the
-collaborator. Do not rerun or take ownership away from the collaborator.
+The return is **received and locally copied, with one internal manifest
+exception and the statistical-design audit still open**. Do not describe it as
+missing, blocked, or still awaiting the collaborator. Do not rerun or take
+ownership away from the collaborator.
+
+The user-downloaded ZIP is preserved at
+`/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/incoming/16s_collaborator_return_2026-09-07/PRJEB79569.zip`
+(7,968,690 bytes; SHA-256
+`dc48c073caa5d16f79bc475b09b9fbf85b4153e0c6c43668007ca2a743b1307a`).
+It passes `unzip -t`. Its 72-file extracted tree is byte-identical to the
+independent OneDrive download and has been promoted to
+`/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/16s_analysis/`.
+
+The supplied return-package manifest has 25 payload rows. Twenty-four match
+their received files by byte count and MD5. The sole exception is
+`16s_return_summary.md`: the manifest records 6,266 bytes and MD5
+`a762a6277270b811636388fe353911c5`, while both independent downloads contain
+the same 6,332-byte file with MD5 `8dc495f02eb743865b33ecdd3facb005`.
+Because both downloads agree and both ZIPs pass integrity testing, this is a
+stale collaborator manifest row, not evidence of transfer corruption.
 
 Pending integration checks:
 
-1. Authenticate to the recipient-only SharePoint folder and inventory the
-   actual return package. The Gmail-linked page currently requires Microsoft
-   sign-in.
-2. Resolve the return-count discrepancy: the Gmail summary and collaborator
-   handoff say 25 files, while `docs/16s_manuscript_integration.md` says 26.
-3. Copy the package into the canonical project data root, verify every supplied
-   checksum, and replace Susana's machine-local paths in the manifest.
+1. Ask the collaborator to regenerate or explicitly confirm the stale
+   `16s_return_summary.md` manifest row; do not modify her supplied manifest in
+   place.
+2. Resolve the documentation wording: the return manifest contains 25 payload
+   rows, while `docs/16s_manuscript_integration.md` describes 26 files.
+3. Replace or supplement Susana's machine-local paths with canonical project
+   paths without altering the preserved received package.
 4. Compare all 12 sample identifiers with `metadata/sample_metadata.tsv` and
    reproduce the headline tables from the flat exports.
 5. Audit and correct the unrestricted PERMANOVA and dispersion permutation

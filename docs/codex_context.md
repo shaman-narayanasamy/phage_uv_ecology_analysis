@@ -101,8 +101,10 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   selected five-MAG set. See `docs/population_genomics_descriptive.md`.
 - The 16S analysis remains owned by Susana Martinez Arbas. Her scientific
   summary and recipient-only SharePoint folder were received by Gmail on
-  2026-09-03, and her repository branch now ends at `b6acbe5`. Treat the result
-  as returned but pending local checksum and sample-contract validation. See
+  2026-09-03, and her repository branch now ends at `b6acbe5`. The replacement
+  delivery was downloaded and promoted locally on 2026-09-07. Treat the result
+  as returned with one stale internal manifest row plus pending sample-contract
+  and statistical-design validation. See
   `notes/handoff-2026-09-04-16s-return-receipt.md`.
 - The verified CRISPR-derived host-phage evidence audit is allocated as
   Supplementary Figure S8. It contains 86 deduplicated candidate pairs linking
@@ -143,13 +145,14 @@ main-figure architecture, nine supplementary figures, descriptive legends, bibli
 claim audit form a verified evidence and authoring scaffold. The local candidate suite contains 13
 PDFs, including two reader-facing opening figures and their two preserved
 analysis-led predecessors. Supplementary Figure S8 is the descriptive
-host-phage evidence audit. The last verified Google Doc snapshot contained the
-complete draft and 11 figure previews, including the two taxonomic-context
-candidates. That historical snapshot has named versions, but the live document
-has not been re-read in the current session and must not be represented as
-current. The user is editing and commenting in the live document; do not touch
-it until explicitly asked. The local revised argument begins with longitudinal
-community context, then moves through cycle-led transcriptome geometry, a broad
+host-phage evidence audit. A read-only export of the live Google Doc was audited
+on 2026-09-07; it contained 20 rendered pages, tracked changes/comments, and a
+stale pre-return figure narrative. The user is editing and commenting in the
+live document; do not touch it until explicitly asked. The document is now
+filed at `My Drive/Projects/Phage therapy/PRJEB79569 phage UV/Manuscript`
+(folder ID `1ajfSU0gAgrMPBsuhXQ4QSIrXWwrnRchy`). The local revised argument
+begins with longitudinal community context, then moves through cycle-led
+transcriptome geometry, a broad
 bidirectional adjusted membrane coefficient, narrow functional support,
 widespread organism-level coherence, recurrent gene-level structure, and
 descriptive population-genomic heterogeneity.
@@ -165,9 +168,11 @@ disclosure and artifact-review steps in
 
 The evidence boundary, figure allocation, visual QA, citation audit, manuscript
 scaffold, and pre-16S reproducibility audit are complete under GitHub issues
-#26 through #31. The collaborator-owned 16S result has now returned. Issue #30
-is active for package validation and evidence-weighted integration; do not
-close it until the canonical local copy and checksums have been verified.
+#26 through #31. The collaborator-owned 16S result has now returned. Its
+canonical local copy was verified against two independent downloads on
+2026-09-07; issue #30 remains active for the single stale collaborator-manifest
+row, sample-contract validation, design-aware statistics, and evidence-weighted
+integration.
 Import the 16 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
