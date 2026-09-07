@@ -138,8 +138,9 @@ apply in every main and supplementary figure.
 - The 16S analysis is owned by the external expert collaborator. Susana's
   summary, SharePoint delivery, and repository branch were received on
   2026-09-03. Review `notes/handoff-2026-09-04-16s-return-receipt.md`; the
-  package is returned but still awaits canonical relocation, checksum
-  validation, and sample-contract verification under issue #30.
+  package was downloaded, independently cross-checked, and promoted to the
+  canonical data root on 2026-09-07. One supplied manifest row is stale;
+  sample-contract and statistical-design validation remain under issue #30.
   The returned result has no reserved figure number and may refine Figure 1
   only if it materially improves the community story.
 - The original `smarbas` repository invitation expired and was replaced on
@@ -149,13 +150,20 @@ apply in every main and supplementary figure.
 
 ## Google Docs and Zotero
 
-The Google Docs history below is a verified historical snapshot, not a claim
-about the present live document. The live document has not been re-read in the
-current session, and the user is populating it and making comments. Do not edit,
-replace, or reformat it until the user explicitly asks.
+The Google Docs history below records named historical snapshots. A read-only
+export of the live document was audited on 2026-09-07, while the user was
+populating it and making comments. Do not edit, replace, or reformat it until
+the user explicitly asks.
 
 The existing Google Doc is:
 `https://docs.google.com/document/d/1BwtV8cU5anyC8yFYUmiG09fIa-buT0t425bkm1tiTXs/edit?tab=t.0`.
+
+Its canonical Drive location is
+`My Drive/Projects/Phage therapy/PRJEB79569 phage UV/Manuscript` (folder ID
+`1ajfSU0gAgrMPBsuhXQ4QSIrXWwrnRchy`). The 2026-09-07 read-only export rendered
+to 20 pages and confirmed tracked editorial state. It also showed that the live
+figure allocation and 16S placeholders lag the current project decisions; this
+is an editorial review finding, not authorization to rewrite the live document.
 
 The document is now titled `PRJEB79569 phage-UV ecology | Manuscript draft v1`.
 Before replacement, the obsolete state was preserved as the named version
@@ -295,11 +303,12 @@ because issue #30 has not returned and a final post-decision audit may be needed
 
 GitHub issues #26-#34 are the controlling dependency-ordered roadmap. Issues #26
 through #29 completed the evidence, figures, citations, and manuscript edit.
-Issue #30 remains collaborator-owned. The agent-addressable pre-16S work for
-#31 and #32 is complete and audited; both remain human-gated by the 16S
-decision, author review, declarations, and live submission-day checks. Issue
-#33 obtains author and coauthor approval, and #34 submits and archives only the
-approved release.
+Issue #30 remains collaborator-owned for manifest confirmation and scientific
+integration; the returned files themselves are now local. The agent-addressable
+pre-16S work for #31 and #32 is complete and audited; both remain human-gated by
+the 16S decision, author review, declarations, and live submission-day checks.
+Issue #33 obtains author and coauthor approval, and #34 submits and archives
+only the approved release.
 
 ISME Communications is now a conditional target: the human-authoring and
 AI-disclosure remediation must be completed before issue #33 can treat any
