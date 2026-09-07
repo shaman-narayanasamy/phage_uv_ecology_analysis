@@ -211,7 +211,7 @@ only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
-All 23 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 24 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows
@@ -290,8 +290,8 @@ remaining-figure and taxonomic-context builders stage their outputs before
 promotion.
 
 The complete pre-16S audit passed on 2026-09-01 through
-`bash scripts/run_pre_submission_audit.sh`: all 16 R tests, manifest checks,
-all 22 no-execute Quarto structure renders, the Pandoc manuscript build,
+`bash scripts/run_pre_submission_audit.sh`: all 18 R tests, manifest checks,
+all 24 no-execute Quarto structure renders, the Pandoc manuscript build,
 figure checksums, and repository hygiene. Bakta, CAT/BAT, CheckV, and inStrain
 versions are verified; unrecoverable CoverM and GTDB-release details are
 explicitly recorded rather than inferred. Exact multiomics and host-phage

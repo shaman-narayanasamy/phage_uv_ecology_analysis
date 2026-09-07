@@ -29,10 +29,10 @@ renaming the canonical artifacts.
 9. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
 10. Supplementary Figure S9: `community-differential-abundance.pdf`.
 
-The independently delegated 16S result has no reserved figure number. If the
-returned analysis materially improves the community story, it will refine
-Figure 1 or be allocated during author review without displacing verified work
-in advance.
+The independently delegated 16S result has returned and passed the canonical
+12-sample contract. Its longitudinal and workflow candidates are now available
+for allocation, but no main-versus-supplement placement is imposed before
+author review.
 
 ## Current candidate set
 
@@ -66,9 +66,37 @@ in advance.
    - coverage-qualified structure for the five scoped MAGs;
    - no damage, mutagenesis, adaptation, accumulation, or treatment-effect inference.
 6. Delegated 16S community structure:
-   - remains collaborator-owned until a verified result is returned;
-   - may validate or extend the community layer introduced in Figure 1;
-   - is not an active blocker and has no preallocated figure number.
+   - 12 samples and 2,700 ASVs assigned with SILVA 138.2;
+   - aligned family composition, Bray-Curtis trajectories, alpha diversity,
+     and consecutive-cycle turnover are available as a visually verified
+     vector candidate;
+   - all four membrane-by-phase trajectories show lower C2-to-C3 than C1-to-C2
+     Bray-Curtis turnover, a descriptive recurrence with no formal time-series
+     or treatment-effect inference;
+   - the collaborator's unrestricted PERMANOVA p-values are not
+     manuscript-ready for the repeated two-membrane design.
+
+## Returned 16S and complete-study overview candidates
+
+1. `16s-longitudinal-community-context.pdf`:
+   - top-12 family composition in aligned stacked bars;
+   - directed Bray-Curtis PCoA trajectories across cycles;
+   - observed-ASV and Shannon-diversity trajectories;
+   - exact consecutive-cycle Bray-Curtis turnover derived from the unrarefied
+     ASV table;
+   - shared family labels retain the fixed manuscript colour mapping.
+2. `study-analysis-workflow.pdf`:
+   - connects the two-membrane, three-cycle sampling design to 16S,
+     metagenomic, and metatranscriptomic data layers;
+   - records the DADA2/SILVA, MAG/vOTU, full-universe edgeR,
+     population-genomic, and CRISPR-link branches;
+   - displays the one-membrane-per-condition inference boundary directly.
+
+Both artifacts are unnumbered candidates under
+`PRJEB79569/derived/16s_manuscript_integration/`. The workflow is a strong
+main-text overview candidate; the 16S longitudinal figure can either refine the
+community opening or become a dedicated supplementary figure after author
+review.
 
 ## Preserved earlier layouts
 

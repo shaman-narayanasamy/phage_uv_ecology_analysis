@@ -92,7 +92,7 @@ scripts/      Quarto analysis notebooks, runners, and validation helpers
 
 ## Quarto notebook workflow
 
-The 23 standalone R analysis entrypoints are maintained as Quarto notebooks in
+The 24 standalone R analysis entrypoints are maintained as Quarto notebooks in
 `scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
 chunk while inspecting objects inline. Automatic execution during rendering is
 disabled because several notebooks write or replace project outputs.
@@ -110,6 +110,14 @@ differential-abundance sensitivity analysis with:
 ```sh
 bash scripts/run_qmd.sh scripts/run_community_differential_abundance.qmd /path/to/fresh/output
 Rscript tests/test_community_differential_abundance.R /path/to/fresh/output
+```
+
+Validate and explore the returned 16S data, then build the longitudinal and
+complete-study workflow candidates with:
+
+```sh
+bash scripts/run_qmd.sh scripts/integrate_16s_and_workflow.qmd /path/to/fresh/output
+Rscript tests/test_16s_manuscript_integration.R /path/to/fresh/output
 ```
 
 The runner extracts the R source into a temporary directory, supplies the

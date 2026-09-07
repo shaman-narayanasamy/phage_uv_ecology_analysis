@@ -85,7 +85,7 @@ effects.
 
 ## Executable analysis sources
 
-The 23 standalone analysis entrypoints are canonical Quarto notebooks under
+The 24 standalone analysis entrypoints are canonical Quarto notebooks under
 `scripts/*.qmd`. Use `bash scripts/run_qmd.sh scripts/<notebook>.qmd
 [arguments...]` for exact command-line execution. The runner uses a temporary
 purl extraction and supplies `PHAGE_UV_NOTEBOOK_PATH` for repository discovery.
@@ -103,9 +103,16 @@ modules in `R/` and automated tests in `tests/` intentionally remain `.R`.
   summary and recipient-only SharePoint folder were received by Gmail on
   2026-09-03, and her repository branch now ends at `b6acbe5`. The replacement
   delivery was downloaded and promoted locally on 2026-09-07. Treat the result
-  as returned with one stale internal manifest row plus pending sample-contract
-  and statistical-design validation. See
+  as returned with one stale internal manifest row. The canonical 12-sample
+  contract and local file integrity are verified; statistical-design validation
+  remains open. See
   `notes/handoff-2026-09-04-16s-return-receipt.md`.
+- The returned 16S integration now has two unnumbered, visually verified vector
+  candidates: `16s-longitudinal-community-context.pdf` and
+  `study-analysis-workflow.pdf`. Exact ASV-count Bray-Curtis summaries show
+  lower C2-to-C3 than C1-to-C2 turnover in all four membrane-by-phase
+  trajectories. This recurrence is descriptive; three cycles are insufficient
+  for a formal time-series model and treatment remains membrane-confounded.
 - The verified CRISPR-derived host-phage evidence audit is allocated as
   Supplementary Figure S8. It contains 86 deduplicated candidate pairs linking
   80 MAGs to 85 phage contigs. Treat it as historical-exposure context only,
@@ -171,8 +178,8 @@ scaffold, and pre-16S reproducibility audit are complete under GitHub issues
 #26 through #31. The collaborator-owned 16S result has now returned. Its
 canonical local copy was verified against two independent downloads on
 2026-09-07; issue #30 remains active for the single stale collaborator-manifest
-row, sample-contract validation, design-aware statistics, and evidence-weighted
-integration.
+row, design-aware statistics, and evidence-weighted integration. The 12-sample
+contract is verified.
 Import the 16 records in
 `manuscript/references.bib` into Zotero before converting temporary author-year
 text into live Google Docs field codes. The agent-authored starting draft may
