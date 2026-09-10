@@ -1,0 +1,174 @@
+{
+  "status": "working_author_review",
+  "version": "2026-09-09-v4",
+  "manuscript_snapshot": "manuscript_author_review_2026-09-08/api_review_verification_20260909T191526Z/accepted_preview.txt",
+  "path_base": "PRJEB79569/derived",
+  "figures": [
+    {
+      "label": "S1",
+      "path": "supplementary_figures_publication_2026-09-09-v2/figures/supplementary-model-diagnostics.pdf",
+      "source_table": "S2"
+    },
+    {
+      "label": "S2",
+      "path": "supplementary_figures_publication_2026-09-09-v2/figures/supplementary-cycle-interaction-landscape.pdf",
+      "source_table": "S3"
+    },
+    {
+      "label": "S3",
+      "path": "supplementary_figures_publication_2026-09-09-v2/figures/supplementary-functional-coefficients.pdf",
+      "source_table": "S4"
+    },
+    {
+      "label": "S4",
+      "path": "supplementary_figures_publication_2026-09-09-v2/figures/supplementary-mag-coherence.pdf",
+      "source_table": "S5"
+    },
+    {
+      "label": "S5",
+      "path": "supplementary_figures_publication_2026-09-09-v2/figures/supplementary-population-genomics.pdf",
+      "source_table": "S7"
+    },
+    {
+      "label": "S6",
+      "path": "taxonomic_figures_publication_2026-09-09-v3/figures/mag-taxonomic-context.pdf",
+      "source_table": "S8"
+    },
+    {
+      "label": "S7",
+      "path": "taxonomic_figures_publication_2026-09-09-v3/figures/votu-taxonomic-context.pdf",
+      "source_table": "S8"
+    },
+    {
+      "label": "S8",
+      "path": "network_figure_publication_2026-09-09-v2/figures/host-phage-network-evidence-audit.pdf",
+      "source_table": "S9"
+    },
+    {
+      "label": "S9",
+      "path": "abundance_figure_publication_2026-09-09-v2/figures/community-differential-abundance.pdf",
+      "source_table": "S10"
+    },
+    {
+      "label": "S10",
+      "path": "16s_figure_publication_2026-09-09-v2/figures/16s-longitudinal-community-context.pdf",
+      "source_table": "S11"
+    }
+  ],
+  "source_tables": [
+    {
+      "label": "S1",
+      "title": "Physical-sample contract",
+      "files": [
+        "16s_figure_top25_revision_2026-09-09/tables/sample_contract_validation.tsv"
+      ]
+    },
+    {
+      "label": "S2",
+      "title": "Expression filtering, normalisation and model diagnostics",
+      "files": [
+        "full_transcriptome_de/tables/filtering_summary.tsv",
+        "full_transcriptome_de/tables/library_sizes_and_normalization.tsv",
+        "full_transcriptome_de/tables/predeclared_models.tsv",
+        "full_transcriptome_de/tables/model_fit_diagnostics.tsv",
+        "full_transcriptome_de/tables/design_matrix_main.tsv",
+        "full_transcriptome_de/tables/design_matrix_condition_cycle.tsv"
+      ]
+    },
+    {
+      "label": "S3",
+      "title": "Complete tested-feature expression results",
+      "files": [
+        "full_transcriptome_de/tables/de_condition_adjusted.tsv",
+        "full_transcriptome_de/tables/de_condition_cycle_interaction_coefficients.tsv",
+        "full_transcriptome_de/tables/de_condition_cycle_interaction_omnibus.tsv"
+      ]
+    },
+    {
+      "label": "S4",
+      "title": "Post-model functional-category membership and statistics",
+      "files": [
+        "full_de_interpretation/tables/tested_feature_category_membership.tsv",
+        "full_de_interpretation/tables/functional_category_enrichment.tsv",
+        "full_de_interpretation/tables/functional_category_effect_summary.tsv",
+        "full_de_interpretation/tables/functional_category_six_cell_effects.tsv"
+      ]
+    },
+    {
+      "label": "S5",
+      "title": "Post-model MAG gene-set statistics",
+      "files": [
+        "full_de_interpretation/tables/mag_coherence.tsv",
+        "full_de_interpretation/tables/mag_six_cell_effects.tsv"
+      ]
+    },
+    {
+      "label": "S6",
+      "title": "Descriptive recurrent-gene candidates",
+      "files": [
+        "full_de_interpretation/tables/predeclared_gene_candidates.tsv",
+        "manuscript_figure_candidates/tables/recurrence_selection_funnel.tsv",
+        "manuscript_figure_candidates/tables/recurrence_direction_concordance.tsv"
+      ]
+    },
+    {
+      "label": "S7",
+      "title": "Coverage-qualified population-genomic source panels",
+      "files": [
+        "manuscript_figure_candidates/tables/supplementary_population_genomics_cells.tsv",
+        "manuscript_figure_candidates/tables/population_genomics_cluster_panel.tsv",
+        "manuscript_figure_candidates/tables/population_genomics_summary_panel.tsv",
+        "manuscript_figure_candidates/tables/population_genomics_propionicimonas_panel.tsv"
+      ]
+    },
+    {
+      "label": "S8",
+      "title": "MAG and vOTU taxonomic context",
+      "files": [
+        "taxonomic_context_revision_2026-09-09-v2/tables/mag_taxonomic_context.tsv",
+        "taxonomic_context_revision_2026-09-09-v2/tables/mag_family_community_profile.tsv",
+        "taxonomic_context_revision_2026-09-09-v2/tables/mag_family_colour_key.tsv",
+        "taxonomic_context_revision_2026-09-09-v2/tables/votu_taxonomic_context_groups.tsv",
+        "taxonomic_context_revision_2026-09-09-v2/tables/votu_taxonomic_context_realm_summary.tsv",
+        "taxonomic_context_revision_2026-09-09-v2/tables/votu_taxonomic_context_filter_summary.tsv"
+      ]
+    },
+    {
+      "label": "S9",
+      "title": "CRISPR-derived host-phage evidence",
+      "files": [
+        "host_phage_network_review/tables/deduplicated_host_phage_edges.tsv",
+        "host_phage_network_review/tables/linked_host_context.tsv",
+        "host_phage_network_review/tables/linked_phage_catalogue_audit.tsv",
+        "host_phage_network_review/tables/host_phage_network_summary.tsv"
+      ]
+    },
+    {
+      "label": "S10",
+      "title": "Exploratory community-abundance results and sensitivities",
+      "files": [
+        "community_differential_abundance_figure_revision_2026-09-09/tables/mag_deseq2_condition_only.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/mag_deseq2_phase_cycle_adjusted.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/votu_deseq2_condition_only.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/votu_deseq2_phase_cycle_adjusted.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/mag_matched_clr.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/votu_matched_clr.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/community_restricted_permanova.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/community_pcoa.tsv",
+        "community_differential_abundance_figure_revision_2026-09-09/tables/analysis_summary.tsv"
+      ]
+    },
+    {
+      "label": "S11",
+      "title": "Descriptive cDNA-derived 16S profiles and turnover",
+      "files": [
+        "16s_figure_top25_revision_2026-09-09/tables/16s_family_full_profile.tsv",
+        "16s_figure_top25_revision_2026-09-09/tables/16s_family_top25_profile.tsv",
+        "16s_figure_top25_revision_2026-09-09/tables/16s_family_colour_key.tsv",
+        "16s_figure_top25_revision_2026-09-09/tables/longitudinal_turnover.tsv",
+        "16s_figure_top25_revision_2026-09-09/tables/turnover_depth_sensitivity.tsv"
+      ]
+    }
+  ],
+  "excluded": "No subset-first SOS/UV analyses, unrestricted collaborator PERMANOVA, raw count matrices, or unapproved metro v11."
+}

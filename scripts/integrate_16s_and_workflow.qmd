@@ -10,13 +10,16 @@ execute:
 ---
 
 This notebook validates the collaborator-returned 16S sample contract, derives
-descriptive longitudinal summaries, and creates two unnumbered vector figure
-candidates. It does not refit the collaborator's unrestricted PERMANOVA and it
+descriptive longitudinal summaries, and creates a top-25 family/community vector
+figure candidate. The obsolete boxed workflow is generated only with the explicit
+`--include-legacy-workflow` flag and is not the accepted manuscript workflow.
+It does not refit the collaborator's unrestricted PERMANOVA and it
 does not infer a replicated treatment-by-time effect from one membrane per
 condition.
 
 ```sh
-bash scripts/run_qmd.sh scripts/integrate_16s_and_workflow.qmd [output-directory]
+bash scripts/run_qmd.sh scripts/integrate_16s_and_workflow.qmd NEW_OUTPUT_DIRECTORY
+bash scripts/run_qmd.sh scripts/integrate_16s_and_workflow.qmd NEW_OUTPUT_DIRECTORY --publication-size
 ```
 
 ```{r}
@@ -49,6 +52,8 @@ source(file.path(root, "R", "figure_style.R"))
 project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
 analysis_root <- file.path(project_data, "derived", "16s_analysis")
 args <- commandArgs(trailingOnly = TRUE)
+publication <- "--publication-size" %in% args
+if (publication && "--include-legacy-workflow" %in% args) abort("Publication mode excludes the obsolete workflow")
 output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
   file.path(project_data, "derived", "16s_manuscript_integration")
 if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
@@ -61,7 +66,9 @@ paths <- list(
   metadata = file.path(root, "metadata", "sample_metadata.tsv"),
   sample_data = file.path(analysis_root, "05_phyloseq", "16s_sample_data.tsv"),
   counts = file.path(analysis_root, "05_phyloseq", "16s_asv_counts_unrarefied.tsv"),
-  family = file.path(analysis_root, "06_ecology", "16s_family_profile_long.tsv"),
+  taxonomy = file.path(analysis_root, "05_phyloseq", "16s_asv_taxonomy_silva138.2.tsv"),
+  family_colours = file.path(root, "metadata", "manuscript_family_colours.tsv"),
+  mag_family_colours = file.path(project_data, "derived", "taxonomic_resolution_exploration", "tables", "family_microshades_colour_key.tsv"),
   alpha = file.path(analysis_root, "06_ecology", "16s_alpha_diversity.tsv"),
   ordination = file.path(analysis_root, "06_ecology", "16s_beta_ordination_coordinates.tsv"),
   permanova = file.path(analysis_root, "06_ecology", "16s_beta_permanova.tsv")
@@ -111,6 +118,9 @@ if (!setequal(count_samples, metadata$sample_title)) abort("16S count-table samp
 count_matrix <- t(as.matrix(counts[, ..count_samples]))
 rownames(count_matrix) <- count_samples
 storage.mode(count_matrix) <- "double"
+sample_totals <- rowSums(count_matrix)
+if (any(!is.finite(sample_totals) | sample_totals <= 0)) abort("ASV libraries must have positive finite totals")
+relative_matrix <- count_matrix / sample_totals
 
 bray_pair <- function(a, b) {
   denominator <- sum(a + b)
@@ -136,7 +146,24 @@ turnover <- rbindlist(lapply(split(metadata, by = c("condition", "phase"), keep.
 }))
 turnover <- merge(turnover, unique(metadata[, .(condition, condition_label)]), by = "condition")
 turnover[, phase_label := factor(fifelse(phase == "initial", "Initial", "Backflush"), levels = c("Initial", "Backflush"))]
+turnover[, relative_abundance_bray_curtis := vapply(seq_len(.N), function(i) {
+  bray_pair(relative_matrix[sample_from[i], ], relative_matrix[sample_to[i], ])
+}, numeric(1))]
 fwrite(turnover, file.path(staging, "tables", "longitudinal_turnover.tsv"), sep = "\t")
+
+# Keep raw-count distances as the original panel contract; explicitly audit
+# whether differing post-denoising library totals change the temporal pattern.
+depth_sensitivity <- turnover[, .(
+  count_bray_c1_c2 = bray_curtis[cycle_from == 1L],
+  count_bray_c2_c3 = bray_curtis[cycle_from == 2L],
+  relative_bray_c1_c2 = relative_abundance_bray_curtis[cycle_from == 1L],
+  relative_bray_c2_c3 = relative_abundance_bray_curtis[cycle_from == 2L]
+), by = .(condition, phase)]
+depth_sensitivity[, `:=`(
+  later_turnover_lower_counts = count_bray_c2_c3 < count_bray_c1_c2,
+  later_turnover_lower_relative = relative_bray_c2_c3 < relative_bray_c1_c2
+)]
+fwrite(depth_sensitivity, file.path(staging, "tables", "turnover_depth_sensitivity.tsv"), sep = "\t")
 
 phase_distance <- rbindlist(lapply(split(metadata, by = c("condition", "cycle"), keep.by = TRUE), function(x) {
   initial <- x[phase == "initial", sample_title]
@@ -160,41 +187,41 @@ effect_sizes[, `:=`(
 )]
 fwrite(effect_sizes, file.path(staging, "tables", "16s_effect_size_audit.tsv"), sep = "\t")
 
-# Family-level longitudinal composition. Retain the 12 most abundant named
-# families and pool the remainder without treating unclassified as classified.
-family <- fread(paths$family)
+# Reconstruct the family denominator from all returned ASVs, rather than the
+# collaborator's pre-collapsed display table. Zeros remain in all 12 samples.
+taxonomy <- fread(paths$taxonomy)
+if (anyDuplicated(taxonomy$asv_id) || !setequal(taxonomy$asv_id, counts$asv_id)) abort("ASV taxonomy/count identifiers differ")
+asv_long <- melt(counts, id.vars = "asv_id", variable.name = "sample_title", value.name = "reads")
+asv_long <- merge(asv_long, taxonomy[, .(asv_id, Family)], by = "asv_id", all.x = TRUE)
+asv_long[is.na(Family) | !nzchar(Family), Family := "Unclassified at family level"]
+family <- asv_long[, .(reads = sum(reads)), by = .(sample_title, family = Family)]
+family[, relative_abundance := reads / sum(reads), by = sample_title]
 special <- c("Other classified families", "Unclassified at family level")
-top_families <- family[!family %chin% special,
-  .(mean_abundance = mean(relative_abundance)), by = family][order(-mean_abundance)][1:12, family]
-family[, display_family := fifelse(
-  family == "Unclassified at family level", "Unclassified at family level",
-  fifelse(family %chin% top_families, family, "Other classified families")
-)]
-family_plot <- family[, .(relative_abundance = sum(relative_abundance)),
-  by = .(sample_title, condition, phase, cycle, display_family)]
-family_plot <- merge(
-  family_plot,
-  metadata[, .(sample_title, sample_label, condition_label)],
-  by = "sample_title",
-  all.x = TRUE
-)
-family_order <- c(
-  top_families,
-  "Other classified families",
-  "Unclassified at family level"
-)
+top_families <- family[!family %chin% special, .(mean_abundance = mean(relative_abundance)),
+                      by = family][order(-mean_abundance, family)][1:25, family]
+if (length(top_families) != 25L || anyNA(top_families)) abort("Expected 25 named families")
+family[, display_family := fifelse(family == "Unclassified at family level", family,
+                                    fifelse(family %chin% top_families, family, "Other classified families"))]
+family_plot <- family[, .(reads = sum(reads), relative_abundance = sum(relative_abundance)),
+                       by = .(sample_title, display_family)]
+family_plot <- merge(family_plot, metadata, by = "sample_title", all.x = TRUE)
+family_order <- c(top_families, special)
 family_plot[, display_family := factor(display_family, levels = rev(family_order))]
-missing_family_colours <- setdiff(family_order, names(phage_uv_family_colours))
-if (length(missing_family_colours)) {
-  abort("The fixed manuscript family palette is missing: %s", paste(missing_family_colours, collapse = ", "))
+colour_registry <- fread(paths$family_colours)
+if (anyDuplicated(colour_registry$family) ||
+    any(!family_order %chin% colour_registry$family)) abort("Missing or duplicated fixed family colours")
+family_colours <- setNames(colour_registry$colour, colour_registry$family)[family_order]
+mag_colour_key <- fread(paths$mag_family_colours)[category_type == "top25 named"]
+shared_families <- intersect(family_order, mag_colour_key$display_category)
+if (any(tolower(family_colours[shared_families]) !=
+        tolower(mag_colour_key$colour[match(shared_families, mag_colour_key$display_category)]))) {
+  abort("Shared family colours differ from Figure 1")
 }
-family_colours <- phage_uv_family_colours[family_order]
-if (any(abs(family_plot[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-5)) {
-  abort("Collapsed 16S family profiles do not sum to one")
-}
-fwrite(family_plot, file.path(staging, "tables", "16s_family_top12_profile.tsv"), sep = "\t")
+if (any(abs(family_plot[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-10)) abort("Family profiles do not sum to one")
+fwrite(family_plot, file.path(staging, "tables", "16s_family_top25_profile.tsv"), sep = "\t")
 fwrite(data.table(display_family = names(family_colours), colour = unname(family_colours)),
        file.path(staging, "tables", "16s_family_colour_key.tsv"), sep = "\t")
+fwrite(family, file.path(staging, "tables", "16s_family_full_profile.tsv"), sep = "\t")
 
 family_panel <- ggplot(family_plot, aes(sample_label, relative_abundance, fill = display_family)) +
   geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
@@ -210,7 +237,7 @@ family_panel <- ggplot(family_plot, aes(sample_label, relative_abundance, fill =
     strip.text.y = element_text(angle = 0, face = "bold"),
     plot.tag = element_text(face = "bold", size = 12)
   ) +
-  guides(fill = guide_legend(ncol = 1))
+  guides(fill = guide_legend(ncol = 2, byrow = TRUE))
 
 ordination <- fread(paths$ordination)[metric == "bray_curtis"]
 ordination <- merge(
@@ -221,6 +248,7 @@ ordination <- merge(
 )
 axis1_var <- unique(ordination$axis1_percent_variance)
 axis2_var <- unique(ordination$axis2_percent_variance)
+setorder(ordination, condition_label, phase_label, cycle)
 ordination_panel <- ggplot(ordination, aes(axis1, axis2, colour = condition_label, shape = phase_label)) +
   geom_path(aes(group = interaction(condition_label, phase_label)), colour = "#BDBDBD", linewidth = 0.55,
             arrow = grid::arrow(length = grid::unit(0.10, "cm"), type = "closed")) +
@@ -275,9 +303,59 @@ longitudinal_figure <- family_panel /
   plot_layout(heights = c(1.55, 1))
 
 longitudinal_path <- file.path(staging, "figures", "16s-longitudinal-community-context.pdf")
-ggsave(longitudinal_path, longitudinal_figure, width = 16.5, height = 10.8,
-       device = grDevices::pdf)
+if (publication) {
+  # Display-only reflow. The original sample, family and temporal contracts
+  # are checked byte-for-byte below; collaborator models are not refitted.
+  final_theme <- theme(axis.text = element_text(size = 7),
+    axis.title = element_text(size = 8), strip.text = element_text(size = 7),
+    legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+    legend.key.width = grid::unit(3, "mm"), legend.key.height = grid::unit(3, "mm"),
+    legend.margin = margin(0, 0, 0, 0), plot.margin = margin(3, 3, 3, 3),
+    plot.tag = element_text(size = 10, face = "plain"))
+  family_panel <- family_panel + final_theme +
+    guides(fill = guide_legend(ncol = 1, byrow = TRUE)) +
+    theme(strip.text.y = element_text(angle = 270, face = "plain", size = 7))
+  ordination_panel$layers[[3L]] <- ggrepel::geom_text_repel(aes(label = cycle),
+    size = 7 / .pt, colour = "#222222", seed = 79569, max.overlaps = Inf,
+    box.padding = .2, point.padding = .3, min.segment.length = 0,
+    segment.colour = "#AAAAAA", segment.size = .2, show.legend = FALSE)
+  ordination_panel <- ordination_panel + final_theme + theme(legend.position = "none")
+  alpha_panel <- alpha_panel + final_theme + theme(legend.position = "none")
+  turnover_panel <- turnover_panel + final_theme +
+    scale_shape_manual(values = c(Initial = 16, Backflush = 17), name = "Phase") +
+    guides(colour = guide_legend(order = 1), shape = guide_legend(order = 2))
+  longitudinal_figure <- wrap_elements(full = family_panel) /
+    (wrap_elements(full = ordination_panel) | wrap_elements(full = alpha_panel)) /
+    wrap_elements(full = turnover_panel) + plot_layout(heights = c(1.65, 1.35, .8))
+  publication_device <- function(filename, width, height, ...) {
+    if (isTRUE(capabilities("aqua"))) grDevices::quartz(type = "pdf", file = filename,
+      width = width, height = height, ...)
+    else grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+  ggsave(longitudinal_path, longitudinal_figure, width = 180, height = 265,
+         units = "mm", device = publication_device)
+  frozen_root <- file.path(project_data, "derived", "16s_figure_top25_revision_2026-09-09", "tables")
+  frozen_names <- setdiff(list.files(frozen_root, pattern = "[.]tsv$"), "input_provenance.tsv")
+  if (!identical(unname(tools::md5sum(file.path(frozen_root, frozen_names))),
+                 unname(tools::md5sum(file.path(staging, "tables", frozen_names))))) {
+    abort("Publication reflow changed a frozen 16S source table")
+  }
+  fwrite(ordination, file.path(staging, "tables", "publication_ordination_display.tsv"), sep = "\t")
+  fwrite(alpha_long, file.path(staging, "tables", "publication_alpha_display.tsv"), sep = "\t")
+  notebook <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+  dir.create(file.path(staging, "source"))
+  stopifnot(file.copy(notebook, file.path(staging, "source", basename(notebook))))
+  fwrite(data.table(metric = c("models_refitted", "source_notebook", "source_notebook_md5"),
+                   value = c("false", notebook, unname(tools::md5sum(notebook)))),
+         file.path(staging, "tables", "publication_layout_metadata.tsv"), sep = "\t")
+} else {
+  ggsave(longitudinal_path, longitudinal_figure, width = 16.5, height = 10.8,
+         device = grDevices::pdf)
+}
 
+# The legacy workflow is opt-in: never regenerate it alongside a 16S revision
+# and mistake it for the provisionally accepted metro workflow.
+if ("--include-legacy-workflow" %in% args) {
 # Study workflow. Nodes are data, not drawing instructions hidden in code, so
 # every visible box can be audited and reused in the legend.
 nodes <- data.table(
@@ -377,8 +455,9 @@ workflow <- ggplot() +
 workflow_path <- file.path(staging, "figures", "study-analysis-workflow.pdf")
 ggsave(workflow_path, workflow, width = 16.5, height = 10.2,
        device = grDevices::pdf)
+}
 
-required_figures <- c(longitudinal_path, workflow_path)
+required_figures <- c(longitudinal_path, if ("--include-legacy-workflow" %in% args) workflow_path)
 if (!all(file.exists(required_figures)) || any(file.info(required_figures)$size < 5000)) {
   abort("One or more required vector PDFs were not created correctly")
 }

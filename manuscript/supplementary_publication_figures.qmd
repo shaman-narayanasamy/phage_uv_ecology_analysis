@@ -1,0 +1,241 @@
+---
+title: "Publication-size supplementary figures S1-S5"
+format:
+  html:
+    toc: true
+    code-fold: false
+execute:
+  enabled: false
+editor: source
+---
+
+Visual-only rebuilding of existing results. No model is fitted. Run from the
+repository root, with an explicit new output directory:
+
+```sh
+bash scripts/run_qmd.sh manuscript/supplementary_publication_figures.qmd NEW_OUTPUT
+```
+
+Five existing source tables are copied byte-for-byte. The additional library,
+interaction and MAG inputs are hash-recorded; deterministic interaction context
+selection matches the historical builder. The complete display-point tables are
+saved for verification. Native 180 mm layouts are provisional editorial sizes,
+not journal acceptance. Read and debug the following chunks in order.
+
+## Inputs and shared layout
+
+```{r}
+#| label: inputs-and-layout
+suppressPackageStartupMessages({library(data.table); library(ggplot2); library(patchwork)})
+args <- commandArgs(trailingOnly = TRUE)
+stopifnot(length(args) == 1L, file.exists("R/figure_style.R"))
+out <- args[[1L]]
+if (file.exists(out)) stop("Refusing to overwrite an output directory")
+dir.create(file.path(out, "figures"), recursive = TRUE)
+dir.create(file.path(out, "tables"))
+dir.create(file.path(out, "source"))
+source("R/figure_style.R")
+derived <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+baseline <- file.path(derived, "manuscript_figure_candidates/tables")
+de <- file.path(derived, "full_transcriptome_de/tables")
+frozen_names <- c("supplementary_model_diagnostics.tsv", "supplementary_interaction_feature_counts.tsv",
+                  "supplementary_functional_coefficients.tsv", "supplementary_mag_coherence_counts.tsv",
+                  "supplementary_population_genomics_cells.tsv")
+paths <- c(setNames(file.path(baseline, frozen_names), frozen_names),
+           libraries = file.path(de, "library_sizes_and_normalization.tsv"),
+           interaction = file.path(de, "de_condition_cycle_interaction_coefficients.tsv"),
+           omnibus = file.path(de, "de_condition_cycle_interaction_omnibus.tsv"),
+           mag = file.path(derived, "full_de_interpretation/tables/mag_coherence.tsv"))
+stopifnot(all(file.exists(paths)))
+stopifnot(all(file.copy(paths[frozen_names], file.path(out, "tables", frozen_names))))
+frozen <- lapply(paths[frozen_names], fread)
+sample_levels <- c("C I1", "C I2", "C I3", "C BF1", "C BF2", "C BF3",
+                   "P I1", "P I2", "P I3", "P BF1", "P BF2", "P BF3")
+coefficient_labels <- c(condition_adjusted = "Adjusted condition", cycle2_interaction = "Cycle 2 interaction",
+                        cycle3_interaction = "Cycle 3 interaction", condition_cycle_omnibus = "Interaction omnibus")
+condition_values <- c(Control = phage_uv_condition_colours[["control"]],
+                      `Phage-UV` = phage_uv_condition_colours[["treatment"]])
+pub <- theme_phage_uv(base_size = 7.5) + theme(
+  axis.text = element_text(size = 6.5), axis.title = element_text(size = 7.5),
+  legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+  strip.text = element_text(size = 7), plot.tag = element_text(size = 10, face = "bold"),
+  plot.margin = margin(5, 6, 5, 5), legend.position = "bottom")
+device <- function(filename, width, height, ...) {
+  if (isTRUE(capabilities("aqua"))) grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+  else grDevices::pdf(file = filename, width = width, height = height, ...)
+}
+save_figure <- function(name, plot, height) {
+  p <- file.path(out, "figures", name)
+  ggsave(p, plot, width = 180/25.4, height = height/25.4, device = device)
+  stopifnot(file.exists(p), file.info(p)$size > 0)
+}
+context_sample <- function(x) x[unique(round(seq(1, nrow(x), length.out = min(20000L, nrow(x)))))]
+```
+
+## S1: library and model diagnostics
+
+```{r}
+#| label: s1-diagnostics
+d <- copy(frozen[["supplementary_model_diagnostics.tsv"]])
+filter <- d[panel == "filtering"]
+filter[, item := factor(item, levels = c("Retained", "Input"))]
+a <- ggplot(filter, aes(median, item)) + geom_col(fill = "#777777", width = .6) +
+  geom_text(aes(label = format(median, big.mark = ",")), hjust = -.1, size = 2.3) +
+  scale_x_continuous(labels = scales::label_number(scale = 1e-6, suffix = "M"),
+                     expand = expansion(mult = c(0, .35))) + labs(x = "Features", y = NULL, tag = "A") + pub
+libraries <- fread(paths[["libraries"]])
+stopifnot(nrow(libraries) == 12L)
+libraries[, sample_short := factor(paste0(ifelse(condition == "control", "C ", "P "),
+  ifelse(phase == "initial", "I", "BF"), cycle), levels = sample_levels)]
+libraries[, condition_label := factor(ifelse(condition == "control", "Control", "Phage-UV"), levels = names(condition_values))]
+libraries[, phase := factor(phase, levels = c("initial", "backflush"))]
+b <- ggplot(libraries, aes(sample_short)) +
+  geom_segment(aes(xend = sample_short, y = retained_library_size_after_filtering/1e6,
+                   yend = effective_library_size/1e6), colour = "#AAAAAA", linewidth = .4) +
+  geom_point(aes(y = retained_library_size_after_filtering/1e6), shape = 1, size = 1.8, colour = "#777777") +
+  geom_point(aes(y = effective_library_size/1e6, fill = condition_label, shape = phase),
+             size = 2.3, colour = "#222222", stroke = .4) +
+  scale_fill_manual(values = condition_values, name = "Membrane") +
+  scale_shape_manual(values = c(initial = 21, backflush = 24), breaks = c("initial", "backflush"),
+                     labels = c("Initial", "Backflush"), name = "Phase") +
+  guides(fill = guide_legend(override.aes = list(shape = 21))) +
+  labs(x = NULL, y = "Library size (millions)", tag = "B") + pub + theme(legend.box = "vertical")
+disp <- d[panel == "dispersion"]
+disp[, model := factor(sub(":.*", "", item), levels = c("Adjusted condition", "Condition x cycle"))]
+disp[, metric := factor(sub(".*: ", "", item), levels = c("Trended dispersion", "Tagwise dispersion", "QL posterior variance"))]
+c <- ggplot(disp, aes(model, median, ymin = q25, ymax = q75)) +
+  geom_errorbar(width = .16, colour = "#555555", linewidth = .5) +
+  geom_point(shape = 21, fill = "white", size = 2.5) + facet_wrap(~metric, scales = "free_y", nrow = 1) +
+  scale_x_discrete(labels = c("Adjusted condition" = "Adjusted\ncondition", "Condition x cycle" = "Condition x\ncycle")) +
+  labs(x = NULL, y = "Median and interquartile range", tag = "C") + pub
+save_figure("supplementary-model-diagnostics.pdf", wrap_elements(full = (a | b) + plot_layout(widths = c(.7, 1.3))) / c, 165)
+fwrite(libraries, file.path(out, "tables/s1_library_display.tsv"), sep = "\t")
+```
+
+## S2: complete-universe interaction landscapes
+
+```{r}
+#| label: s2-interactions
+interaction <- fread(paths[["interaction"]], select = c("feature_id", "coefficient", "logFC", "logCPM", "FDR"))
+interaction[, coefficient_label := factor(ifelse(grepl("cycle2", coefficient), "Cycle 2 interaction", "Cycle 3 interaction"),
+                                          levels = coefficient_labels[2:3])]
+counts <- interaction[, .(tested_features = .N, supported_features = sum(FDR < .05),
+                          supported_abs_logFC_1 = sum(FDR < .05 & abs(logFC) >= 1)), by = coefficient]
+ip <- rbindlist(lapply(split(interaction, interaction$coefficient), function(x)
+  rbindlist(list(context_sample(x[FDR >= .05])[, display_class := "Context"],
+                x[FDR < .05][, display_class := "BH FDR < 0.05"]))))
+counts[, coefficient_label := ifelse(grepl("cycle2", coefficient), "Cycle 2 interaction", "Cycle 3 interaction")]
+a <- ggplot(ip, aes(logCPM, logFC)) +
+  geom_point(data = ip[display_class == "Context"], shape = 1, colour = "#A8A8A8", size = .45, stroke = .2, alpha = .35) +
+  geom_point(data = ip[display_class != "Context"], shape = 16, colour = "#222222", size = .75) +
+  geom_hline(yintercept = 0, colour = "#555555", linewidth = .3) +
+  facet_wrap(~coefficient_label, nrow = 1, scales = "free_y") +
+  geom_text(data = counts, aes(x = Inf, y = Inf, label = sprintf("%s at BH FDR < 0.05", supported_features)),
+            inherit.aes = FALSE, hjust = 1.05, vjust = 1.3, size = 2.3) +
+  labs(x = "Average log2 CPM", y = "Interaction log2 fold-change", tag = "A") + pub
+omnibus <- fread(paths[["omnibus"]], select = c("feature_id", "logCPM", "FDR"))
+omnibus[, supported := FDR < .05]
+op <- rbindlist(list(context_sample(omnibus[supported == FALSE])[, display_class := "Context"],
+                     omnibus[supported == TRUE][, display_class := "BH FDR < 0.05"]))
+b <- ggplot(op, aes(logCPM, -log10(pmax(FDR, .Machine$double.xmin)))) +
+  geom_point(data = op[display_class == "Context"], shape = 1, colour = "#A8A8A8", size = .45, stroke = .2, alpha = .35) +
+  geom_point(data = op[display_class != "Context"], shape = 16, colour = "#222222", size = .7) +
+  geom_hline(yintercept = -log10(.05), colour = "#777777", linewidth = .3, linetype = "dotted") +
+  annotate("text", x = Inf, y = Inf, label = sprintf("%s at BH FDR < 0.05", sum(omnibus$supported)),
+           hjust = 1.05, vjust = 1.3, size = 2.3) +
+  labs(x = "Average log2 CPM", y = "-log10(BH FDR)", tag = "B") + pub
+recomputed_counts <- rbindlist(list(counts[, !"coefficient_label"], data.table(coefficient = "condition_cycle_omnibus",
+  tested_features = nrow(omnibus), supported_features = sum(omnibus$supported), supported_abs_logFC_1 = NA_integer_)))
+stopifnot(isTRUE(all.equal(recomputed_counts, frozen[["supplementary_interaction_feature_counts.tsv"]], check.attributes = FALSE)))
+save_figure("supplementary-cycle-interaction-landscape.pdf", a / b, 175)
+fwrite(ip, file.path(out, "tables/s2_interaction_display.tsv"), sep = "\t")
+fwrite(op, file.path(out, "tables/s2_omnibus_display.tsv"), sep = "\t")
+```
+
+## S3: all functional coefficients
+
+```{r}
+#| label: s3-functional
+functional <- copy(frozen[["supplementary_functional_coefficients.tsv"]])
+functional[, coefficient_label := factor(coefficient_label, levels = coefficient_labels)]
+functional[, label := factor(label, levels = rev(unique(functional[order(tier, set_id), label])))]
+p <- ggplot(functional, aes(signed_log10_fdr, label)) +
+  geom_vline(xintercept = 0, colour = "#555555", linewidth = .3) +
+  geom_point(data = functional[supported == FALSE], aes(colour = set_id), shape = 21, fill = "white", size = 2.4, stroke = .65) +
+  geom_point(data = functional[supported == TRUE], aes(fill = set_id, colour = set_id), shape = 21, size = 2.6) +
+  geom_text(data = functional[supported == TRUE], aes(label = sprintf("FDR = %.2g", FDR)), hjust = -0.12, size = 2.3) +
+  facet_wrap(~coefficient_label, ncol = 1, scales = "free_x") +
+  scale_colour_manual(values = phage_uv_signature_colours, guide = "none") +
+  scale_fill_manual(values = phage_uv_signature_colours, guide = "none") +
+  scale_x_continuous(expand = expansion(mult = c(.08, .35))) +
+  labs(x = "Signed -log10(BH FDR)\nOmnibus values are non-directional and positive", y = NULL) + pub
+save_figure("supplementary-functional-coefficients.pdf", p, 240)
+```
+
+## S4: MAG coherence
+
+```{r}
+#| label: s4-mag-coherence
+mag_counts <- copy(frozen[["supplementary_mag_coherence_counts.tsv"]])
+mag_counts[, coefficient_label := factor(coefficient_label, levels = coefficient_labels[1:3])]
+mag_counts[, direction_label := factor(direction_label, levels = c("Down-ranked", "Up-ranked"))]
+mag <- fread(paths[["mag"]])[eligible == TRUE]
+mag[, supported := FDR < .05]
+mag[, coefficient_label := factor(coefficient_labels[coefficient], levels = coefficient_labels[1:3])]
+check_counts <- mag[supported == TRUE, .(MAGs = .N), by = .(coefficient, Direction)]
+expected_counts <- mag_counts[, .(coefficient, Direction, MAGs)]
+setorder(check_counts, coefficient, Direction); setorder(expected_counts, coefficient, Direction)
+stopifnot(isTRUE(all.equal(check_counts, expected_counts, check.attributes = FALSE)))
+a <- ggplot(mag_counts, aes(coefficient_label, MAGs, fill = direction_label)) +
+  geom_col(position = position_dodge(.72), width = .64, colour = "#222222", linewidth = .25) +
+  geom_text(aes(label = MAGs), position = position_dodge(.72), vjust = -.35, size = 2.4) +
+  scale_fill_manual(values = c("Down-ranked" = "#666666", "Up-ranked" = "#B9B9B9"), name = "Rank direction") +
+  scale_y_continuous(expand = expansion(mult = c(0, .15))) + labs(x = NULL, y = "Supported MAGs", tag = "A") + pub
+b <- ggplot(mag, aes(median_logFC, -log10(pmax(FDR, .Machine$double.xmin)))) +
+  geom_point(data = mag[supported == FALSE], shape = 1, colour = "#9A9A9A", size = 1, stroke = .4, alpha = .65) +
+  geom_point(data = mag[supported == TRUE], shape = 16, colour = "#222222", size = 1.1, alpha = .72) +
+  geom_vline(xintercept = 0, colour = "#777777", linewidth = .3) +
+  geom_hline(yintercept = -log10(.05), colour = "#777777", linewidth = .3, linetype = "dotted") +
+  facet_wrap(~coefficient_label, nrow = 1, scales = "free_x") +
+  labs(x = "Median gene-level log2 fold-change", y = "-log10(BH FDR)", tag = "B") + pub
+save_figure("supplementary-mag-coherence.pdf", a / b, 170)
+fwrite(mag, file.path(out, "tables/s4_mag_display.tsv"), sep = "\t")
+```
+
+## S5: all five population-genomic matrices
+
+```{r}
+#| label: s5-population-matrices
+pair <- copy(frozen[["supplementary_population_genomics_cells.tsv"]])
+pair[, panel_label := factor(panel_label, levels = unique(panel_label))]
+pair[, sample_x := factor(sample_x, levels = sample_levels)]
+pair[, sample_y := factor(sample_y, levels = rev(sample_levels))]
+p <- ggplot(pair, aes(sample_x, sample_y)) +
+  geom_tile(aes(fill = consensus_differences_per_mbp), colour = "white", linewidth = .2) +
+  geom_tile(data = pair[diagonal == TRUE], fill = "white", colour = "#D0D0D0", linewidth = .2) +
+  facet_wrap(~panel_label, ncol = 2, labeller = labeller(panel_label = function(x) sub(" - ", "\n", x, fixed = TRUE))) +
+  scale_fill_gradientn(colours = c("#F7FBFF", "#9ECAE1", "#4292C6", "#084594"), trans = "log10",
+                       na.value = "#EAEAEA", name = "Consensus differences\nper callable Mbp") +
+  guides(fill = guide_colourbar(display = "rectangles", nbin = 100)) + coord_equal() + labs(x = NULL, y = NULL) + pub +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5, size = 6.5),
+        axis.ticks = element_blank(), axis.line = element_blank(), legend.key.width = grid::unit(12, "mm"))
+save_figure("supplementary-population-genomics.pdf", p, 245)
+```
+
+## Provenance and checksums
+
+```{r}
+#| label: provenance-and-checksums
+notebook <- normalizePath(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"), mustWork = TRUE)
+stopifnot(file.copy(notebook, file.path(out, "source/supplementary_publication_figures.qmd")))
+fwrite(data.table(input = names(paths), path = unname(paths), bytes = file.info(paths)$size,
+                 md5 = unname(tools::md5sum(paths))), file.path(out, "tables/publication_input_provenance.tsv"), sep = "\t")
+fwrite(data.table(figure = paste0("S", 1:5), width_mm = 180, height_mm = c(165, 175, 240, 170, 245),
+                 models_refitted = FALSE, minimum_text_pt = 6.5, source_notebook = notebook,
+                 source_notebook_md5 = unname(tools::md5sum(notebook))),
+       file.path(out, "tables/publication_layout_metadata.tsv"), sep = "\t")
+files <- sort(list.files(out, recursive = TRUE, full.names = TRUE))
+fwrite(data.table(path = substring(files, nchar(out) + 2L), bytes = file.info(files)$size,
+                 md5 = unname(tools::md5sum(files))), file.path(out, "output_checksums.md5.tsv"), sep = "\t")
+cat(sprintf("Created five supplementary publication-size candidates in %s\n", out))
+```

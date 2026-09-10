@@ -1,5 +1,71 @@
 # Citation audit
 
+## Current extension, 2026-09-09
+
+The historical audit below does not cover the returned 16S or newly audited
+upstream Methods. The canonical bibliography now contains **41 DOI-addressed
+journal articles, one DOI-addressed preprint and one software record**.
+`tests/test_references.R` verifies unique
+keys/DOIs, article and software metadata, the preserved 16-record scaffold and
+the new citations in versioned revision payloads. It explicitly
+does not verify live Zotero fields or claim full manuscript citation coverage.
+
+New primary-source-verified records are Love2014 (DESeq2), Zhang2021SpacePHARER,
+Edgar2007 (PILER-CR), MinCED, Callahan2016 (DADA2), Martin2011 (cutadapt),
+Quast2013 (SILVA) and McMurdie2013 (phyloseq). Their DOI/primary URLs and exact
+insertion payloads are in `manuscript/revisions/2026-09-09-community-and-host-methods.md`
+and `manuscript/revisions/2026-09-09-16s-method-citations.md`. All eight references
+are present as suggested static reference entries in live v2; the latter four
+and the cited 16S Methods were verified at `20260909T115205Z`.
+
+Readback `20260909T123927Z` verifies three cited upstream Methods paragraphs
+and 12 additional reference entries, each exactly once. Payload:
+`manuscript/revisions/2026-09-09-upstream-method-citations.md`. The tools already
+named in those paragraphs now cite MEGAHIT, MAGScoT, dRep, BWA-MEM, CoverM,
+geNomad, VirSorter2, ViraLM, DeepMicroClass, Vclust and CheckV. The missing
+Dahl2022 entry cited by Figure 1/S6 is now present. All remain static suggestions.
+CheckV's executed version/database are included from archived provenance;
+BWA-MEM is explicitly cited as a preprint; geNomad uses its final 2024 volume
+citation. Published spelling ViraLM replaces the prose label VirALM, without
+editing historical code paths or the separate workflow SVG.
+
+Readback `20260909T140403Z` confirms the three-paragraph read-processing,
+coassembly and count-construction extension plus four references, each once:
+Chen2018fastp, Kopylova2012SortMeRNA, Li2009SAMtools and Quinlan2010BEDTools.
+The payload is `manuscript/revisions/2026-09-09-read-processing-and-counting.md`.
+These are static native suggestions, not live Zotero fields. Exact execution
+evidence now covers 35 preprocessing reports and 260 archived run records.
+
+Readback `20260909T143027Z` verifies the expanded genome-recovery Methods:
+two coassembly/binning/dereplication paragraphs and one gene-coordinate
+paragraph, plus six reference entries, once each in Normal text. New primary
+references are Alneberg2014CONCOCT, Wu2016MaxBin, Kang2019MetaBAT,
+Nissen2021Vamb, Pan2023SemiBin2 and Tisza2026CenoteTaker3. Cenote-Taker cites
+its published Peer Community Journal article (2026), not the former preprint.
+MaxBin uses its 2016 volume year rather than 2015 online publication.
+Payload: `manuscript/revisions/2026-09-09-genome-recovery.md`. All 128 targeted
+live checks pass; these remain native suggestions, not accepted text or fields.
+
+Still open: full per-MAG GFF provenance, MAG-quality and quantification
+sensitivity; broader biological literature coverage and bibliography
+ordering; supported Zotero library writes and conversion to live citation fields.
+Do not infer exact execution versions from current installed environments.
+
+Ten original Zotero metadata names remain preserved in v2. Refreshed read-only
+audit `zotero_library_match_audit_20260909T143219Z.json` finds 29 unique exact
+matches among 42 DOI records. Newly resolved existing binning items are CONCOCT
+`VFGQVCUV`, MaxBin2 `VG4YBVVJ`, MetaBAT2 `G2FTDFID`, Vamb `TUH4BF9S` and
+SemiBin2 `6NQ6XR5D`. Prior matches include SortMeRNA `VWANIQK4`, SAMtools
+`CPRMTJYC` and BEDTools `PTUPGCA6`; reuse these items. Fastp and the published
+Cenote-Taker 3 paper have no exact DOI match. Thirteen DOI records remain unmatched. BWA-MEM has
+no DOI or title-query match. MinCED has no DOI and is outside this audit.
+Reuse matched item keys recorded in the audit/handoff; do not duplicate them.
+This DOI-match count does not establish which citations are live fields.
+No Zotero library writes have occurred.
+The pending write-key question must not interrupt other manuscript work.
+
+## Historical audit (scope frozen before collaborator return)
+
 Audit date: 2026-08-29
 
 ## Canonical source and scope

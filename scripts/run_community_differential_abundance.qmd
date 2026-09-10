@@ -19,6 +19,12 @@ and cannot separate treatment from membrane identity.
 bash scripts/run_qmd.sh scripts/run_community_differential_abundance.qmd [output-directory]
 ```
 
+For a versioned figure-only revision from the existing checksum-bound tables,
+append `--figure-only` after a new output directory. This does not refit models
+or ordinations. Add `--publication-size` alongside `--figure-only` for the
+180 mm-wide master with archived notebook and input provenance. Publication
+mode refuses to execute without `--figure-only`. Existing runs remain intact.
+
 ```{r}
 #| label: community-differential-abundance
 #| echo: true
@@ -169,6 +175,11 @@ repo_root <- normalizePath(getwd())
 if (!file.exists(file.path(repo_root, "R", "figure_style.R"))) abort("Run from the repository root")
 project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
 args <- commandArgs(trailingOnly = TRUE)
+figure_only <- "--figure-only" %in% args
+publication <- "--publication-size" %in% args
+if (publication && !figure_only) abort("Publication mode requires --figure-only; never refit models for layout")
+args <- args[!args %in% c("--figure-only", "--publication-size")]
+if (length(args) > 1L) abort("Provide one output directory and optional --figure-only")
 output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
   file.path(project_data, "derived", "community_differential_abundance")
 if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
@@ -177,6 +188,27 @@ dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
 dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
 on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
 
+if (figure_only) {
+  table_root <- file.path(project_data, "derived", "community_differential_abundance", "tables")
+  source_tables <- c("mag_deseq2_condition_only.tsv", "mag_deseq2_phase_cycle_adjusted.tsv",
+                    "mag_matched_clr.tsv", "votu_deseq2_condition_only.tsv",
+                    "votu_deseq2_phase_cycle_adjusted.tsv", "votu_matched_clr.tsv",
+                    "community_restricted_permanova.tsv", "community_pcoa.tsv", "analysis_summary.tsv")
+  if (any(!file.exists(file.path(table_root, source_tables)))) abort("Missing canonical plot source tables")
+  inventory <- fread(file.path(dirname(table_root), "output_checksums.md5.tsv"))
+  wanted <- paste0("tables/", source_tables)
+  expected <- inventory[match(wanted, path), md5]
+  actual <- unname(tools::md5sum(file.path(table_root, source_tables)))
+  if (anyNA(expected) || !identical(actual, expected)) abort("Canonical plot source checksums do not match")
+  for (name in source_tables) {
+    if (!file.copy(file.path(table_root, name), file.path(staging, "tables", name))) abort("Cannot preserve %s", name)
+  }
+  pcoa <- fread(file.path(table_root, "community_pcoa.tsv"))
+  pcoa[, `:=`(condition = factor(condition, levels = c("control", "treatment")),
+             phase = factor(phase, levels = c("initial", "backflush")))]
+  mag_adjusted <- fread(file.path(table_root, "mag_deseq2_phase_cycle_adjusted.tsv"))
+  votu_adjusted <- fread(file.path(table_root, "votu_deseq2_phase_cycle_adjusted.tsv"))
+} else {
 paths <- list(
   counts = file.path(project_data, "quantification", "mags_votu", "coverage", "metagenomics", "coverm", "output-Read_Count.tsv"),
   metadata = file.path(repo_root, "metadata", "sample_metadata.tsv"),
@@ -267,6 +299,7 @@ for (entry in list(
   list(permanova, "community_restricted_permanova.tsv"), list(pcoa, "community_pcoa.tsv"),
   list(summary_table, "analysis_summary.tsv")
 )) fwrite(entry[[1L]], file.path(staging, "tables", entry[[2L]]), sep = "\t")
+}
 
 source(file.path(repo_root, "R", "figure_style.R"))
 condition_colours <- c(control = phage_uv_condition_colours[["control"]], treatment = phage_uv_condition_colours[["phage_uv"]])
@@ -289,26 +322,70 @@ volcano_data <- rbindlist(list(
     label = fifelse(supported_fdr05_lfc1, feature_id, ""), community = "vOTU"
   )]
 ))
-volcano_data[, support := fifelse(supported_fdr05_lfc1, "FDR < 0.05 and |log2FC| >= 1", "Not supported")]
+volcano_data[, support := fifelse(supported_fdr05_lfc1,
+  fifelse(log2FoldChange > 0, "Phage-UV higher", "Control higher"), "Not supported")]
 p_da <- ggplot(volcano_data, aes(log2FoldChange, -log10(pmax(padj, .Machine$double.xmin)), colour = support)) +
   geom_point(alpha = 0.72, size = 1.25) + facet_wrap(~ community, scales = "free_y") +
-  geom_text(aes(label = label), size = 2.4, nudge_y = 0.04, check_overlap = TRUE, show.legend = FALSE) +
-  scale_colour_manual(values = c("FDR < 0.05 and |log2FC| >= 1" = "#6A3D9A", "Not supported" = "#BDBDBD")) +
+  geom_text(aes(label = label), size = 2.4, hjust = 0, nudge_x = 0.08,
+            nudge_y = 0.04, check_overlap = TRUE, show.legend = FALSE) +
+  scale_colour_manual(values = c("Control higher" = unname(phage_uv_condition_colours[["control"]]),
+                                "Phage-UV higher" = unname(phage_uv_condition_colours[["phage_uv"]]),
+                                "Not supported" = "#BDBDBD"),
+                      breaks = c("Control higher", "Phage-UV higher", "Not supported"), drop = FALSE) +
   geom_vline(xintercept = c(-1, 1), linetype = 3, colour = "#777777") +
-  labs(x = expression(log[2]("Phage-UV / control abundance")), y = expression(-log[10]("BH FDR")), colour = NULL, tag = "B") +
+  labs(x = expression(log[2]("Phage-UV / control abundance")), y = expression(-log[10]("BH FDR")),
+       colour = "Adjusted contrast", tag = "B") +
   theme_phage_uv(9)
 
 figure <- p_ordination / p_da + plot_annotation(
-  title = "Exploratory microbial and viral community differences",
-  caption = paste(strwrap(paste(
-    "Condition-only poster replication and phase/cycle-adjusted DESeq2 screens use repeated samples from one membrane per condition.",
-    "They do not establish a replicated treatment effect; matched CLR and restricted-permutation results are provided in the source tables."
-  ), width = 145), collapse = "\n"), tag_levels = NULL
+  # The manuscript/report carries the title and full caveats below the image.
+  # Keep only panel labels inside the publication artwork.
+  tag_levels = NULL
 )
-ggsave(file.path(staging, "figures", "community-differential-abundance.pdf"), figure, width = 12, height = 9, device = grDevices::pdf)
+if (publication) {
+  # Frozen ordination and contrast tables; no recalculation or selection change.
+  p_ordination$layers[[3L]] <- ggrepel::geom_text_repel(aes(label = cycle),
+    size = 7 / .pt, colour = "#222222", seed = 79569, max.overlaps = Inf,
+    box.padding = .25, point.padding = .35, min.segment.length = 0,
+    segment.colour = "#AAAAAA", segment.size = .2, show.legend = FALSE)
+  p_da$layers[[2L]]$aes_params$colour <- "#222222"
+  p_da$layers[[2L]]$aes_params$size <- 6.5 / .pt
+  final_theme <- theme(axis.text = element_text(size = 7), axis.title = element_text(size = 8),
+    strip.text = element_text(size = 7), legend.position = "bottom",
+    legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+    legend.key.width = unit(4, "mm"), legend.key.height = unit(4, "mm"),
+    legend.margin = margin(0, 0, 0, 0), plot.margin = margin(3, 3, 3, 3),
+    plot.tag = element_text(size = 10, face = "plain"))
+  p_ordination <- p_ordination +
+    scale_shape_manual(values = c(initial = 16, backflush = 17),
+                       breaks = c("initial", "backflush"),
+                       labels = c("Initial", "Backflush"), name = "Phase") + final_theme
+  p_da <- p_da + labs(x = "log2(Phage-UV / control abundance)", y = "-log10(BH FDR)") + final_theme
+  figure <- p_ordination / p_da
+  publication_device <- function(filename, width, height, ...) {
+    if (isTRUE(capabilities("aqua"))) grDevices::quartz(type = "pdf", file = filename,
+      width = width, height = height, ...)
+    else grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+  ggsave(file.path(staging, "figures", "community-differential-abundance.pdf"), figure,
+         width = 180, height = 180, units = "mm", device = publication_device)
+  dir.create(file.path(staging, "source"))
+  notebook <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+  stopifnot(file.copy(notebook, file.path(staging, "source", basename(notebook))))
+  fwrite(data.table(metric = c("models_refitted", "source_notebook", "source_notebook_md5"),
+                   value = c("false", notebook, unname(tools::md5sum(notebook)))),
+         file.path(staging, "tables", "publication_layout_metadata.tsv"), sep = "\t")
+  fwrite(data.table(input = source_tables, path = file.path(table_root, source_tables),
+                   bytes = file.info(file.path(table_root, source_tables))$size,
+                   md5 = unname(tools::md5sum(file.path(table_root, source_tables)))),
+         file.path(staging, "tables", "publication_input_provenance.tsv"), sep = "\t")
+} else {
+  ggsave(file.path(staging, "figures", "community-differential-abundance.pdf"), figure, width = 12, height = 9, device = grDevices::pdf)
+}
 
 writeLines(c(
   "# Community differential-abundance run", "",
+  if (figure_only) "- Figure-only revision: canonical source-table checksums verified; all nine tables copied byte-for-byte; no models refitted." else "- Count models and descriptive sensitivities fitted in this run.",
   "- Reconstructs the original condition-only MAG DESeq2 analysis.",
   "- Adds phase/cycle-adjusted DESeq2 screens for 348 MAGs and 616 high-quality vOTUs with viral genes.",
   "- Adds six-cell matched CLR effect sizes and exhaustive 2^6 sign-flip tests.",

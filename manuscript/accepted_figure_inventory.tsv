@@ -1,0 +1,2 @@
+figure_id	author_status	accepted_date	version	placement	figure_number	data_manifest_id	canonical_artifact	canonical_source	legend_file	live_document_status
+integrated_workflow	accepted_provisionally	2026-09-07	workflow_metro_v10	manuscript_overview	unassigned	workflow_metro	PRJEB79569/derived/workflow_metro_v10/study-analysis-workflow.pdf	scripts/build_workflow_metro.qmd	manuscript/figure_legends.md	pending_author_edit_review

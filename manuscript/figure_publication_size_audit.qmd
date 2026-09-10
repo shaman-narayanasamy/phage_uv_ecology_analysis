@@ -1,0 +1,88 @@
+---
+title: "Publication-size figure audit"
+format: html
+execute:
+  enabled: false
+---
+
+Read-only audit of the current vector masters. A provisional 180 mm full-width
+layout and 6 pt minimum ordinary text are editorial screening targets, not
+journal requirements. Subscripts may legitimately be smaller; every flag still
+requires visual review. Passing this screen alone does not prove legibility.
+No source figure or live document is modified. Earlier versions remain intact.
+
+```sh
+python scripts/run_python_qmd.py manuscript/figure_publication_size_audit.qmd OUTPUT_DIRECTORY
+```
+
+```{python}
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+import pdfplumber
+
+repo = Path.cwd()
+root = Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out = Path(sys.argv[1]).resolve()
+if out.exists():
+    raise SystemExit('Refusing to overwrite an audit directory')
+sources = [
+    {'label': 'Figure 1', 'path': 'community_figure_publication_2026-09-09-v4/figures/community-structure-figure-one.pdf'},
+    {'label': 'Figure 2', 'path': 'manuscript_figures_publication_2026-09-09-v2/figures/global-transcriptome-structure.pdf'},
+    {'label': 'Figure 3', 'path': 'manuscript_figures_publication_2026-09-09-v2/figures/functional-organism-restructuring.pdf'},
+    {'label': 'Figure 4', 'path': 'recurrence_figure_publication_2026-09-09-v2/figures/recurrent-gene-structure.pdf'},
+    {'label': 'Figure 5', 'path': 'population_figure_publication_2026-09-09-v2/figures/population-genomic-heterogeneity.pdf'},
+]
+sources += json.loads((repo/'manuscript/supplementary_report_sources.json').read_text())['figures']
+# Publication masters can lead the separately versioned companion. Keep the
+# companion's currently released source specification unchanged until its next
+# complete rebuild, while screening the current checked master for S1-S5 here.
+for item in sources:
+    if item['label'] in ['S1', 'S2', 'S3', 'S4', 'S5']:
+        item['path'] = 'supplementary_figures_publication_2026-09-09-v2/figures/' + Path(item['path']).name
+    if item['label'] in ['S6', 'S7']:
+        item['path'] = 'taxonomic_figures_publication_2026-09-09-v3/figures/' + Path(item['path']).name
+    if item['label'] == 'S8':
+        item['path'] = 'network_figure_publication_2026-09-09-v2/figures/host-phage-network-evidence-audit.pdf'
+    if item['label'] == 'S9':
+        item['path'] = 'abundance_figure_publication_2026-09-09-v2/figures/community-differential-abundance.pdf'
+assert len(sources) == 15
+if len(sys.argv) > 2:
+    sources.append({'label': 'Figure 1 candidate', 'path': sys.argv[2]})
+for item in sources:
+    if not (root/item['path']).is_file():
+        raise SystemExit(f'Missing source: {item}')
+out.mkdir(parents=True)
+records = []
+for item in sources:
+    source = root/item['path']
+    with pdfplumber.open(source) as pdf:
+        assert len(pdf.pages) == 1, item
+        page = pdf.pages[0]
+        scale = (180/25.4*72)/float(page.width)
+        chars = [c for c in page.chars if c['text'].strip()]
+        # pdfminer reports vertical glyph advance as size for rotated text.
+        # For 90-degree axis labels, bbox width is the true nominal font size.
+        def text_size(c):
+            return float(c['size'] if c['upright'] else c['width'])
+        sizes = sorted(text_size(c)*scale for c in chars)
+        tiny = [c for c in chars if text_size(c)*scale < 6]
+        record = dict(label=item['label'], path=str(source),
+            sha256=hashlib.sha256(source.read_bytes()).hexdigest(), bytes=source.stat().st_size,
+            width_mm=round(float(page.width)/72*25.4,2), height_mm=round(float(page.height)/72*25.4,2),
+            proposed_width_mm=180, scaled_height_mm=round(float(page.height)*scale/72*25.4,2),
+            scale=scale, nonspace_characters=len(chars), raster_objects=len(page.images),
+            minimum_scaled_text_pt=round(min(sizes),2) if sizes else None,
+            median_scaled_text_pt=round(sizes[len(sizes)//2],2) if sizes else None,
+            below_6pt_characters=len(tiny), below_6pt_fraction=round(len(tiny)/max(1,len(chars)),3),
+            small_text_sample=''.join(c['text'] for c in tiny)[:180],
+            visual_status='pending', font_report=subprocess.run(['pdffonts',str(source)],check=True,capture_output=True,text=True).stdout)
+        records.append(record)
+        print(item['label'], record['width_mm'], record['minimum_scaled_text_pt'], record['median_scaled_text_pt'], record['below_6pt_fraction'], flush=True)
+    if item['label'] in ['Figure 1','Figure 2','Figure 3','S6','S8','Figure 1 candidate']:
+        subprocess.run(['pdftoppm','-singlefile','-scale-to-x','1063','-scale-to-y','-1','-png',str(source),str(out/item['label'].replace(' ','-'))],check=True,capture_output=True)
+    (out/'audit.json').write_text(json.dumps(dict(target_width_mm=180,minimum_text_screen_pt=6,
+        boundary='Editorial screen, not journal conformance or visual acceptance; live preview provenance must be checked separately',figures=records),indent=2)+'\n')
+```

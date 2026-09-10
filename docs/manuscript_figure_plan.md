@@ -12,13 +12,39 @@ Every candidate and supplementary figure must use
 
 ## Current author-directed manuscript allocation
 
+### Author's delivery checklist (queued 2026-09-09)
+
+- [ ] Zotero-managed citations and bibliography: verify library metadata,
+  de-duplicate by DOI, and verify live fields and bibliography after refresh.
+  A static bibliography or import payload alone does not complete this task.
+- [ ] Review line numbers: verify visible numbering in the review export,
+  including page transitions. A checked control alone is not verification.
+- [ ] Publication-quality figures: retain vector masters, embedded fonts,
+  readable labels at final dimensions and high-resolution document previews;
+  render and inspect every main and supplementary figure. Figures 1-5 and
+  supplementary S1-S10 pass the current provisional 180 mm size screen and
+  have verified live previews (latest readback 184447Z, 156 checks).
+  All 15 caption pairs received source-checked standalone clarifications;
+  live readback 191526Z and exact text/image-preservation test pass.
+  Journal-specific dimensions and full rendered typography remain open.
+- [ ] Separate supplementary/extended report: maintain a versioned companion
+  with its own legends, source-data inventory and cross-references. The existing
+  v2/v3 companions are preserved; v4 includes all current supplementary masters
+  and the revised canonical legends. Its 14 pages and six uploaded files are
+  verified in Drive folder `1hTwcD70qWQG18oDYQLzmTMljsXhb5HlT`. Adapt naming/
+  format after journal choice; do not call it a final journal-compliant
+  submission yet. Package the two new denominator-audit TSVs with the next
+  planned companion update, not by overwriting the verified v4 archive.
+
+These are delivery requirements, not grounds to pause other manuscript work.
+
 The working draft uses the following labels so that every quantitative claim has
 an explicit destination. These labels can change during author review without
 renaming the canonical artifacts.
 
 1. Figure 1: `community-structure-figure-one.pdf`.
 2. Figure 2: `global-transcriptome-structure.pdf`.
-3. Figure 3: `transcriptome-response-architecture.pdf`.
+3. Figure 3: `functional-organism-restructuring.pdf`.
 4. Figure 4: `recurrent-gene-structure.pdf`.
 5. Figure 5: `population-genomic-heterogeneity.pdf`.
 6. Supplementary Figures S1-S5: model diagnostics, cycle interactions, all
@@ -28,11 +54,93 @@ renaming the canonical artifacts.
 8. Supplementary Figure S7: `votu-taxonomic-context.pdf`.
 9. Supplementary Figure S8: `host-phage-network-evidence-audit.pdf`.
 10. Supplementary Figure S9: `community-differential-abundance.pdf`.
+11. Supplementary Figure S10: `16s-longitudinal-community-context.pdf`.
+
+The 2026-09-09 figure-consistency revisions are listed below. Earlier pending
+companion notes in this chronological record are superseded by the verified
+v3 release. S10's current master is now in
+`derived/16s_figure_publication_2026-09-09-v2/`, 180 x 265 mm; its eight source
+tables are unchanged and the live replacement is verified at 184447Z.
+
+- Figure 1: `derived/community_figure_publication_2026-09-09-v4/figures/community-structure-figure-one.pdf`.
+  Native 180 x 200 mm, embedded fonts and minimum 6.5 pt text; same source
+  values and statistics, no baked title/caption. Its preview and both updated
+  captions are verified native suggestions in live v2 at `20260909T161333Z`.
+  Other 14 images remain unchanged. See `docs/figure_publication_size_audit.md`
+  for remaining final-size revisions; previous native-size QA is insufficient.
+- Figures 2 and 3: `derived/manuscript_figures_publication_2026-09-09-v2/figures/`.
+  Native 180 x 100 mm and 180 x 195 mm; embedded fonts, minimum 6.5 pt text,
+  dark MDS cycle labels and an unclipped SOS FDR label. Four source panels are
+  byte-identical; MDS was reused without recomputation. Both previews are
+  verified native suggestions at `20260909T162818Z`; captions and complete
+  manuscript prose are unchanged. Other 13 images remain unchanged.
+- Figure 4: `derived/recurrence_figure_publication_2026-09-09-v2/figures/recurrent-gene-structure.pdf`.
+  Native 180 x 200 mm, embedded fonts, minimum 6.5 pt text and a vector colour
+  scale. Upper panels are isolated from the heatmap's long label column to
+  prevent misalignment. All four frozen tables match byte-for-byte; selections
+  and values are unchanged. Native suggested replacement verified at
+  `20260909T164651Z`; all manuscript text and the other 14 images are unchanged.
+- Figure 5: `derived/population_figure_publication_2026-09-09-v2/figures/population-genomic-heterogeneity.pdf`.
+  Native 180 x 225 mm, embedded fonts and minimum 6.5 pt text. Three vertically
+  arranged panels retain the five-MAG cluster grid, distance ranges and focal
+  pairwise matrix. All three frozen source tables are byte-identical. Native
+  suggested replacement verified at `20260909T171509Z`; complete prose,
+  captions and all other 14 images remain unchanged. The next legend audit
+  should explicitly define C/P, I/BF, cluster identifiers and grey matrix cells.
+- S1-S5: `derived/supplementary_figures_publication_2026-09-09-v2/figures/`.
+  New native 180 mm vector masters with minimum 6.5 pt text and embedded fonts.
+  Heights are 165, 175, 240, 170 and 245 mm. All five frozen source tables are
+  copied byte-for-byte; nine inputs are hash-recorded. Every displayed
+  interaction point's ID and values match deterministic selection from the
+  original result tables. All five rendered layouts have been inspected.
+  Native suggested replacements are verified at `20260909T180753Z`: correct
+  sources/crops/aspects, unchanged text/captions, all 15 image IDs/order and ten
+  non-target images preserved. These masters are now included in the verified
+  companion v4 with complete revised captions. Preserve earlier versions.
+  S5's colour-key wording still needs alignment from "callable" to "compared"
+  Mbp; its values and selected set are independently denominator-verified.
+- S6/S7: `derived/taxonomic_figures_publication_2026-09-09-v3/figures/`.
+  Native 180 x 250/230 mm, embedded fonts and minimum 6.5 pt ordinary text.
+  S6 retains the stacked tree/profile with Figure 1's identical top-25 values
+  and microshades key. S7 keeps all 45 groups and the same 18 selected labels,
+  now horizontal. Eight source tables and two Newick trees are byte-identical.
+  Native suggested replacements verified at `20260909T182253Z`: all prose,
+  captions, image IDs/order and 13 non-target images preserved. No new allocation.
+- S10: `derived/16s_figure_top25_revision_2026-09-09/figures/16s-longitudinal-community-context.pdf`.
+  Top25 families recomputed from all ASV counts and SILVA taxonomy, with complete
+  denominator, separate classified/unclassified remainders, and shared named-family
+  colours matching Figure 1/S6. The full-depth collaborator rerun remains optional
+  future work, not a reason to withhold this explicitly subsampled descriptive view.
+- S8: `derived/network_figure_publication_2026-09-09-v2/figures/host-phage-network-evidence-audit.pdf`.
+  Native 180 x 260 mm with the network above stacked host/viral summaries;
+  four frozen tables unchanged. Embedded fonts, minimum 6.5 pt ordinary text.
+- S9: `derived/abundance_figure_publication_2026-09-09-v2/figures/community-differential-abundance.pdf`.
+  Native 180 x 180 mm, dark repelled cycle labels and readable keys. Nine frozen
+  tables unchanged; no model/ordination refit. S8/S9 native replacements are
+  verified at `20260909T183356Z`, preserving text/captions and 13 other images.
+- Family colours: `metadata/manuscript_family_colours.tsv`; no taxonomic synonym
+  merging or MAG/ASV equivalence is implied by the shared display colours.
+
+The former 15-family S6 and 12-family 16S PDFs are preserved as superseded
+versions, not current manuscript previews. Live insertion status is recorded in
+the Google Docs handoff and data manifest.
+
+S9 revision on 2026-09-09 is in
+`derived/community_differential_abundance_figure_revision_2026-09-09-v2/`.
+Use this direction-coloured version: the isolated control-higher MAG is green,
+not a purple generic significance highlight. The nine source tables are copied
+byte-for-byte from the canonical analysis; `--figure-only` verifies their
+checksums and does not refit models. V2 removes the baked-in overall title and
+internal caption; the full external legend carries their context. Both earlier
+PDFs remain preserved. The live Google Doc now contains the title-free
+direction-coloured preview: readback `20260909T134519Z` verifies its source,
+uncropped aspect ratio and caption pairing. The companion report uses the same
+v2 vector master.
 
 The independently delegated 16S result has returned and passed the canonical
 12-sample contract. Its longitudinal and workflow candidates are now available
-for allocation, but no main-versus-supplement placement is imposed before
-author review.
+for review; the descriptive 16S panel is provisionally allocated as S10 while
+the author's Figure 1 community-first decision is retained.
 
 ## Current candidate set
 
@@ -45,11 +153,15 @@ author review.
 2. Global transcriptome structure:
    - filtered-expression geometry across all 12 physical samples;
    - complete-universe adjusted-condition effect landscape.
-3. Transcriptome-wide, functional, and organism-resolved restructuring:
-   - complete-universe adjusted-condition effect landscape;
+3. Functional and organism-resolved restructuring:
    - competitive tests for all eight frozen functional categories;
    - supported MAGs in both expression directions;
    - the strongest organism-level effects with taxonomic context.
+
+   Revision on 2026-09-09: use the three-panel functional/organism artifact,
+   not the four-panel `transcriptome-response-architecture.pdf` candidate.
+   The latter repeats the adjusted-condition landscape already in Figure 2.
+   Both artifacts remain preserved; this is an editorial allocation change.
 4. Six-cell recurrent gene differences:
    - built as `recurrent-gene-structure.pdf` and visually checked;
    - sequential provenance from 361,907 tested features to 6,985 recurrent
@@ -79,7 +191,7 @@ author review.
 ## Returned 16S and complete-study overview candidates
 
 1. `16s-longitudinal-community-context.pdf`:
-   - top-12 family composition in aligned stacked bars;
+   - top-25 family composition in aligned stacked bars (2026-09-09 version);
    - directed Bray-Curtis PCoA trajectories across cycles;
    - observed-ASV and Shannon-diversity trajectories;
    - exact consecutive-cycle Bray-Curtis turnover derived from the unrarefied
@@ -92,13 +204,30 @@ author review.
      population-genomic, and CRISPR-link branches;
    - displays the one-membrane-per-condition inference boundary directly.
 
-Both artifacts are unnumbered candidates under
-`PRJEB79569/derived/16s_manuscript_integration/`. The workflow is a strong
-main-text overview candidate; the 16S longitudinal figure can either refine the
-community opening or become a dedicated supplementary figure after author
-review.
+The 16S candidate remains under `PRJEB79569/derived/16s_manuscript_integration/`.
+The author provisionally accepted the connected subway workflow on 2026-09-07:
+`PRJEB79569/derived/workflow_metro_v10/study-analysis-workflow.pdf` supersedes
+the earlier overview. It is incorporated into the local accepted-figure
+inventory with a complete legend in `manuscript/figure_legends.md`.
+Its final number and placement remain unassigned; the author's decision that
+Figure 1 describes the community is unchanged. Google Doc insertion remains
+pending review of the author's tracked edits. The 16S longitudinal figure can
+refine the community opening or become supplementary after author review.
 
 ## Preserved earlier layouts
+
+Author-review update, 2026-09-09: the transcriptome figure's redundant
+sample-design panel has been removed in the canonical Quarto source. The new
+`PRJEB79569/derived/manuscript_figure_revision_2026-09-09/figures/global-transcriptome-structure.pdf`
+contains MDS (A) and the adjusted-condition landscape (B) side by side. It was
+visually checked; MDS coordinates and the numerical summary are byte-identical
+to the prior build. Old outputs remain untouched. This is the Figure 2
+replacement awaiting insertion into the live Google Doc, not an additional
+figure. The legacy figure registry below describes preserved versions.
+
+The v11 subway restyle remains a separate agent's live SVG draft, not an
+accepted replacement for v10. Follow
+`notes/handoff-2026-09-09-metro-v11-svg-draft.md` before editing that figure.
 
 1. `global-transcriptome-structure.pdf` and
    `functional-organism-restructuring.pdf` remain checksum-governed as the

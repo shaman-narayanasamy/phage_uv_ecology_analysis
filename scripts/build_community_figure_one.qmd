@@ -19,6 +19,10 @@ differential-abundance landscapes remain supplementary.
 bash scripts/run_qmd.sh scripts/build_community_figure_one.qmd [output-directory]
 ```
 
+For a versioned, provisional 180 mm-wide publication layout, pass a new output
+directory followed by `--publication-size`. This changes only the layout;
+source values, full-denominator profiles and statistical summaries are retained.
+
 ```{r}
 #| label: build-community-figure-one
 #| echo: true
@@ -47,6 +51,8 @@ source(file.path(root, "R", "figure_style.R"))
 
 project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
 args <- commandArgs(trailingOnly = TRUE)
+publication_size <- "--publication-size" %in% args
+args <- args[args != "--publication-size"]
 output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
   file.path(project_data, "derived", "community_figure_one")
 if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
@@ -88,7 +94,7 @@ design <- ggplot(metadata, aes(as.integer(sample_label), condition_label, colour
   scale_colour_manual(values = condition_palette, guide = "none") +
   scale_shape_manual(values = c("Initial" = 16, "Backflush" = 17), name = "Sample fraction") +
   scale_x_continuous(breaks = seq_along(sample_levels), labels = sample_levels, expand = expansion(mult = c(0.03, 0.03))) +
-  labs(x = "Three cleaning cycles sampled before and after backflush", y = NULL, tag = "A") +
+  labs(x = if (publication_size) "Cleaning cycle and sampling phase" else "Three cleaning cycles sampled before and after backflush", y = NULL, tag = "A") +
   theme_phage_uv(9) +
   theme(panel.grid = element_blank(), axis.line.y = element_blank(), axis.ticks.y = element_blank(),
         legend.position = "right", plot.tag = element_text(face = "bold", size = 12))
@@ -99,14 +105,14 @@ mag <- merge(mag, metadata[, .(sample_title, sample_label, condition_label)], by
 mag[, display_category := factor(display_category, levels = rev(mag_colours$display_category))]
 mag_palette <- setNames(mag_colours$colour, mag_colours$display_category)
 mag_legend <- mag_colours[category_type == "top25 named" | display_category == "Other phyla"]
-mag_legend[, legend_label := fifelse(display_category == "Other phyla", "Other phyla", paste(phylum, display_category, sep = " | "))]
+mag_legend[, legend_label := if (publication_size) display_category else fifelse(display_category == "Other phyla", "Other phyla", paste(phylum, display_category, sep = " | "))]
 mag_labels <- setNames(mag_legend$legend_label, mag_legend$display_category)
 
 mag_stack <- ggplot(mag, aes(sample_label, relative_abundance, fill = display_category)) +
   geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
   facet_grid(condition_label ~ ., scales = "fixed") +
   scale_fill_manual(values = mag_palette, breaks = mag_legend$display_category,
-                    labels = mag_labels[mag_legend$display_category], name = "Phylum | family", drop = FALSE) +
+                    labels = mag_labels[mag_legend$display_category], name = if (publication_size) "MAG family" else "Phylum | family", drop = FALSE) +
   scale_y_continuous(labels = label_percent(accuracy = 1), breaks = seq(0, 1, 0.25), expand = expansion(mult = c(0, 0.01))) +
   labs(x = NULL, y = "Relative abundance among MAG-mapped reads", tag = "B") +
   theme_phage_uv(8.2) +
@@ -152,17 +158,17 @@ make_ordination <- function(community, tag) {
   stats <- permanova[community == target_community]
   da <- da_summary[community == target_community]
   matched <- matched_summary[community == target_community]
-  annotation <- sprintf("Paired Bray-Curtis exact p = %.4g\nAdjusted DA: %d/%d at FDR < 0.05\nMatched CLR: %d/%d at FDR < 0.05",
+  annotation <- sprintf(if (publication_size) "Paired BC: p = %.4g\nAdjusted DA: %d/%d\nMatched CLR: %d/%d" else "Paired Bray-Curtis exact p = %.4g\nAdjusted DA: %d/%d at FDR < 0.05\nMatched CLR: %d/%d at FDR < 0.05",
                         stats$exact_p, da$fdr05, da$features_tested,
                         matched$matched_fdr05, matched$matched_tested)
   ggplot(x, aes(axis1, axis2, colour = condition_label, shape = phase_label)) +
     geom_path(aes(group = interaction(condition_label, phase_label)), colour = "#C8C8C8", linewidth = 0.45) +
-    geom_point(size = 2.8) + geom_text(aes(label = cycle), colour = "white", size = 2.2, show.legend = FALSE) +
+    geom_point(size = 2.8) + geom_text(aes(label = cycle), colour = if (publication_size) "#222222" else "white", size = if (publication_size) 2.3 else 2.2, nudge_y = if (publication_size) 0.014 else 0, nudge_x = if (publication_size) ifelse(x$condition_label == "Control", -.035, .035) else 0, show.legend = FALSE) +
     annotate("label", x = -Inf, y = Inf, label = annotation, hjust = -0.05, vjust = 1.1,
-             size = 2.25, linewidth = 0.15, fill = alpha("white", 0.88)) +
+             size = if (publication_size) 2.3 else 2.25, linewidth = 0.15, fill = alpha("white", 0.88)) +
     scale_colour_manual(values = condition_palette, name = NULL) +
     scale_shape_manual(values = c("Initial" = 16, "Backflush" = 17), name = "Sample fraction") +
-    labs(x = "Bray-Curtis PCoA axis 1", y = "Bray-Curtis PCoA axis 2", tag = tag) +
+    labs(x = if (publication_size) "PCoA axis 1" else "Bray-Curtis PCoA axis 1", y = if (publication_size) "PCoA axis 2" else "Bray-Curtis PCoA axis 2", tag = tag) +
     theme_phage_uv(8.2) +
     theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 12))
 }
@@ -170,6 +176,38 @@ make_ordination <- function(community, tag) {
 mag_pcoa <- make_ordination("MAG", "C")
 votu_pcoa <- make_ordination("vOTU", "E")
 
+if (publication_size) {
+  publication_theme <- theme(
+    text = element_text(size = 7.5), axis.text = element_text(size = 6.5),
+    axis.title = element_text(size = 7.5), strip.text = element_text(size = 7),
+    legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+    plot.tag = element_text(size = 10, face = "bold"),
+    plot.margin = margin(4, 4, 4, 4), legend.margin = margin(0, 0, 0, 0),
+    legend.key.height = grid::unit(3, "mm"), legend.key.width = grid::unit(3, "mm"))
+  design <- design + publication_theme + theme(legend.position = "right") +
+    scale_y_discrete(limits = c("Phage-UV", "Control"))
+  mag_stack <- mag_stack + publication_theme +
+    labs(y = "MAG-mapped reads (%)") +
+    theme(legend.position = "bottom", legend.direction = "vertical",
+          legend.title.position = "top", axis.text.x = element_text(size = 6.5)) +
+    guides(fill = guide_legend(ncol = 2, byrow = TRUE))
+  votu_stack <- votu_stack + publication_theme +
+    labs(y = "Classified vOTU reads (%)", x = "Cycle and phase") +
+    theme(legend.position = "bottom", axis.text.x = element_text(size = 6.5)) +
+    guides(fill = guide_legend(ncol = 2, byrow = TRUE))
+  mag_pcoa <- mag_pcoa + publication_theme + theme(legend.position = "none") +
+    scale_y_continuous(expand = expansion(mult = c(.08, .32)))
+  votu_pcoa <- votu_pcoa + publication_theme + theme(legend.position = "none") +
+    scale_y_continuous(expand = expansion(mult = c(.08, .65)))
+  family_legend_grob <- ggplotGrob(mag_stack + guides(fill = guide_legend(ncol = 4, byrow = TRUE)))
+  family_legend <- wrap_elements(full = family_legend_grob$grobs[[which(family_legend_grob$layout$name == "guide-box-bottom")]])
+  mag_stack <- mag_stack + theme(legend.position = "none")
+  figure <- design /
+    (mag_stack + mag_pcoa + plot_layout(widths = c(1.65, 1))) /
+    family_legend /
+    (votu_stack + votu_pcoa + plot_layout(widths = c(1.65, 1))) +
+    plot_layout(heights = c(.55, 2.35, .85, 1.95))
+} else {
 figure <- design /
   (mag_stack + mag_pcoa + plot_layout(widths = c(1.85, 1))) /
   (votu_stack + votu_pcoa + plot_layout(widths = c(1.85, 1))) +
@@ -181,9 +219,23 @@ figure <- design /
       "Because one membrane represents each condition, the comparisons are exploratory and do not estimate a replicated treatment effect."
     ), width = 155), collapse = "\n")
   )
+}
 
 figure_path <- file.path(staging, "figures", "community-structure-figure-one.pdf")
-ggsave(figure_path, figure, width = 16.5, height = 12.5, device = grDevices::pdf)
+publication_device <- function(filename, width, height, ...) {
+  if (isTRUE(capabilities("aqua"))) {
+    grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+  } else {
+    grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+}
+ggsave(figure_path, figure, width = if (publication_size) 180/25.4 else 16.5,
+       height = if (publication_size) 200/25.4 else 12.5,
+       device = if (publication_size) publication_device else grDevices::pdf)
+if (!file.exists(figure_path) || file.info(figure_path)$size == 0) abort("PDF device did not produce a figure")
+if (publication_size && nzchar(Sys.which("gs"))) {
+  grDevices::embedFonts(figure_path, outfile = figure_path)
+}
 
 registry <- data.table(
   panel = LETTERS[1:5],

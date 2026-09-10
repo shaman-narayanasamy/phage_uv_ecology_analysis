@@ -50,6 +50,12 @@ contract and expert handoff without absorbing it into the manuscript workstream.
 - `manuscript/isme_communications/scientific_review_checklist.md`: evidence-linked
   scientific and figure checklist for named authors;
 - `manuscript/figure_legends.md`: descriptive main and supplementary legends;
+- `manuscript/supplementary_report.qmd`: separately versioned companion PDF and
+  checksum-verified source-data archive; explicit inputs are frozen in
+  `manuscript/supplementary_report_sources.json`. Run with
+  `python scripts/run_python_qmd.py manuscript/supplementary_report.qmd /path/to/new-version`
+  in a Python environment with reportlab, pypdf and pdfplumber. This author-review
+  package preserves native-size vector plates; final journal sizing remains open;
 - `manuscript/references.bib`: bibliography for import into Zotero;
 - `docs/citation_audit.md`: verified reference roles and live-Zotero boundary;
 - `manuscript/claim_evidence_registry.tsv`: claim-by-claim evidence audit;
@@ -92,7 +98,12 @@ scripts/      Quarto analysis notebooks, runners, and validation helpers
 
 ## Quarto notebook workflow
 
-The 24 standalone R analysis entrypoints are maintained as Quarto notebooks in
+The current workflow schematic uses a metro-map layout. Build it with
+`bash scripts/run_qmd.sh scripts/build_workflow_metro.qmd /path/to/new/output`.
+The reviewed candidate is `PRJEB79569/derived/workflow_metro_v10/` outside Git;
+see `notes/handoff-2026-09-07-workflow-redesign.md` for provenance and versioning.
+
+The 25 standalone R analysis entrypoints are maintained as Quarto notebooks in
 `scripts/*.qmd`. Open a notebook in RStudio to run individual lines or its R
 chunk while inspecting objects inline. Automatic execution during rendering is
 disabled because several notebooks write or replace project outputs.

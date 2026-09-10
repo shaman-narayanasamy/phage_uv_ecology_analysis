@@ -1,0 +1,17 @@
+{
+  "status": "native_suggestions_verified_20260909T194325Z",
+  "baseline": "api_review_verification_20260909T193552Z",
+  "evidence": ["instrain_release_source_audit_2026-09-09/audit.json", "instrain_denominator_audit_2026-09-09/audit.json"],
+  "edits": [
+    {
+      "label": "Population Results units",
+      "before": "Five MAGs passed the pairwise and organism-level coverage rules. Their median consensus-difference rates ranged from 29.4 to 1,114.1 per callable Mbp, with substantial variation among pairs within several MAGs (Figure 5A,B). The five qualified organisms therefore did not share a common level or temporal pattern of genomic similarity.",
+      "after": "Five MAGs passed the pairwise and organism-level coverage rules. Their median consensus-difference rates ranged from 29.4 to 1,114.1 per million compared bases, with substantial variation among pairs within several MAGs (Figure 5A,B). The five qualified organisms therefore did not share a common level or temporal pattern of genomic similarity."
+    },
+    {
+      "label": "Population Methods provenance",
+      "before": "Population-genomic comparisons used the scoped priority-20 inStrain analysis (Olm et al., 2021). A sample pair was retained when at least 1 Mbp and 50% of the callable genome were compared. A MAG was retained for the descriptive panel when it had at least 10 qualified pairs spanning at least six samples. Consensus differences were divided by callable bases and expressed per Mbp. No statistical comparison by condition, phase, or cycle was performed. The scoped MAGs originated from earlier host-link and signature priorities and are not a community-representative set.",
+      "after": "Population-genomic comparisons used the scoped priority-20 inStrain analysis (version 1.10.0; Olm et al., 2021). The archived compare command used database mode with 12 sample profiles and specified no clustering-threshold overrides. The published release defaults were average-linkage clustering of population-ANI distances at 99.999% ANI, with a minimum reported compared fraction of 0.10; comparisons below that fraction received maximal distance before clustering. We used the returned assignments without reclustering and relabelled cluster identifiers within each MAG for display. A sample pair was retained when at least 1 million bases were compared and the inStrain-reported compared fraction was at least 0.50. This fraction divides compared bases by the summed lengths of scaffolds retained in the comparison. For all five displayed MAGs, the reconstructed denominator equalled the full dRep catalogue MAG length; using that independent length retained the same 139 qualified pairs. A MAG required at least 10 qualified pairs spanning at least six samples. Consensus differences were divided by compared bases and expressed per million bases. No statistical comparison by condition, phase or cycle was performed. The priority-20 MAGs originated from earlier host-link and signature priorities and are not a community-representative set."
+    }
+  ]
+}

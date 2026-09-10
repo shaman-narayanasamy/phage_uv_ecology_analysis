@@ -49,9 +49,10 @@ phage_uv_phylum_colours <- c(
   Unclassified = "#B3B3B3"
 )
 
-# Fixed family colours for the MAG-level metagenomic community profile. The
-# named set is frozen from the current mean-abundance ranking so that the same
-# family never changes colour between manuscript and supplementary figures.
+# Historical family palette retained to reproduce pre-microshades PDFs.
+# Current family figures use metadata/manuscript_family_colours.tsv and the
+# frozen Figure 1 microshades key. Do not apply this vector to new figures;
+# several shared names have different historical colours. See the visual grammar.
 phage_uv_family_colours <- c(
   `4484-276` = "#4E79A7",
   Anaerolineaceae = "#F28E2B",

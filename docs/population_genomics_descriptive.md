@@ -1,6 +1,6 @@
 # Descriptive population genomics
 
-Date: 2026-08-01
+Date: 2026-08-01; denominator and release-source audit 2026-09-09
 
 ## Purpose and boundary
 
@@ -20,7 +20,7 @@ common any displayed pattern is in the full community.
 Rules are applied before viewing the population-genomic pattern:
 
 - pair-level: at least 1,000,000 compared bases;
-- pair-level: at least 50% of the callable genome compared;
+- pair-level: inStrain-reported `percent_compared` at least 0.50;
 - MAG-level: at least 10 pairwise comparisons passing both pair rules;
 - MAG-level: the passing pairs span at least six observed samples.
 
@@ -29,6 +29,32 @@ coverage rules. The plotted value is the number of consensus SNP differences
 per million compared bases, displayed on a log-scaled colour axis. Normalizing
 by compared bases avoids presenting raw SNV distance as though all pairs had the
 same callable genome length.
+
+The pinned inStrain 1.10.0 source defines `percent_compared` as compared bases
+divided by the summed lengths of scaffolds retained by the comparison. The
+archived log contains 2708 scaffold-length exclusions across the scoped input,
+so this denominator must not be assumed to equal a full MAG without checking.
+The independent dRep-length audit confirms exact equality for all five
+displayed MAGs, no missing-length scaffolds in those MAGs, and no change to
+their 139 qualified comparisons under a full-catalogue-length filter. Among
+the 15 MAGs with comparison rows, only the non-selected
+`CBF1_MAGScoT_cleanbin_000067` has a reduced denominator (4661422 versus
+4663029 bp); no pair or MAG eligibility changes under the full-length check.
+
+Reproducible, read-only notebooks are
+`manuscript/instrain_release_source_audit.qmd` and
+`manuscript/instrain_denominator_audit.qmd`. Their versioned outputs are under
+`derived/instrain_release_source_audit_2026-09-09/` and
+`derived/instrain_denominator_audit_2026-09-09/`.
+`tests/test_instrain_provenance.py` verifies the pinned release hash, original
+inputs, all 191 genome-wide comparison rows and selected-set stability.
+
+Release 1.10.0 defines average-linkage clustering at population ANI 0.99999,
+with comparison distance set to 1 below reported compared fraction 0.10.
+The archived completed invocation specifies no clustering override. This
+identifies published defaults, not independently recovered historical installed
+source. Existing cluster assignments are retained without reclustering;
+display labels remove the MAG-specific prefix and prepend `S`.
 
 ## Qualitative reading
 
@@ -49,7 +75,8 @@ Any manuscript text should be limited to observations such as:
 **Coverage-qualified pairwise population-genomic landscape.** Heatmaps show
 consensus SNP differences per million compared bases for five MAGs with at
 least ten qualified pairwise comparisons spanning at least six samples. A pair
-was retained when at least 1 Mbp and 50% of the callable genome were compared.
+was retained when at least 1 Mbp was compared and the reported compared fraction
+was at least 0.50 (verified to use the full catalogue length for these five MAGs).
 Grey cells denote unavailable or coverage-failing pairs; diagonal cells denote
 self-comparisons. C, control membrane; P, phage-UV-treated membrane; I, initial
 fraction; BF, backflush fraction. Colour is log-scaled. The scoped MAG set is

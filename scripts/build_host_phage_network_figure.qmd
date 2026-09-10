@@ -20,6 +20,11 @@ bash scripts/run_qmd.sh scripts/build_host_phage_network_figure.qmd \
   /Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/host_phage_network_review
 ```
 
+For publication-size output, supply a new destination and append
+`--publication-size`. This mode preserves all four canonical network tables,
+checks their hashes, archives the notebook and records input/output provenance.
+It does not refit expression models or replace the canonical network results.
+
 ```{r}
 #| label: build-host-phage-network
 #| echo: true
@@ -31,9 +36,12 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
+publication <- "--publication-size" %in% args
+args <- args[args != "--publication-size"]
 data_root <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_DATA_ROOT")
 out_root <- if (length(args) >= 2L) args[[2L]] else file.path(data_root, "derived", "host_phage_network_review")
 if (!nzchar(data_root) || !dir.exists(data_root)) stop("Provide the PRJEB79569 data root.")
+if (dir.exists(out_root)) stop("Refusing to overwrite an existing output directory: ", out_root)
 
 script_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
 if (!nzchar(script_path)) {
@@ -290,7 +298,48 @@ figure <- p_network / (p_hosts | p_phages) +
   plot_annotation(tag_levels = "A")
 
 figure_path <- file.path(out_root, "figures", "host-phage-network-evidence-audit.pdf")
-ggsave(
+if (publication) {
+  # Same edge/node identities and ordering; only size, spacing and typography.
+  p_network$layers[[2L]]$aes_params$size <- 1.25
+  p_network$layers[[3L]]$aes_params$size <- 1.3
+  p_network$layers[[4L]]$aes_params$size <- 6.5 / .pt
+  p_network$layers[[5L]]$aes_params$size <- 6.5 / .pt
+  p_network <- p_network +
+    scale_x_continuous(breaks = c(0, 1), labels = c("Host MAGs", "Linked phage contigs"),
+                       limits = c(-.52, 1.12), expand = c(0, 0)) +
+    labs(colour = "Host coefficient") +
+    guides(fill = guide_legend(ncol = 4, order = 1, override.aes = list(size = 2)),
+           colour = guide_legend(nrow = 1, order = 2),
+           shape = guide_legend(nrow = 1, order = 3),
+           linewidth = guide_legend(nrow = 1, order = 4)) +
+    theme(axis.text.x = element_text(size = 7), axis.line = element_blank(),
+          legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+          legend.key.height = unit(3.5, "mm"), legend.key.width = unit(5, "mm"),
+          legend.spacing.y = unit(1, "mm"), legend.margin = margin(0, 0, 0, 0),
+          plot.margin = margin(3, 6, 3, 3))
+  summary_theme <- theme(axis.text = element_text(size = 7),
+                          axis.title = element_text(size = 8),
+                          plot.margin = margin(3, 12, 3, 3))
+  p_hosts <- p_hosts + summary_theme
+  p_phages <- p_phages + summary_theme
+  for (panel_name in c("p_hosts", "p_phages")) {
+    panel <- get(panel_name)
+    panel$layers[[2L]]$aes_params$hjust <- -.2
+    panel$layers[[2L]]$aes_params$vjust <- .5
+    panel$layers[[2L]]$aes_params$size <- 7 / .pt
+    assign(panel_name, panel)
+  }
+  figure <- wrap_elements(full = p_network) / wrap_elements(full = p_hosts) /
+    wrap_elements(full = p_phages) + plot_layout(heights = c(3.4, 1, 1)) +
+    plot_annotation(tag_levels = "A") &
+    theme(plot.tag = element_text(size = 10, face = "plain"), plot.margin = margin(3, 3, 3, 3))
+  publication_device <- function(filename, width, height, ...) {
+    if (isTRUE(capabilities("aqua"))) grDevices::quartz(type = "pdf", file = filename,
+      width = width, height = height, ...)
+    else grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+  ggsave(figure_path, figure, width = 180, height = 260, units = "mm", device = publication_device)
+} else ggsave(
   figure_path,
   figure,
   width = 11.7,
@@ -320,6 +369,27 @@ summary <- data.table(
   )
 )
 fwrite(summary, file.path(out_root, "tables", "host_phage_network_summary.tsv"), sep = "\t")
+
+if (publication) {
+  frozen_root <- file.path(data_root, "derived", "host_phage_network_review", "tables")
+  frozen_names <- c("deduplicated_host_phage_edges.tsv", "linked_host_context.tsv",
+                    "linked_phage_catalogue_audit.tsv", "host_phage_network_summary.tsv")
+  stopifnot(identical(unname(tools::md5sum(file.path(frozen_root, frozen_names))),
+                     unname(tools::md5sum(file.path(out_root, "tables", frozen_names)))) )
+  fwrite(data.table(input = names(paths), path = unlist(paths),
+                   bytes = file.info(unlist(paths))$size,
+                   md5 = unname(tools::md5sum(unlist(paths)))),
+         file.path(out_root, "tables", "publication_input_provenance.tsv"), sep = "\t")
+  dir.create(file.path(out_root, "source"))
+  stopifnot(file.copy(script_path, file.path(out_root, "source", basename(script_path))))
+  fwrite(data.table(metric = c("models_refitted", "source_notebook", "source_notebook_md5"),
+                   value = c("false", script_path, unname(tools::md5sum(script_path)))),
+         file.path(out_root, "tables", "publication_layout_metadata.tsv"), sep = "\t")
+  files <- sort(list.files(out_root, recursive = TRUE, full.names = TRUE))
+  fwrite(data.table(path = substring(files, nchar(out_root) + 2L),
+                   bytes = file.info(files)$size, md5 = unname(tools::md5sum(files))),
+         file.path(out_root, "output_checksums.md5.tsv"), sep = "\t")
+}
 
 stopifnot(
   raw_rows == 148L,

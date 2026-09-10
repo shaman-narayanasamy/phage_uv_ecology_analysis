@@ -1,12 +1,40 @@
 # Handoff: PRJEB79569 full manuscript draft
 
-Date: 2026-08-27; updated 2026-09-01
+Date: 2026-08-27; current live-review pointer updated 2026-09-09
 
 This is the controlling scientific handoff. Start here, then read
 `docs/codex_context.md`. Do not reconstruct the project from chat, storage
 cleanup, old tickets, or quarantined subset-first expression analyses.
 
-## Current state
+## Current live manuscript takes precedence
+
+Continue from `notes/handoff-2026-09-09-google-docs-api.md`, latest verified
+readback `20260909T140403Z`, and `docs/codex_context.md`. The canonical working
+manuscript is Google Docs v2 `1IigeesgapAc-Tfi7ac3JXimKpDpc-cqD-MXiptLwYT8`,
+not the historical local skeleton below. Author edits were preserved; subsequent
+Codex prose and image changes remain suggestions. The manuscript goal is active.
+S8/S9/S10 are inserted; S6 now uses Figure 1's identical top25 profile and colours;
+returned16S prose/citations are integrated; six-cell recurrence
+counts are corrected in the live Doc. Figure3 uses the three-panel
+`functional-organism-restructuring.pdf`, superseding the older allocation below.
+The separate agent's metro v11 remains a live unapproved draft; v10 remains
+provisionally accepted. All 15 gallery figures have verified full captions below
+their images. Review line numbering is a pending formatting suggestion, not yet
+visually verified. Complete citations/Zotero, a separate supplementary/extended
+report, publication-quality figure audit, workflow placement and scientific/visual
+QA remain unfinished. Do not claim submission
+readiness from the historical scaffold checks.
+
+The separate companion now exists at
+`derived/supplementary_report_2026-09-09-v2/`: 14 visually reviewed pages and 47
+checksum-verified source TSVs grouped into Tables S1-S11. The six companion files
+are verified in the versioned supplementary Drive subfolder, and the live
+availability paragraph maps all source-table groups. Its S9 master is the newer
+title-free figure-only v2; the live Doc now uses that same uncropped artwork.
+Continue from the latest checkpoint in the Google Docs handoff rather than
+rebuilding or overwriting either version.
+
+## Historical scaffold state (2026-08-27 to 2026-09-01)
 
 The full current-evidence figure suite and a complete, evidence-led
 venue-neutral manuscript form a verified evidence and authoring scaffold.
@@ -211,7 +239,7 @@ only after the collaborator reports the exact executed workflow.
 
 ## Quarto execution contract
 
-All 24 standalone analysis entrypoints in `scripts/` are now canonical Quarto
+All 25 standalone analysis entrypoints in `scripts/` are now canonical Quarto
 notebooks. Their former `.R` files were replaced by same-basename `.qmd` files
 so the user can inspect objects and debug lines or chunks directly in RStudio.
 Automatic execution during rendering is disabled because several workflows

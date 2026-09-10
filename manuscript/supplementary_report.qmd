@@ -1,0 +1,264 @@
+---
+title: "Phage-UV ecology: supplementary report builder"
+format: html
+execute:
+  enabled: false
+---
+
+## Operator guide
+
+This notebook assembles a separately versioned author-review companion without
+refitting models or modifying source figures. It embeds the original vector PDF
+pages, adds complete captions below them, packages explicitly selected source
+tables, and records SHA-256 provenance. Current figure masters are 180 mm wide
+and remain unscaled on their report plates. Journal-specific packaging remains
+a separate review gate. The v11 workflow draft is not an input.
+
+Run from the repository root with a Python environment containing `reportlab`,
+`pypdf` and `pdfplumber`:
+
+```bash
+python scripts/run_python_qmd.py manuscript/supplementary_report.qmd /absolute/path/to/new-version
+```
+
+The output directory must not exist. PDF output is in `output/pdf/`; source tables
+are compressed once in `source_data.zip`. Intermediates are in `tmp/pdfs/` and may
+be removed only after visual QA. No standalone R script or Jupyter installation
+is required. Python chunks can be inspected and debugged inline.
+
+## Assemble and verify the companion
+
+```{python}
+from pathlib import Path
+from io import BytesIO
+from collections import Counter
+import csv
+import hashlib
+import html
+import json
+import re
+import shutil
+import sys
+import zipfile
+
+import pdfplumber
+from pypdf import PdfReader, PdfWriter, Transformation
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+
+repo = Path(__file__).resolve().parent.parent
+data = repo.parent.parent / "PRJEB79569" / "derived"
+if len(sys.argv) not in (2,4) or (len(sys.argv)==4 and sys.argv[2]!="--reuse-source-archive"):
+    raise SystemExit("Supply a new output directory, optionally --reuse-source-archive /path/to/verified.zip")
+out = Path(sys.argv[1]).resolve()
+if out.exists():
+    raise SystemExit(f"Refusing to overwrite existing version: {out}")
+spec_path = repo / "manuscript/supplementary_report_sources.json"
+spec = json.loads(spec_path.read_text())
+version=spec["version"].rsplit("-",1)[1]
+legends_path = repo / "manuscript/figure_legends.md"
+legend_source = legends_path.read_text()
+captions = {}
+for match in re.finditer(r"\*\*(Supplementary Figure S(\d+)\.[\s\S]*?)\*\*([\s\S]*?)(?=\n\n\*\*|\n\n##|$)", legend_source):
+    label = "S" + match.group(2)
+    captions[label] = (re.sub(r"\s+", " ", match.group(1)).strip(), re.sub(r"\s+", " ", match.group(3)).strip())
+assert set(captions) == {f"S{i}" for i in range(1, 11)}
+assert [f["label"] for f in spec["figures"]] == [f"S{i}" for i in range(1, 11)]
+all_inputs = [data/f["path"] for f in spec["figures"]]
+all_inputs += [data/p for g in spec["source_tables"] for p in g["files"]]
+for path in all_inputs:
+    assert path.is_file(), path
+    assert data in path.resolve().parents, path
+    assert "workflow_metro_v11" not in str(path)
+assert not any("sos_edger" in str(p) or "uv_activity" in str(p) for p in all_inputs)
+for figure in spec["figures"]:
+    assert len(PdfReader(data/figure["path"]).pages) == 1
+
+# Embed the same body font on every generated text page.
+font_root = Path("/System/Library/Fonts/Supplemental")
+for name, filename in [("Review", "Arial.ttf"), ("Review-Bold", "Arial Bold.ttf"), ("Review-Italic", "Arial Italic.ttf")]:
+    pdfmetrics.registerFont(TTFont(name, str(font_root/filename)))
+pdfmetrics.registerFontFamily("Review", normal="Review", bold="Review-Bold", italic="Review-Italic", boldItalic="Review-Bold")
+styles = getSampleStyleSheet()
+body = ParagraphStyle("ReviewBody", fontName="Review", fontSize=10, leading=14, spaceAfter=8)
+small = ParagraphStyle("ReviewSmall", parent=body, fontSize=8.5, leading=11, spaceAfter=5)
+heading = ParagraphStyle("ReviewHeading", parent=body, fontName="Review-Bold", fontSize=14, leading=18, spaceBefore=12, spaceAfter=8)
+caption_style = ParagraphStyle("ReviewCaption", parent=body, fontSize=10, leading=14)
+title_style = ParagraphStyle("ReviewTitle", parent=heading, fontSize=23, leading=28, spaceAfter=16)
+def clean(text):
+    return text.replace("\u2011", "-").replace("\u2013", "-").replace("\u2014", "-")
+def para(text, style=body):
+    return Paragraph(clean(text), style)
+def sha(path):
+    h = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024*1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+def table_write(path, rows, fields):
+    with path.open("w", newline="") as stream:
+        w=csv.DictWriter(stream, fieldnames=fields, delimiter="\t", lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+
+(out/"output/pdf").mkdir(parents=True)
+(out/"source").mkdir()
+shutil.copy2(spec_path,out/"source"/spec_path.name)
+shutil.copy2(legends_path,out/"source"/legends_path.name)
+shutil.copy2(Path(__file__),out/"source"/Path(__file__).name)
+tmp = out/"tmp/pdfs"
+tmp.mkdir(parents=True)
+source_rows=[]
+for group in spec["source_tables"]:
+    for part, rel in enumerate(group["files"], 1):
+        path=data/rel
+        with path.open("rb") as stream:
+            header=stream.readline().decode().rstrip("\r\n")
+            rows=sum(1 for _ in stream)
+        source_rows.append({"table":group["label"], "part":part, "title":group["title"],
+            "archive_path":f"Table_{group['label']}/{path.name}", "source_path":rel,
+            "rows":rows, "columns":header, "bytes":path.stat().st_size, "sha256":sha(path)})
+table_write(out/"source_data_manifest.tsv",source_rows,list(source_rows[0]))
+if len(sys.argv)==4:
+    # Reuse is explicit and still requires full decompressed hash verification.
+    shutil.copy2(Path(sys.argv[3]).resolve(strict=True),out/"source_data.zip")
+else:
+    with zipfile.ZipFile(out/"source_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+        archive.write(out/"source_data_manifest.tsv", "source_data_manifest.tsv")
+        for row in source_rows:
+            archive.write(data/row["source_path"], row["archive_path"])
+print(f"Packaged {len(source_rows)} source files; verifying decompressed SHA-256 values.", flush=True)
+with zipfile.ZipFile(out/"source_data.zip") as archive:
+    assert len(archive.namelist()) == len(source_rows)+1
+    assert archive.read("source_data_manifest.tsv")== (out/"source_data_manifest.tsv").read_bytes()
+    for row in source_rows:
+        h=hashlib.sha256()
+        with archive.open(row["archive_path"]) as stream:
+            for chunk in iter(lambda:stream.read(1024*1024), b""):
+                h.update(chunk)
+        assert h.hexdigest()==row["sha256"], row["archive_path"]
+
+def footer(c, doc):
+    c.saveState()
+    c.setFont("Review", 8)
+    c.setFillColor(colors.HexColor("#555555"))
+    c.drawString(42, 24, f"PRJEB79569 | Supplementary report | Author review {version}")
+    c.drawRightString(A4[0]-42, 24, str(doc.page))
+    c.restoreState()
+
+story=[para("Supplementary report", title_style),
+    para("Longitudinal community and transcriptional structure during phage-UV membrane cleaning",heading),
+    para(f"PRJEB79569 &bull; Author-review {version} &bull; 9 September 2026",small),
+    para("This companion contains Supplementary Figures S1-S10 and eleven grouped source tables. It accompanies the versioned working manuscript; figure and table allocations remain subject to author review and the selected journal's instructions."),
+    para("Scope and experimental unit",heading),
+    para("One control membrane and one phage-UV membrane were sampled during initial and backflush phases across three cleaning cycles, yielding 12 physical observations. Condition and membrane identity are confounded. Repeated observations describe each membrane's trajectory; they do not provide independent replication of treatment."),
+    para("The complete transcriptome was tested before functional or organism-level subsets were interpreted. Population-genomic and CRISPR-derived host-phage results provide descriptive context, not evidence of induced DNA damage, mutagenesis, adaptation or active infection."),
+    para("How to use this package",heading),
+    para("The figure plates preserve the revised 180 mm-wide vector artwork without scaling and have full legends directly underneath. Ordinary figure text is at least 6.5 points in the checked masters. Plate heights accommodate the complete figure and caption; journal-specific page dimensions and allocation remain subject to finalisation."),
+    para("Source tables are in <b>source_data.zip</b>, grouped as Table_S1 through Table_S11. <b>source_data_manifest.tsv</b> records filenames, column names, row counts, byte counts and SHA-256 values. The archive contains unchanged scientific tables, including all tested-feature expression results; raw count matrices are not duplicated."),
+    para("Figure provenance is recorded separately in <b>figure_provenance.tsv</b>. The source-data and figure manifests allow each report item to be traced to its underlying analysis output."),PageBreak(),
+    para("Contents and source-data guide",title_style)]
+for figure in spec["figures"]:
+    title=captions[figure["label"]][0].replace("Supplementary Figure ", "")
+    story.append(para(html.escape(title)+f" <font color='#666666'>(source Table {figure['source_table']})</font>",small))
+story.extend([Spacer(1,12),para("Source tables",heading)])
+for group in spec["source_tables"]:
+    subset=[r for r in source_rows if r["table"]==group["label"]]
+    story.append(para(f"<b>Table {group['label']}.</b> {html.escape(group['title'])}. {len(subset)} file(s).",small))
+story.extend([PageBreak(),para("Supplementary analytical notes",title_style),
+    para("Expression models and post-model interpretation",heading),
+    para("Read counts from 23 technical sequencing runs were summed once into 12 physical samples. The complete feature universe was filtered using edgeR filterByExpr (minimum count 10; minimum total count 15) with the main design, followed by TMM normalisation. The main model was ~ phase + cycle + condition. The interaction model was ~ phase + cycle * condition, with cycle 1 as the reference. Cycle-specific interaction coefficients therefore quantify departures from the cycle-1 membrane contrast, not standalone treatment effects. Design matrices, model definitions and diagnostics are supplied in Tables S2-S3."),
+    para("Functional-category and MAG gene-set statistics were computed after complete-universe model fitting. Tables S4-S5 retain category membership and all tested coefficients; Table S6 contains the descriptive recurrent-gene candidates and selection funnel. Recurrence across phase-cycle cells is not an independent hypothesis test. Statistical procedures are described in the main Methods; their interpretation remains conditional on the unreplicated two-membrane design."),
+    para("Population-genomic and taxonomic context",heading),
+    para("The population-genomic panels use five MAGs passing the organism-level coverage criteria. Pairwise comparisons required at least 1 Mbp of compared sequence and an inStrain-reported compared fraction of at least 0.50. Consensus differences are expressed per million compared bases. Missing or coverage-failing comparisons are not encoded as zero differences; white matrix diagonals mark self-comparisons rather than measured zeros. The MAG and vOTU trees in Figures S6-S7 summarize taxonomic classifications, not sequence-derived evolutionary distances. Full denominators are retained in community profiles; shared display colours do not make SILVA and GTDB assignments equivalent."),
+    para("Host-phage and community-abundance sensitivities",heading),
+    para("Table S9 separates deduplicated CRISPR-derived pairs, current host expression context and linked-phage catalogue annotation. Candidate links are not direct infection measurements. Table S10 retains both condition-only and phase/cycle-adjusted abundance results, matched CLR estimates and the archived exhaustive label-swap calculations. The 64 independent within-cell swaps do not preserve whole-membrane trajectories and are not a valid randomisation test of treatment. A nonsignificant result does not demonstrate community equivalence."),
+    para("Returned 16S analysis",heading),
+    para("The cDNA-derived amplicon workflow used cutadapt 5.2 for anchored 515F/907R primer removal and a fixed-seed subsample of 150,000 read pairs per sample before DADA2 1.34.0 inference in R 4.4.3. Forward/reverse truncation lengths were 279/200, maximum expected errors 2 per mate, truncation quality 2 and minimum overlap 20 bases. Inference used no pooling, a 50-million-base error-learning budget, seed 20260901 and consensus chimera removal. Taxonomy used SILVA 138.2 at bootstrap support 80, with phyloseq 1.50.0 for the assembled data object (Martin, 2011; Callahan et al., 2016; Quast et al., 2013; McMurdie and Holmes, 2013)."),
+    para("Figure S10 and Table S11 describe composition and turnover in these subsampled libraries. Raw-count and relative-abundance Bray-Curtis calculations are retained separately. There are only two consecutive transitions per membrane-by-phase trajectory; these data are not an independently replicated time-series treatment experiment. The collaborator's unrestricted PERMANOVA P values are excluded from this package.")])
+front_path=tmp/"front.pdf"
+SimpleDocTemplate(str(front_path),pagesize=A4,leftMargin=42,rightMargin=42,topMargin=38,bottomMargin=42).build(story,onFirstPage=footer,onLaterPages=footer)
+writer=PdfWriter()
+writer.append(front_path)
+figure_rows=[]
+for figure in spec["figures"]:
+    path=data/figure["path"]
+    reader=PdfReader(path)
+    source=reader.pages[0]
+    width,height=float(source.mediabox.width),float(source.mediabox.height)
+    page_width=max(A4[0], width+72)
+    cap_width=min(page_width-72, 950)
+    title,text=captions[figure["label"]]
+    source_reference=f"Supplementary Table {figure['source_table']}"
+    source_suffix="" if source_reference in text else f" <b>Source data:</b> {source_reference}."
+    cap=para(f"<b>{html.escape(title)}</b> {html.escape(text)}"+source_suffix,caption_style)
+    _,cap_height=cap.wrap(cap_width,2000)
+    page_height=height+cap_height+118
+    buffer=BytesIO()
+    c=canvas.Canvas(buffer,pagesize=(page_width,page_height))
+    c.setFont("Review",8)
+    c.setFillColor(colors.HexColor("#555555"))
+    c.drawString(36,page_height-24,"PRJEB79569 | Native-size vector figure plate")
+    cap.drawOn(c,36,48)
+    c.drawString(36,20,f"Supplementary report | Author review {version}")
+    c.drawRightString(page_width-36,20,str(len(writer.pages)+1))
+    c.save()
+    page=PdfReader(buffer).pages[0]
+    x=(page_width-width)/2
+    y=cap_height+64
+    page.merge_transformed_page(source,Transformation().translate(tx=x,ty=y))
+    writer.add_page(page)
+    figure_rows.append({"figure":figure["label"],"report_page":len(writer.pages),"source_path":figure["path"],"source_sha256":sha(path),"source_width_pt":width,"source_height_pt":height,"scale":1.0,"source_table":figure["source_table"]})
+
+# Reuse source-verified entries already present in the versioned manuscript.
+snapshot=data/spec.get("manuscript_snapshot","manuscript_author_review_2026-09-08/api_review_verification_20260909T131442Z/accepted_preview.txt")
+snapshot_text=snapshot.read_text()
+if "manuscript_snapshot" in spec:
+    for title,text in captions.values():
+        assert snapshot_text.count((title+" "+text).replace("*",""))==2, title
+ref_text=snapshot_text.split("\nReferences\n",1)[1].split("\nMain figure legends\n",1)[0]
+prefixes=["Callahan BJ,", "Martin M.", "Quast C,", "McMurdie PJ,", "Dahl EM,", "Nayfach S,"]
+refs=[]
+for prefix in prefixes:
+    hits=[line for line in ref_text.splitlines() if line.startswith(prefix)]
+    assert len(hits)==1, (prefix,hits)
+    refs.append(hits[0])
+ref_story=[para("Supplementary references",title_style)]+[para(html.escape(ref)) for ref in sorted(refs)]
+ref_path=tmp/"references.pdf"
+offset=len(writer.pages)
+def ref_footer(c,doc):
+    c.setFont("Review",8)
+    c.drawString(42,24,"PRJEB79569 | Supplementary references")
+    c.drawRightString(A4[0]-42,24,str(offset+doc.page))
+SimpleDocTemplate(str(ref_path),pagesize=A4,leftMargin=42,rightMargin=42,topMargin=38,bottomMargin=42).build(ref_story,onFirstPage=ref_footer,onLaterPages=ref_footer)
+writer.append(ref_path)
+writer.add_metadata({"/Title":f"PRJEB79569 supplementary report - author review {version}","/Author":"Phage-UV ecology project","/Subject":"Figures S1-S10 and source tables S1-S11"})
+pdf_path=out/f"output/pdf/phage-uv-supplementary-report-{version}.pdf"
+with pdf_path.open("wb") as stream:
+    writer.write(stream)
+table_write(out/"figure_provenance.tsv",figure_rows,list(figure_rows[0]))
+
+# Structural validation complements, but never substitutes for, page-by-page QA.
+reopened=PdfReader(pdf_path)
+for row in figure_rows:
+    page=reopened.pages[row["report_page"]-1]
+    title,_=captions[row["figure"]]
+    extracted=re.sub(r"\s+"," ",page.extract_text())
+    assert title in extracted, row["figure"]
+    assert f"Supplementary Table {row['source_table']}" in extracted
+    assert sha(data/row["source_path"])==row["source_sha256"]
+    with pdfplumber.open(data/row["source_path"]) as original, pdfplumber.open(pdf_path) as assembled:
+        before=Counter(ch["text"] for ch in original.pages[0].chars)
+        after=Counter(ch["text"] for ch in assembled.pages[row["report_page"]-1].chars)
+        assert all(after[k]>=v for k,v in before.items()), row["figure"]
+provenance={"status":"assembled_pending_visual_QA_and_journal_finalisation","pages":len(reopened.pages),"figures":len(figure_rows),"source_files":len(source_rows),"source_table_groups":len(spec["source_tables"]),"archive_decompressed_hashes_verified":True,"input_spec_sha256":sha(spec_path),"legend_source_sha256":sha(legends_path),"builder_sha256":sha(Path(__file__)),"reference_snapshot":str(snapshot.relative_to(data)),"pdf_file":str(pdf_path.relative_to(out)),"pdf_sha256":sha(pdf_path),"zip_sha256":sha(out/"source_data.zip"),"figure_scale":"native 1:1; no rasterisation","excluded":spec["excluded"]}
+provenance["reference_snapshot_sha256"]=sha(snapshot)
+provenance["caption_snapshot_match_verified"]="manuscript_snapshot" in spec
+(out/"assembly_verification.json").write_text(json.dumps(provenance,indent=2)+"\n")
+print(json.dumps(provenance,indent=2),flush=True)
+```

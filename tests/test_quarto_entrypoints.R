@@ -26,6 +26,7 @@ expected <- sort(c(
   "build_temporal_response_analysis.qmd",
   "build_uv_activity_candidates.qmd",
   "build_votu_replication_inputs.qmd",
+  "build_workflow_metro.qmd",
   "check_mgnify_prjeb79569.qmd",
   "compare_taxonomic_timeseries_layouts.qmd",
   "evaluate_temporal_cluster_stability.qmd",
@@ -55,7 +56,7 @@ documentation_text <- vapply(
   character(1L)
 )
 stopifnot(
-  all(grepl("24", documentation_text, fixed = TRUE)),
+  all(grepl("25", documentation_text, fixed = TRUE)),
   !any(grepl("20 standalone", documentation_text, fixed = TRUE)),
   !any(grepl("all 20 no-execute", documentation_text, fixed = TRUE))
 )

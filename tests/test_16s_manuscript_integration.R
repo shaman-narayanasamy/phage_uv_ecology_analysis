@@ -9,17 +9,17 @@ args <- commandArgs(trailingOnly = TRUE)
 output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = TRUE) else
   "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/16s_manuscript_integration"
 
+top25 <- file.exists(file.path(output_dir, "tables/16s_family_top25_profile.tsv"))
+legacy_workflow <- file.exists(file.path(output_dir, "figures/study-analysis-workflow.pdf"))
 required <- file.path(output_dir, c(
   "figures/16s-longitudinal-community-context.pdf",
-  "figures/study-analysis-workflow.pdf",
   "tables/sample_contract_validation.tsv",
   "tables/longitudinal_turnover.tsv",
   "tables/within_cycle_phase_distance.tsv",
   "tables/16s_effect_size_audit.tsv",
-  "tables/16s_family_top12_profile.tsv",
+  if (top25) "tables/16s_family_top25_profile.tsv" else "tables/16s_family_top12_profile.tsv",
   "tables/16s_family_colour_key.tsv",
-  "tables/workflow_node_registry.tsv",
-  "tables/workflow_edge_registry.tsv",
+  if (legacy_workflow) c("figures/study-analysis-workflow.pdf", "tables/workflow_node_registry.tsv", "tables/workflow_edge_registry.tsv"),
   "tables/input_provenance.tsv",
   "output_checksums.md5.tsv"
 ))
@@ -57,7 +57,7 @@ stopifnot(
   all(grepl("unrestricted permutations", effect$reason, fixed = TRUE))
 )
 
-profile <- read.delim(file.path(output_dir, "tables/16s_family_top12_profile.tsv"), check.names = FALSE)
+profile <- read.delim(file.path(output_dir, "tables", if (top25) "16s_family_top25_profile.tsv" else "16s_family_top12_profile.tsv"), check.names = FALSE)
 profile_sums <- aggregate(relative_abundance ~ sample_title, profile, sum)
 stopifnot(
   length(unique(profile$sample_title)) == 12L,
@@ -67,6 +67,26 @@ stopifnot(
 
 colours <- read.delim(file.path(output_dir, "tables/16s_family_colour_key.tsv"), check.names = FALSE)
 source(file.path(repo_root, "R", "figure_style.R"))
+if (top25) {
+  registry <- read.delim(file.path(repo_root, "metadata", "manuscript_family_colours.tsv"))
+  phage_uv_family_colours <- setNames(registry$colour, registry$family)
+  stopifnot(length(setdiff(unique(profile$display_family), c("Other classified families", "Unclassified at family level"))) == 25L)
+  full <- read.delim(file.path(output_dir, "tables", "16s_family_full_profile.tsv"))
+  totals <- aggregate(reads ~ sample_title, full, sum)
+  sums <- aggregate(reads ~ sample_title, profile, sum)
+  stopifnot(identical(totals, sums))
+  raw <- read.delim("/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/16s_analysis/05_phyloseq/16s_asv_counts_unrarefied.tsv", check.names = FALSE)
+  raw_totals <- colSums(raw[, -1L])
+  stopifnot(identical(as.numeric(totals$reads), as.numeric(raw_totals[totals$sample_title])))
+  ranking <- aggregate(relative_abundance ~ family, full, mean)
+  ranking <- ranking[ranking$family != "Unclassified at family level", ]
+  ranking <- ranking[order(-ranking$relative_abundance, ranking$family), ]
+  stopifnot(setequal(head(ranking$family, 25), setdiff(profile$display_family, c("Other classified families", "Unclassified at family level"))))
+  mag <- read.delim("/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/taxonomic_resolution_exploration/tables/family_microshades_colour_key.tsv", check.names = FALSE)
+  mag <- mag[mag$category_type == "top25 named", ]
+  shared_mag <- intersect(mag$display_category, colours$display_family)
+  stopifnot(all(tolower(mag$colour[match(shared_mag, mag$display_category)]) == tolower(colours$colour[match(shared_mag, colours$display_family)])))
+}
 shared <- intersect(colours$display_family, names(phage_uv_family_colours))
 stopifnot(
   length(shared) == nrow(colours),
@@ -76,6 +96,7 @@ stopifnot(
   )
 )
 
+if (legacy_workflow) {
 nodes <- read.delim(file.path(output_dir, "tables/workflow_node_registry.tsv"), check.names = FALSE)
 edges <- read.delim(file.path(output_dir, "tables/workflow_edge_registry.tsv"), check.names = FALSE)
 stopifnot(
@@ -85,6 +106,7 @@ stopifnot(
   all(edges$to %in% nodes$node_id),
   all(c("Study design", "Data layers", "Processing", "Evidence products") %in% nodes$stage)
 )
+}
 
 pdfs <- required[grepl("[.]pdf$", required)]
 stopifnot(all(file.info(pdfs)$size > 5000L))
@@ -105,4 +127,4 @@ for (i in seq_len(nrow(checksums))) {
   )
 }
 
-cat("Returned 16S manuscript integration and workflow figures verified.\n")
+cat("Returned 16S manuscript integration verified; any included legacy workflow checked.\n")

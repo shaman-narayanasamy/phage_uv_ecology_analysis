@@ -5,6 +5,22 @@ Candidate plots remain unnumbered until the manuscript argument is known.
 
 The executable mappings are in `R/figure_style.R`.
 
+For current **family** panels, the authoritative named-family registry is
+`metadata/manuscript_family_colours.tsv`. It preserves every named-family colour
+from Figure 1's frozen microshades key and adds fixed shades for the top-25
+SILVA families in the returned 16S analysis. S6 consumes Figure 1's exact profile
+and key; the 16S notebook verifies shared labels against that same key. The older
+`phage_uv_family_colours` vector is historical and must not be used to recolour
+current panels independently. Older preserved PDFs are not current figure versions.
+
+Colour reuse is a display convention, not a taxonomic crosswalk: GTDB and SILVA
+assignments remain separate. Do not merge differently named families or equate
+MAG and ASV units merely because they share a colour. New 16S-only shades were
+frozen within their SILVA phylum groups on 2026-09-09. Unclassified families remain
+dark grey and other classified families light grey; neither is removed from the
+denominator. Figure 1/S6 additionally retain within-phylum remainder shades and
+their existing global remainder category, with no renormalisation to top25.
+
 ## Primary rule
 
 Each visual channel has one meaning within a panel. Condition has first claim on

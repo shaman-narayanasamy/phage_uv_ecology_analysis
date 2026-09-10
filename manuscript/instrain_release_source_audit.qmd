@@ -1,0 +1,125 @@
+---
+title: "Pinned inStrain comparison provenance"
+format: html
+execute:
+  enabled: false
+editor: source
+---
+
+Read-only audit of the published release matching the archived comparison log.
+This notebook downloads a hash-pinned source archive, reads an explicit member
+allowlist and records relevant source lines. It never imports, installs or
+executes the downloaded software, reruns clustering, or changes analysis data.
+Published defaults and the archived invocation are separate evidence; they do
+not alone prove that the historical installed package was unmodified.
+
+Run from the repository root with a new output directory:
+
+```sh
+python scripts/run_python_qmd.py manuscript/instrain_release_source_audit.qmd NEW_OUTPUT
+```
+
+## Retrieve and verify the exact release
+
+```{python}
+from pathlib import Path
+import ast
+import hashlib
+import io
+import json
+import re
+import sys
+import tarfile
+import urllib.request
+
+out = Path(sys.argv[1]).resolve()
+if out.exists():
+    raise SystemExit("Refusing to overwrite an existing audit directory")
+url = "https://files.pythonhosted.org/packages/7c/60/fa58b8433042e84400cdb30727c48723b8a9c824719cf2ebae94dde9c311/inStrain-1.10.0.tar.gz"
+expected = "f40f1d439914ec85cec83ce4c3f2fbf2ce064132109be9f2d3bfd048899b5a8e"
+metadata_url = "https://pypi.org/pypi/inStrain/1.10.0/json"
+with urllib.request.urlopen(metadata_url, timeout=60) as response:
+    metadata_bytes = response.read(2000000)
+metadata = json.loads(metadata_bytes)
+record = [r for r in metadata["urls"] if r["filename"] == "inStrain-1.10.0.tar.gz"]
+assert len(record) == 1 and metadata["info"]["version"] == "1.10.0"
+assert record[0]["url"] == url and record[0]["digests"]["sha256"] == expected
+with urllib.request.urlopen(url, timeout=60) as response:
+    archive_bytes = response.read(2000000)
+assert len(archive_bytes) == record[0]["size"] == 1133306
+assert hashlib.sha256(archive_bytes).hexdigest() == expected
+out.mkdir(parents=True)
+(out/"source").mkdir()
+(out/"inStrain-1.10.0.tar.gz").write_bytes(archive_bytes)
+(out/"pypi_release_metadata.json").write_bytes(metadata_bytes)
+(out/"source/instrain_release_source_audit.qmd").write_bytes(Path(__file__).read_bytes())
+```
+
+## Inspect only allowlisted source files, without running them
+
+```{python}
+members = ["inStrain/argumentParser.py", "inStrain/genomeUtilities.py",
+           "inStrain/compare_controller.py", "inStrain/compare_utils.py",
+           "inStrain/SNVprofile.py", "inStrain/_version.py", "LICENSE"]
+sources = {}
+source_hashes = {}
+with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
+    for relative in members:
+        member = archive.getmember("inStrain-1.10.0/"+relative)
+        assert member.isfile() and member.size < 2000000
+        raw = archive.extractfile(member).read()
+        target = out/"source"/relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+        sources[relative] = raw.decode("utf-8")
+        source_hashes[relative] = hashlib.sha256(raw).hexdigest()
+
+# AST literal inspection, not evaluation of package code.
+defaults = {}
+for node in ast.walk(ast.parse(sources["inStrain/argumentParser.py"])):
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute) or node.func.attr != "add_argument":
+        continue
+    flags = [a.value for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    for flag in ("--ani_threshold", "--coverage_treshold", "--clusterAlg"):
+        if flag in flags:
+            value = [ast.literal_eval(k.value) for k in node.keywords if k.arg == "default"]
+            assert len(value) == 1 and flag not in defaults
+            defaults[flag] = {"default": value[0], "line": node.lineno}
+assert set(defaults) == {"--ani_threshold", "--coverage_treshold", "--clusterAlg"}
+patterns = re.compile(r"percent_compared|coverage_treshold|ani_threshold|clusterAlg|compared_bases_count|genome_length|StbError|no_length")
+excerpts = []
+for relative, source in sources.items():
+    for number, line in enumerate(source.splitlines(), 1):
+        if patterns.search(line):
+            excerpts.append({"file": relative, "line": number, "text": line.strip()})
+(out/"source_evidence.json").write_text(json.dumps(excerpts, indent=2)+"\n")
+```
+
+## Bind the release evidence to the archived invocation
+
+```{python}
+repo = Path.cwd()
+data = repo.parent.parent/"PRJEB79569"
+log = data/"community_uv_response/variant_analysis/instrain_priority_20/compare/all_samples/log/log.log"
+raw_log = log.read_bytes()
+lines = raw_log.decode().splitlines()
+commands = [line for line in lines if "Command to run inStrain was:" in line]
+versions = [line for line in lines if "inStrain version" in line]
+assert len(commands) == len(versions) == 1 and "1.10.0 was run" in versions[0]
+assert not any(flag in commands[0] for flag in defaults)
+assert any("inStrain compare finished" in line for line in lines)
+summary = {
+    "status": "published_release_and_invocation_verified_pending_semantic_review",
+    "release": "1.10.0", "metadata_url": metadata_url, "archive_url": url,
+    "archive_sha256": expected, "archive_bytes": len(archive_bytes),
+    "published_defaults": defaults, "source_sha256": source_hashes,
+    "log_path": str(log), "log_sha256": hashlib.sha256(raw_log).hexdigest(),
+    "archived_command": commands[0], "archived_version": versions[0],
+    "explicit_cluster_threshold_overrides": False,
+    "completed_log_marker": True,
+    "missing_scaffold_length_log_lines": sum("StbError" in line and "no_length" in line for line in lines),
+    "limitation": "Version and invocation match; the exact historical installed source has not been recovered. Published defaults are not direct proof of resolved runtime values."
+}
+(out/"audit.json").write_text(json.dumps(summary, indent=2)+"\n")
+print(json.dumps({k:v for k,v in summary.items() if k not in ("archived_command","source_sha256")}, indent=2))
+```

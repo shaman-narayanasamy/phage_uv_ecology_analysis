@@ -1,0 +1,152 @@
+---
+title: "inStrain compared-fraction denominator sensitivity"
+format: html
+execute:
+  enabled: false
+editor: source
+---
+
+This deterministic audit compares the archived `percent_compared` denominator
+with independently staged dRep MAG lengths. It does not refit an analysis,
+rerun inStrain, or replace the original selected set. A counterfactual
+full-MAG-length filter is reported separately to assess the wording and
+selection sensitivity of the historical coverage rule.
+
+```sh
+python scripts/run_python_qmd.py manuscript/instrain_denominator_audit.qmd NEW_OUTPUT
+```
+
+## Read archived outputs and independent catalogue metadata
+
+```{python}
+from pathlib import Path
+from collections import defaultdict, Counter
+import csv
+import hashlib
+import json
+import math
+import re
+import statistics
+import sys
+
+out = Path(sys.argv[1]).resolve()
+if out.exists():
+    raise SystemExit("Refusing to overwrite an existing audit directory")
+repo = Path.cwd()
+data = repo.parent.parent/"PRJEB79569"
+base = data/"community_uv_response/variant_analysis/instrain_priority_20/compare/all_samples"
+paths = {
+    "comparison": base/"output/all_samples_genomeWide_compare.tsv",
+    "scaffolds": base/"output/all_samples_comparisonsTable.tsv",
+    "log": base/"log/log.log",
+    "catalogue": data/"binning/dereplication/data_tables/genomeInfo.csv",
+    "stb": data/"community_uv_response/variant_analysis/instrain/priority_mag_inputs/priority_mag_scaffolds.stb",
+    "mag_qc": data/"derived/manuscript_candidates/tables/population_genomics_mag_qc.tsv",
+}
+def read_rows(path, delimiter="\t"):
+    with path.open(newline="") as stream:
+        return list(csv.DictReader(stream, delimiter=delimiter))
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+pairs = read_rows(paths["comparison"])
+catalogue = {Path(r["genome"]).stem:r for r in read_rows(paths["catalogue"], ",")}
+qc = {r["MAG_ID"]:r for r in read_rows(paths["mag_qc"])}
+with paths["stb"].open() as stream:
+    stb = dict(line.rstrip().split("\t") for line in stream if line.strip())
+missing = defaultdict(set)
+for line in paths["log"].read_text().splitlines():
+    m = re.search(r"StbError (\S+) (\S+) no_length", line)
+    if m:
+        scaffold, mag = m.groups()
+        assert stb[scaffold] == mag
+        missing[mag].add(scaffold)
+scaffold_lengths = {}
+for row in read_rows(paths["scaffolds"]):
+    length = int(row["length"])
+    scaffold = row["scaffold"]
+    assert scaffold not in scaffold_lengths or scaffold_lengths[scaffold] == length
+    scaffold_lengths[scaffold] = length
+compared_scaffold_length = Counter()
+for scaffold,length in scaffold_lengths.items():
+    compared_scaffold_length[stb[scaffold]] += length
+```
+
+## Reconstruct the denominator and compare both filters
+
+```{python}
+denominators = defaultdict(list)
+by_mag = defaultdict(list)
+pair_audit = []
+for row in pairs:
+    mag = row["genome"]
+    compared = int(row["compared_bases_count"])
+    fraction = float(row["percent_compared"])
+    assert mag in catalogue
+    full_length = int(catalogue[mag]["length"])
+    if fraction > 0:
+        denominators[mag].append(compared/fraction)
+    historical = compared >= 1000000 and fraction >= 0.5
+    full_fraction = compared/full_length
+    counterfactual = compared >= 1000000 and full_fraction >= 0.5
+    record = {"MAG_ID":mag,"sample_a":row["name1"],"sample_b":row["name2"],
+              "compared_bases":compared,"reported_compared_fraction":fraction,
+              "full_catalogue_length":full_length,"full_catalogue_compared_fraction":full_fraction,
+              "historical_pair_pass":historical,"full_length_pair_pass":counterfactual,
+              "consensus_differences":int(row["consensus_SNPs"]),
+              "consensus_differences_per_compared_mbp":int(row["consensus_SNPs"])/compared*1000000 if compared else None}
+    pair_audit.append(record)
+    by_mag[mag].append(record)
+mag_audit = []
+for mag, rows in sorted(by_mag.items()):
+    implied = denominators[mag]
+    assert implied, mag
+    reconstructed = round(statistics.median(implied))
+    assert all(math.isclose(x,reconstructed,abs_tol=1e-5,rel_tol=1e-10) for x in implied), mag
+    historical = [r for r in rows if r["historical_pair_pass"]]
+    full_length_pass = [r for r in rows if r["full_length_pair_pass"]]
+    def sample_count(records):
+        return len({r[k] for r in records for k in ("sample_a","sample_b")})
+    original_selected = qc[mag]["eligible_for_descriptive_panel"].upper() == "TRUE"
+    assert len(historical) == int(qc[mag]["valid_pairs"]), mag
+    assert sample_count(historical) == int(qc[mag]["observed_samples"]), mag
+    assert original_selected == (len(historical)>=10 and sample_count(historical)>=6), mag
+    full_length = int(catalogue[mag]["length"])
+    mag_audit.append({"MAG_ID":mag,"historically_selected":original_selected,
+                     "full_catalogue_length":full_length,"reconstructed_instrain_length":reconstructed,
+                     "sum_unique_compared_scaffold_lengths":compared_scaffold_length[mag],
+                     "reconstructed_fraction_of_full_MAG":reconstructed/full_length,
+                     "missing_length_scaffolds":len(missing[mag]),
+                     "historical_valid_pairs":len(historical),"historical_samples":sample_count(historical),
+                     "full_length_valid_pairs":len(full_length_pass),"full_length_samples":sample_count(full_length_pass),
+                     "full_length_selected":len(full_length_pass)>=10 and sample_count(full_length_pass)>=6,
+                     "pairs_lost_with_full_length":sum(r["historical_pair_pass"] and not r["full_length_pair_pass"] for r in rows)})
+```
+
+## Store the audit without modifying source results
+
+```{python}
+out.mkdir(parents=True)
+(out/"source").mkdir()
+(out/"source/instrain_denominator_audit.qmd").write_bytes(Path(__file__).read_bytes())
+def write_table(filename, rows):
+    with (out/filename).open("w",newline="") as stream:
+        writer=csv.DictWriter(stream,fieldnames=list(rows[0]),delimiter="\t",lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+write_table("mag_denominator_audit.tsv",mag_audit)
+write_table("pair_denominator_sensitivity.tsv",pair_audit)
+selected=[r for r in mag_audit if r["historically_selected"]]
+summary={"status":"verified_read_only_denominator_sensitivity",
+         "MAGs_with_comparisons":len(mag_audit),"pair_rows":len(pair_audit),
+         "historically_selected_MAGs":len(selected),
+         "selected_MAGs_with_missing_length_scaffolds":sum(r["missing_length_scaffolds"]>0 for r in selected),
+         "selected_MAGs_with_changed_eligibility":sum(not r["full_length_selected"] for r in selected),
+         "historical_selected_pairs":sum(r["historical_valid_pairs"] for r in selected),
+         "selected_pairs_lost_with_full_MAG_length":sum(r["pairs_lost_with_full_length"] for r in selected),
+         "source_hashes":{k:{"path":str(p),"sha256":sha(p)} for k,p in paths.items()},
+         "source_defaults_audit":"instrain_release_source_audit_2026-09-09/audit.json",
+         "interpretation":"The historical compared fraction is relative to inStrain's reconstructed scaffold denominator, not automatically the full catalogue MAG. Counterfactual full-length filters are sensitivity results only; no original outputs or figure values were replaced."}
+(out/"audit.json").write_text(json.dumps(summary,indent=2)+"\n")
+print(json.dumps({k:v for k,v in summary.items() if k!="source_hashes"},indent=2))
+print(json.dumps(selected,indent=2))
+```

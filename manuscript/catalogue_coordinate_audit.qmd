@@ -1,0 +1,121 @@
+---
+title: "Catalogue coordinate provenance audit"
+format: html
+execute:
+  eval: false
+---
+
+Read-only, bounded verification of the gene-coordinate inputs. Runs no alignment
+or expression model. Invoke with the Python Quarto runner and a new output
+directory. All remote inputs are explicit archive paths; only summary evidence
+is returned, with hashes of the source files. The MAG GFF check is representative,
+not a claim that every MAG annotation has been compared.
+
+```{python}
+import datetime
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+destination = Path(sys.argv[1]).resolve()
+if destination.exists():
+    raise SystemExit('Refusing to overwrite an existing audit')
+remote_code = r'''
+import csv, hashlib, json
+from collections import Counter
+from pathlib import Path
+r = Path('/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569')
+c = r/'catalogues'
+v = r/'viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/cenotetaker3/output'
+paths = {
+ 'combined_bed':c/'mags_votu.genes.bed',
+ 'mag_bed':c/'dereplicated_mags/dereplicated_mags.genes.bed',
+ 'viral_bed':c/'votus.cenotetaker3.genes.bed',
+ 'viral_names':c/'votus.cenotetaker3.contig_name_map.tsv',
+ 'viral_annotations':v/'final_genes_to_contigs_annotation_summary.tsv',
+ 'mag_gff_example':r/'annotation/bakta/CBF1_MAGScoT_cleanbin_000009/CBF1_MAGScoT_cleanbin_000009.gff3',
+ 'drep_arguments':r/'binning/dereplication/log/cluster_arguments.json',
+}
+def digest(p):
+ h=hashlib.sha256()
+ with p.open('rb') as f:
+  for block in iter(lambda:f.read(1024*1024),b''):h.update(block)
+ return h.hexdigest()
+files={k:dict(path=str(p),bytes=p.stat().st_size,sha256=digest(p)) for k,p in paths.items()}
+joined=hashlib.sha256()
+for k in ['mag_bed','viral_bed']:
+ with paths[k].open('rb') as f:
+  for block in iter(lambda:f.read(1024*1024),b''):joined.update(block)
+with paths['viral_names'].open() as f:
+ names=dict(csv.reader(f,delimiter='\t'))
+expected=Counter(); annotation_keys=Counter(); unmapped=0; shifted=0
+with paths['viral_annotations'].open() as f:
+ for a in csv.DictReader(f,delimiter='\t'):
+  contig=names.get(a['contig'])
+  if contig is None:unmapped+=1;continue
+  key=(contig,a['gene_name'])
+  offset=int(a['chunk_start'] or 0)
+  shifted+=offset!=0
+  coords=(int(a['gene_start'])-1+offset,int(a['gene_stop'])+offset,a['gene_orient'])
+  expected[(key,coords)]+=1
+  annotation_keys[key]+=1
+observed=Counter(); bed_keys=Counter()
+with paths['viral_bed'].open() as f:
+ for a in csv.reader(f,delimiter='\t'):
+  key=(a[0],a[3]); coords=(int(a[1]),int(a[2]),a[5])
+  observed[(key,coords)]+=1
+  bed_keys[key]+=1
+unexpected=observed-expected; missing=expected-observed
+combined=Counter()
+with paths['combined_bed'].open() as f:
+ for line in f:combined[line.rstrip('\n')]+=1
+combined_rows=sum(combined.values())
+combined_unique_rows=len(combined)
+for k in ['mag_bed','viral_bed']:
+ with paths[k].open() as f:
+  for line in f:combined[line.rstrip('\n')]-=1
+differences={k:v for k,v in combined.items() if v}
+del combined
+mag_example=[]
+with paths['mag_gff_example'].open() as f:
+ for line in f:
+  if line.startswith('#'):continue
+  a=line.rstrip('\n').split('\t')
+  if len(a)==9 and a[2]=='CDS':
+   gene=dict(x.split('=',1) for x in a[8].split(';') if '=' in x)['ID']
+   mag_example.append([a[0],str(int(a[3])-1),a[4],gene,'0',a[6]])
+   if len(mag_example)==3:break
+with paths['mag_bed'].open() as f:
+ first_three=[next(f).rstrip('\n').split('\t') for _ in range(3)]
+print(json.dumps(dict(files=files,checks={
+ 'combined_matches_mag_and_viral_row_multiset':not differences,
+ 'all_viral_coordinates_match_annotation_with_chunk_offsets':observed==expected and not unmapped and bool(expected),
+ 'three_mag_example_coordinates_match_gff_start_minus_one':first_three==mag_example,
+ },diagnostics=dict(combined_is_exact_concatenation=joined.hexdigest()==files['combined_bed']['sha256'],
+ combined_rows=combined_rows,combined_unique_rows=combined_unique_rows,
+ combined_duplicate_rows=combined_rows-combined_unique_rows,
+ combined_row_differences=list(differences.items())[:5]),
+ viral=dict(annotation_rows=sum(expected.values()),bed_rows=sum(observed.values()),
+ unique_gene_keys=len(annotation_keys),chunk_offset_rows=shifted,
+ exact_duplicate_annotation_rows=sum(expected.values())-len(expected),
+ unmatched_bed_rows=sum(unexpected.values()),missing_annotation_rows=sum(missing.values()),
+ duplicate_gene_keys=sum(n-1 for n in annotation_keys.values()),
+ duplicate_bed_gene_keys=sum(n-1 for n in bed_keys.values()),unmapped=unmapped,
+ unexpected_examples=list(unexpected.items())[:5],missing_examples=list(missing.items())[:5]),
+ mag_example=mag_example,drep_arguments=json.loads(paths['drep_arguments'].read_text()))))
+'''
+result = subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15',
+                         'iris-cluster','python3','-'],input=remote_code,text=True,
+                        capture_output=True,check=True,timeout=180)
+audit=json.loads(result.stdout)
+audit['retrieved_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+audit['notebook_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+audit['boundary']='No analyses rerun; full viral-coordinate check; representative three-gene MAG coordinate check only'
+destination.mkdir(parents=True)
+(destination/'coordinate_audit.json').write_text(json.dumps(audit,indent=2)+'\n')
+print(json.dumps(audit,indent=2))
+if not all(audit['checks'].values()):
+    raise SystemExit('Coordinate audit has unresolved checks; inspect the preserved evidence')
+```

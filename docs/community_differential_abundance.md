@@ -31,9 +31,18 @@ Only one membrane represented each condition. Repeated phase/cycle samples are
 longitudinal observations, not independent biological membrane replicates.
 Accordingly, these analyses can identify trajectories and candidate abundance
 differences, but they cannot distinguish a treatment effect from membrane
-identity. The most defensible summary is that the poster's microbial null result
-was reproduced and that no abundance signal was robust across the adjusted,
-matched, and global community analyses.
+identity. The condition-only no-discovery result was reproduced; it is not an
+equivalence test or evidence that the communities are unchanged.
+
+The exhaustive calculations enumerate 64 independent within-cell swaps or
+sign patterns. They do not preserve the whole-membrane trajectories and must
+not be described as a valid randomisation test of the experimental treatment.
+For two-sided CLR sign flips the minimum attainable P value is 2/64 = 0.03125;
+these low-resolution sensitivities also undergo correction over 348 or 616
+features. Lack of corrected support therefore cannot be used to validate a
+null or to establish that the isolated count-model hit is false. Report the
+model dependence and effect sizes, with all P values explicitly conditional
+on unverified exchangeability/model assumptions in this unreplicated design.
 
 The canonical checksum-bound outputs are under
 `PRJEB79569/derived/community_differential_abundance/` outside the code checkout.

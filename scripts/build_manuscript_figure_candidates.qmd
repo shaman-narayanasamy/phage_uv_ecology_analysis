@@ -21,6 +21,11 @@ Automatic execution during rendering is disabled because these workflows may
 write project outputs. Rendering still validates the notebook structure and
 displays the complete source.
 
+For the publication-size visual-only build, pass a new output directory and
+`--publication-size`. This reuses the verified 2026-09-09 MDS coordinates;
+it does not refit expression models or recompute ordination. The historical
+default remains available for reproducibility. All earlier outputs are preserved.
+
 ```{r}
 #| label: build-manuscript-figure-candidates
 #| echo: true
@@ -43,6 +48,8 @@ repo_root <- function() {
 }
 
 args <- commandArgs(trailingOnly = TRUE)
+publication_size <- "--publication-size" %in% args
+args <- args[args != "--publication-size"]
 root <- repo_root()
 project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
 de_root <- file.path(project_data, "derived", "full_transcriptome_de")
@@ -86,6 +93,16 @@ if (nrow(metadata) != 12L || any(table(metadata$condition, metadata$phase, metad
   abort("Expected one sample in each condition-phase-cycle cell")
 }
 
+if (publication_size) {
+  mds_source <- file.path(project_data, "derived", "manuscript_figure_revision_2026-09-09", "tables", "mds_coordinates.tsv")
+  mds_data <- fread(mds_source)
+  if (!setequal(mds_data$sample_title, metadata$sample_title) || nrow(mds_data) != 12L) abort("Frozen MDS sample contract differs")
+  for (field in c("condition", "phase", "cycle")) {
+    if (!identical(as.character(mds_data[[field]]), as.character(metadata[[field]][match(mds_data$sample_title, metadata$sample_title)]))) abort("Frozen MDS metadata differs: %s", field)
+    mds_data[[field]] <- factor(mds_data[[field]], levels = levels(metadata[[field]]))
+  }
+  if (!file.copy(mds_source, file.path(output_dir, "tables", "mds_coordinates.tsv"))) abort("Could not preserve frozen MDS table")
+} else {
 message("Reconstructing the exact filtered expression object for MDS...")
 sample_names <- metadata$sample_title
 counts <- as.matrix(fread(paths$counts, select = sample_names, check.names = FALSE))
@@ -107,6 +124,21 @@ mds_data <- data.table(
 )[metadata, on = "sample_title"]
 mds_data[, cycle_label := as.character(cycle)]
 fwrite(mds_data, file.path(output_dir, "tables", "mds_coordinates.tsv"), sep = "\t")
+}
+
+publication_theme <- theme(
+  text = element_text(size = 7.5), axis.text = element_text(size = 6.5),
+  axis.title = element_text(size = 7.5), legend.text = element_text(size = 6.5),
+  legend.title = element_text(size = 7), plot.tag = element_text(size = 10, face = "bold"),
+  plot.margin = margin(5, 5, 5, 5), legend.margin = margin(0, 0, 0, 0),
+  legend.key.height = grid::unit(3, "mm"), legend.key.width = grid::unit(3, "mm"))
+publication_device <- function(filename, width, height, ...) {
+  if (isTRUE(capabilities("aqua"))) {
+    grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+  } else {
+    grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+}
 
 filtering <- fread(paths$filtering)
 de <- fread(paths$de, select = c("feature_id", "logFC", "logCPM", "FDR"))
@@ -126,50 +158,13 @@ landscape[, display_class := factor(
   levels = c("Deterministic context sample", "BH FDR < 0.05")
 )]
 
-design_plot_data <- copy(metadata)
-design_plot_data[, cycle_number := as.numeric(as.character(cycle))]
-design_plot_data[, membrane_y := fifelse(condition == "control", 2, 1)]
-design_plot_data[, phase_offset := fifelse(phase == "initial", 0.09, -0.09)]
-design_plot_data[, plot_y := membrane_y + phase_offset]
-
 condition_values <- c(Control = phage_uv_condition_colours[["control"]],
                       `Phage-UV` = phage_uv_condition_colours[["treatment"]])
 condition_lower_values <- c(control = phage_uv_condition_colours[["control"]],
                             treatment = phage_uv_condition_colours[["treatment"]])
 
-p_design <- ggplot(
-  design_plot_data,
-  aes(cycle_number, plot_y, colour = condition, shape = phase,
-      group = interaction(condition, phase))
-) +
-  geom_line(linewidth = 0.45, alpha = 0.75) +
-  geom_point(size = 3.1) +
-  scale_colour_manual(
-    values = condition_lower_values,
-    labels = c(control = "Control", treatment = "Phage-UV"),
-    name = "Membrane"
-  ) +
-  scale_shape_manual(
-    values = phage_uv_phase_shapes,
-    labels = c(initial = "Initial", backflush = "Backflush"),
-    name = "Phase"
-  ) +
-  scale_x_continuous(breaks = 1:3, labels = paste("Cycle", 1:3), limits = c(0.7, 3.3)) +
-  scale_y_continuous(
-    breaks = c(1, 2),
-    labels = c("Phage-UV membrane", "Control membrane"),
-    limits = c(0.65, 2.35)
-  ) +
-  annotate("text", x = 2, y = 2.28, label = "One membrane per condition; 12 physical samples", size = 3) +
-  labs(x = NULL, y = NULL, tag = "A") +
-  theme_phage_uv(base_size = 9) +
-  theme(
-    axis.line.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    legend.position = "none",
-    plot.tag = element_text(face = "bold", size = 11)
-  )
-
+# The author removed the redundant sample-design panel on 2026-09-09.
+# The experimental design is documented in Methods and the workflow overview.
 p_mds <- ggplot(mds_data, aes(MDS1, MDS2, colour = condition, shape = phase)) +
   geom_point(size = 3.0) +
   geom_text_repel(
@@ -191,7 +186,7 @@ p_mds <- ggplot(mds_data, aes(MDS1, MDS2, colour = condition, shape = phase)) +
     labels = c(initial = "Initial", backflush = "Backflush"),
     name = "Phase"
   ) +
-  labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2", tag = "B") +
+  labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2", tag = "A") +
   theme_phage_uv(base_size = 9) +
   theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
 
@@ -242,17 +237,24 @@ p_landscape <- ggplot() +
   labs(
     x = "Average log2 CPM",
     y = "Phage-UV - control log2 fold-change",
-    tag = "C"
+    tag = "B"
   ) +
   theme_phage_uv(base_size = 9) +
   theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 11))
 
-global_top <- p_design | p_mds
-figure_global <- global_top / p_landscape +
-  plot_layout(heights = c(1, 1.2))
+if (publication_size) {
+  p_mds$layers[[2]]$aes_params$colour <- "#222222"
+  p_mds <- p_mds + publication_theme + theme(legend.box = "vertical")
+  p_landscape <- p_landscape + publication_theme + theme(legend.box = "vertical")
+  p_landscape <- p_landscape + guides(colour = guide_legend(override.aes = list(size = 2, alpha = 1)))
+}
+figure_global <- (p_mds | p_landscape) +
+  plot_layout(widths = c(1, 1.3))
 
 global_path <- file.path(output_dir, "figures", "global-transcriptome-structure.pdf")
-ggsave(global_path, figure_global, width = 10.5, height = 7.5, device = grDevices::pdf)
+ggsave(global_path, figure_global, width = if (publication_size) 180/25.4 else 10.5,
+       height = if (publication_size) 100/25.4 else 4.5,
+       device = if (publication_size) publication_device else grDevices::pdf)
 
 functional_enrichment <- fread(paths$functional_enrichment)[coefficient == "condition_adjusted"]
 functional_effects <- fread(paths$functional_effects)[coefficient == "condition_adjusted"]
@@ -293,8 +295,8 @@ p_functional <- ggplot(functional, aes(signed_log10_fdr, label)) +
   geom_text(
     data = functional[supported == TRUE],
     aes(label = sprintf("BH FDR = %.2g", FDR)),
-    hjust = -0.08,
-    size = 2.8,
+    hjust = if (publication_size) 1.15 else -0.08,
+    size = if (publication_size) 2.3 else 2.8,
     colour = "#222222"
   ) +
   scale_fill_manual(values = condition_values, name = "Higher-ranked genes") +
@@ -385,13 +387,22 @@ p_mag <- ggplot(top_mag, aes(median_logFC, display_taxon)) +
     colour = guide_legend(order = 2, nrow = 2, byrow = TRUE)
   )
 
+if (publication_size) {
+  p_functional <- p_functional + publication_theme +
+    labs(x = "Signed -log10(BH FDR)\nControl (-); phage-UV (+)")
+  p_mag_counts <- p_mag_counts + publication_theme +
+    theme(axis.text.x = element_text(angle = 0, hjust = .5, size = 6.5))
+  p_mag <- p_mag + publication_theme
+}
 organism_top <- (p_functional | p_mag_counts) +
   plot_layout(widths = c(2.1, 1))
 figure_organism <- organism_top / p_mag +
   plot_layout(heights = c(0.72, 1.55))
 
 organism_path <- file.path(output_dir, "figures", "functional-organism-restructuring.pdf")
-ggsave(organism_path, figure_organism, width = 11, height = 8.7, device = grDevices::pdf)
+ggsave(organism_path, figure_organism, width = if (publication_size) 180/25.4 else 11,
+       height = if (publication_size) 195/25.4 else 8.7,
+       device = if (publication_size) publication_device else grDevices::pdf)
 
 required_figures <- c(global_path, organism_path)
 if (any(!file.exists(required_figures)) || any(file.info(required_figures)$size == 0)) {
@@ -426,7 +437,7 @@ registry <- data.table(
   artifact = basename(c(global_path, organism_path)),
   status = "candidate_unallocated",
   panels = c(
-    "experimental design; sample MDS; adjusted-condition expression landscape",
+    "sample MDS; adjusted-condition expression landscape",
     "condition functional enrichment; supported MAG direction counts; top organism effects"
   ),
   boundary = c(
@@ -435,6 +446,19 @@ registry <- data.table(
   )
 )
 fwrite(registry, file.path(output_dir, "candidate_figure_registry.tsv"), sep = "\t")
+
+if (publication_size) {
+  used_paths <- c(paths[names(paths) != "counts"], list(frozen_mds = mds_source))
+  fwrite(data.table(input = names(used_paths), path = unlist(used_paths),
+                   bytes = file.info(unlist(used_paths))$size,
+                   md5 = unname(tools::md5sum(unlist(used_paths)))),
+         file.path(output_dir, "tables", "publication_input_provenance.tsv"), sep = "\t")
+  notebook_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+  fwrite(data.table(metric = c("width_mm", "figure2_height_mm", "figure3_height_mm", "mds_recomputed", "models_refitted", "source_notebook", "source_notebook_md5", "R_version"),
+                   value = c("180", "100", "195", "false", "false", notebook_path,
+                             unname(tools::md5sum(notebook_path)), R.version.string)),
+         file.path(output_dir, "tables", "publication_layout_metadata.tsv"), sep = "\t")
+}
 
 files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
 files <- files[file.info(files)$isdir %in% FALSE]

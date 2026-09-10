@@ -37,18 +37,22 @@ stopifnot(
   claim_registry[claim_id == "C14", allocation] == "working_Figure_1",
   identical(
     claim_registry[claim_id %chin% c("C05", "C06", "C08"), unique(allocation)],
-    "working_Figure_2"
+    "working_Figure_3"
   ),
-  claim_registry[claim_id == "C09", allocation] == "working_Figure_3",
-  claim_registry[claim_id == "C10", allocation] == "working_Figure_4",
+  claim_registry[claim_id == "C09", allocation] == "working_Figure_4",
+  claim_registry[claim_id == "C10", allocation] == "working_Figure_5",
   claim_registry[claim_id == "C12", allocation] ==
-    "Figure_1_or_supplement_pending_validation",
+    "working_Supplementary_Figure_S10",
+  claim_registry[claim_id == "C22", allocation] ==
+    "working_Supplementary_Figure_S10",
+  claim_registry[claim_id == "C29", allocation] ==
+    "working_Supplementary_Figure_S10D",
   all(
     analysis_registry[status == "deprecated_superseded", manuscript_use] ==
       "provenance_only"
   ),
   analysis_registry[analysis_id == "16s_integration", status] ==
-    "returned_pending_validation",
+    "verified_descriptive",
   analysis_registry[analysis_id == "host_phage_links", status] ==
     "verified_deferred"
 )
