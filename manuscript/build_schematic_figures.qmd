@@ -1,0 +1,110 @@
+---
+title: "Schematic figures: render hand-authored SVG sources"
+format:
+  html:
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+The workflow metro map and the four experimental-setup panels are hand-authored SVGs; this
+notebook also composes them into one integrated figure (wet lab on top, analysis below) in
+`manuscript/figure_sources/`. This notebook renders each SVG to a vector PDF and a PNG
+preview with headless Chrome and writes a checksum table, so that a reviewed version is
+reproducible from its source. The SVGs carry live text and named layers and no baked-in
+panel letters or titles, so the panels can be composed with the metro map into one figure
+in Illustrator; edit them directly, then rerun this notebook into a new output directory.
+
+Run from the repository root:
+
+```sh
+bash scripts/run_qmd.sh manuscript/build_schematic_figures.qmd /absolute/new/output/directory
+```
+
+Chrome is used because it keeps vectors and live text in the PDF; `rsvg-convert` is not
+available on the analysis machine. The canvas size is read from each SVG's `viewBox`.
+
+```{r}
+#| label: render-schematics
+args <- commandArgs(trailingOnly = TRUE)
+out <- if (length(args)) args[[1]] else stop("Give a new output directory")
+if (dir.exists(out)) stop("Use a new output directory to preserve versions")
+dir.create(out, recursive = TRUE)
+
+chrome <- "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+if (!file.exists(chrome)) chrome <- Sys.which("google-chrome")
+if (!nzchar(chrome)) stop("Chrome not found")
+
+sources <- c(
+  `study-analysis-workflow` = "manuscript/figure_sources/workflow_metro.svg",
+  `experimental-setup-reactor` = "manuscript/figure_sources/experimental_setup_reactor.svg",
+  `experimental-setup-cleaning-event` = "manuscript/figure_sources/experimental_setup_cleaning-event.svg",
+  `experimental-setup-sampling-design` = "manuscript/figure_sources/experimental_setup_sampling-design.svg",
+  `experimental-setup-tmp` = "manuscript/figure_sources/experimental_setup_tmp.svg"
+)
+
+render_svg <- function(svg, stem) {
+  svg <- normalizePath(svg, mustWork = TRUE)
+  vb <- regmatches(readLines(svg, n = 3), regexpr('viewBox="[^"]+"', readLines(svg, n = 3)))
+  dims <- as.numeric(strsplit(sub('viewBox="', "", sub('"$', "", vb[1])), " ")[[1]])[3:4]
+  wrap <- file.path(out, paste0(stem, "_wrap.html"))
+  writeLines(sprintf(
+    '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:%dpx %dpx;margin:0}html,body{margin:0;padding:0;background:#fff}img{display:block;width:%dpx;height:%dpx}</style></head><body><img src="file://%s"></body></html>',
+    dims[1], dims[2], dims[1], dims[2], svg), wrap)
+  system2(chrome, c("--headless=new", "--disable-gpu", "--hide-scrollbars",
+    sprintf("--window-size=%d,%d", dims[1], dims[2]),
+    paste0("--screenshot=", shQuote(file.path(out, paste0(stem, ".png")))),
+    shQuote(paste0("file://", wrap))), stdout = FALSE, stderr = FALSE)
+  system2(chrome, c("--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+    paste0("--print-to-pdf=", shQuote(file.path(out, paste0(stem, ".pdf")))),
+    shQuote(paste0("file://", wrap))), stdout = FALSE, stderr = FALSE)
+  unlink(wrap)
+  target <- file.path(out, paste0(stem, ".svg"))
+  if (normalizePath(target, mustWork = FALSE) != svg) invisible(file.copy(svg, target))
+}
+for (stem in names(sources)) render_svg(sources[[stem]], stem)
+
+# Integrated figure: wet lab on top (two rows), analysis metro map below. Each panel SVG is
+# nested unchanged as an inner <svg> at its composition position; panel letters are added
+# here, never in the sources.
+inner_svg <- function(path) {
+  txt <- paste(readLines(path, warn = FALSE), collapse = "\n")
+  vb <- regmatches(txt, regexpr('viewBox="[^"]+"', txt))
+  body <- sub("^.*?<svg[^>]*>", "", txt)
+  body <- sub("</svg>\\s*$", "", body)
+  list(viewBox = sub('viewBox="([^"]+)"', "\\1", vb), body = body)
+}
+layout <- data.frame(
+  stem = c("experimental-setup-reactor", "experimental-setup-cleaning-event",
+           "experimental-setup-sampling-design", "experimental-setup-tmp",
+           "study-analysis-workflow"),
+  letter = c("A", "B", "C", "D", "E"),
+  x = c(40, 740, 40, 870, 20),
+  y = c(50, 50, 480, 480, 1010),
+  stringsAsFactors = FALSE)
+parts <- character(0)
+for (i in seq_len(nrow(layout))) {
+  p <- inner_svg(sources[[layout$stem[i]]])
+  dims <- as.numeric(strsplit(p$viewBox, " ")[[1]])[3:4]
+  parts <- c(parts,
+    sprintf('<text x="%d" y="%d" font-size="22" font-weight="700" fill="#2F2F2F">%s</text>',
+            layout$x[i], layout$y[i] - 12, layout$letter[i]),
+    sprintf('<svg id="panel-%s" x="%d" y="%d" width="%d" height="%d" viewBox="%s">%s</svg>',
+            layout$letter[i], layout$x[i], layout$y[i], dims[1], dims[2], p$viewBox, p$body))
+}
+W <- 2000; H <- 2160
+integrated <- c(
+  sprintf('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">', W, H),
+  "<!-- Integrated wet-lab and analysis figure: generated by manuscript/build_schematic_figures.qmd from the panel sources in manuscript/figure_sources/. Edit the panels, not this file. -->",
+  sprintf('<rect x="0" y="0" width="%d" height="%d" fill="#FFFFFF"/>', W, H),
+  parts, "</svg>")
+writeLines(integrated, file.path(out, "integrated-wetlab-workflow.svg"))
+render_svg(file.path(out, "integrated-wetlab-workflow.svg"), "integrated-wetlab-workflow")
+
+files <- list.files(out, full.names = TRUE)
+stopifnot(length(files) == 3 * (length(sources) + 1))
+write.table(data.frame(file = basename(files), bytes = file.info(files)$size,
+  md5 = unname(tools::md5sum(files))), file.path(out, "output_checksums.md5.tsv"),
+  sep = "\t", quote = FALSE, row.names = FALSE)
+```

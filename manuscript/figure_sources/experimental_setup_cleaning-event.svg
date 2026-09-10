@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="650 86 920 384" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <!--
+  Phage-UV experimental setup, panel: One cleaning event: procedure and the two sampled fractions. Standalone source (v2, 2026-09-10), no baked-in
+  panel letter or title; the figure legend carries them. Coordinates are kept from the v1
+  combined drawing so panels can be re-assembled by translation. Same palette and typography as
+  the workflow metro map (manuscript/figure_sources/workflow_metro.svg).
+  -->
+  <style>
+    .ink { fill: #2F2F2F; } .muted { fill: #666666; }
+    .h1 { font-size: 17px; font-weight: 600; fill: #2F2F2F; }
+    .h2 { font-size: 15px; font-weight: 600; fill: #2F2F2F; }
+    .body { font-size: 13px; fill: #2F2F2F; }
+    .sub { font-size: 12.5px; fill: #666666; }
+    .tiny { font-size: 11px; fill: #666666; }
+    .panel { font-size: 20px; font-weight: 700; fill: #2F2F2F; }
+    .c-control { fill: #5EA657; } .s-control { stroke: #5EA657; }
+    .c-phage { fill: #7E57C2; } .s-phage { stroke: #7E57C2; }
+    .c-16s { fill: #6BA6D9; } .c-mg { fill: #416EB0; } .c-mt { fill: #DF6A2C; }
+    .flow { fill: none; stroke: #8A8F98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .box { fill: #FFFFFF; stroke: #2F2F2F; stroke-width: 1.8; }
+    .step { fill: #F4F5F7; stroke: #C9CED6; stroke-width: 1.2; }
+    .stepT { fill: #F3EEFA; stroke: #B9A6DB; stroke-width: 1.2; }
+    .stepC { fill: #EEF6EC; stroke: #A9CFA5; stroke-width: 1.2; }
+    .uv { fill: #FFF4D6; stroke: #E0B85A; stroke-width: 1.2; }
+    .axis { fill: none; stroke: #2F2F2F; stroke-width: 2; }
+    .card { fill: #FAFAF7; stroke: #B9B4A8; stroke-dasharray: 6 4; stroke-width: 1.5; }
+    .cardhead { font-size: 12px; letter-spacing: 1px; font-weight: 600; fill: #7A7264; }
+    .dot { fill: #FFFFFF; stroke: #2F2F2F; stroke-width: 2.5; }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+      <path d="M1,1 L9,5 L1,9 z" fill="#8A8F98"/>
+    </marker>
+    <marker id="arrk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+      <path d="M1,1 L9,5 L1,9 z" fill="#2F2F2F"/>
+    </marker>
+  </defs>
+  <rect x="650" y="86" width="920" height="384" fill="#FFFFFF"/>
+  <g id="panel-b">
+
+    <!-- time axis -->
+    <path class="axis" d="M660,300 H1560" marker-end="url(#arrk)"/>
+    <text class="tiny" x="660" y="322">time, not to scale (about 6 h at the bench)</text>
+
+    <!-- shared start -->
+    <rect class="step" x="660" y="96" width="86" height="62" rx="7"/>
+    <text class="body" x="703" y="118" text-anchor="middle">Stop pumps</text>
+    <text class="tiny" x="703" y="134" text-anchor="middle">drain cassette</text>
+    <text class="tiny" x="703" y="148" text-anchor="middle">detach module</text>
+
+    <!-- tracks behind the step boxes -->
+    <path d="M758,228 H1312 V300" fill="none" stroke="#C9CED6" stroke-width="2"/>
+    <path d="M758,382 H1312 V300" fill="none" stroke="#C9CED6" stroke-width="2"/>
+    <path d="M746,127 H758 V382" fill="none" stroke="#C9CED6" stroke-width="2"/>
+    <!-- Phage-UV row -->
+    <text class="h2 c-phage" x="660" y="190">Phage-UV membrane</text>
+    <rect class="uv" x="770" y="200" width="90" height="56" rx="7"/>
+    <text class="body" x="815" y="220" text-anchor="middle">UV-C 3 min</text>
+    <text class="tiny" x="815" y="236" text-anchor="middle">100 mJ/cm²</text>
+    <text class="tiny" x="815" y="249" text-anchor="middle">0.56 mW/cm²</text>
+
+    <rect class="stepT" x="866" y="200" width="234" height="56" rx="7"/>
+    <text class="body" x="983" y="219" text-anchor="middle">Phage cocktail · 5 h · dark</text>
+    <text class="tiny" x="983" y="235" text-anchor="middle">50 mL · MOI 0.1 · three wastewater phages</text>
+    <text class="tiny" x="983" y="249" text-anchor="middle">vs A. modestus, A. junii, A. seohaensis</text>
+
+    <rect class="uv" x="1106" y="200" width="90" height="56" rx="7"/>
+    <text class="body" x="1151" y="220" text-anchor="middle">UV-C 3 min</text>
+    <text class="tiny" x="1151" y="236" text-anchor="middle">phages present</text>
+    <text class="tiny" x="1151" y="249" text-anchor="middle">total 200 mJ/cm²</text>
+
+    <rect class="stepT" x="1206" y="200" width="82" height="56" rx="7"/>
+    <text class="body" x="1247" y="220" text-anchor="middle">Hold 1 h</text>
+    <text class="tiny" x="1247" y="236" text-anchor="middle">lamp off</text>
+    <text class="tiny" x="1247" y="249" text-anchor="middle">phages present</text>
+
+    <!-- Control row -->
+    <text class="h2 c-control" x="660" y="424">Control membrane</text>
+    <rect class="stepC" x="770" y="356" width="518" height="52" rx="7"/>
+    <text class="body" x="1024" y="377" text-anchor="middle">Milli-Q water in the cassette for the same durations; no UV-C, no phages</text>
+    <text class="tiny" x="1024" y="394" text-anchor="middle">same handling, same two fractions collected</text>
+
+    <!-- connectors -->
+
+    <!-- sampling: Initial -->
+    <g id="sample-initial">
+      <circle class="dot" cx="1312" cy="300" r="9"/>
+      <text class="h2" x="1298" y="282" text-anchor="end">Initial (I)</text>
+      <text class="tiny" x="1298" y="326" text-anchor="end">liquid in the cassette collected:</text>
+      <text class="tiny" x="1298" y="340" text-anchor="end">easily dislodged biofilm fraction</text>
+    </g>
+
+    <!-- backflush -->
+    <path d="M1321,300 H1338" fill="none" stroke="#C9CED6" stroke-width="2"/>
+    <rect class="step" x="1338" y="272" width="112" height="56" rx="7"/>
+    <text class="body" x="1394" y="292" text-anchor="middle">Backflush ×3</text>
+    <text class="tiny" x="1394" y="307" text-anchor="middle">25 mL Milli-Q · 10 s each</text>
+    <text class="tiny" x="1394" y="321" text-anchor="middle">≈ 2,635 LMH pulse</text>
+
+    <!-- sampling: Backflush -->
+    <g id="sample-backflush">
+      <path d="M1450,300 H1465" fill="none" stroke="#C9CED6" stroke-width="2"/>
+      <circle class="dot" cx="1474" cy="300" r="9"/>
+      <text class="h2" x="1474" y="342" text-anchor="middle">Backflush (BF)</text>
+      <text class="tiny" x="1474" y="358" text-anchor="middle">all flow-through pooled:</text>
+      <text class="tiny" x="1474" y="372" text-anchor="middle">stubborn biofilm fraction</text>
+    </g>
+
+    <!-- reattach -->
+    <path class="flow" d="M1483,300 H1525 V258" marker-end="url(#arr)"/>
+    <rect class="step" x="1490" y="200" width="70" height="56" rx="7"/>
+    <text class="body" x="1525" y="220" text-anchor="middle">Reattach</text>
+    <text class="tiny" x="1525" y="236" text-anchor="middle">pumps on</text>
+    <text class="tiny" x="1525" y="249" text-anchor="middle">TMP regrows</text>
+
+    <!-- cycle loop note -->
+    <rect class="card" x="660" y="430" width="900" height="30" rx="8"/>
+    <text class="cardhead" x="676" y="450">REPEATED</text>
+    <text class="body" x="770" y="450">Fouling, then cleaning, then fouling again; three consecutive cleaning events sampled for this study.</text>
+  </g>
+</svg>
