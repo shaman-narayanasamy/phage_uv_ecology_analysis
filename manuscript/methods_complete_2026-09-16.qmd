@@ -1,0 +1,118 @@
+---
+title: "Methods"
+bibliography: [references.bib, methods_additional.bib]
+format: html
+citeproc: true
+---
+
+## Study design and data sources
+
+We reanalysed sequencing and phenotype data from the membrane-cleaning study of Myshkevych et al. [@Myshkevych2025], which extended the combined bacteriophage and UV-C approach described by Scarascia et al. [@Scarascia2021]. The treatment combined targeted bacteriophages and UV-C irradiation with mechanical backflushing. We use Control and Treatment consistently to identify the two membrane conditions. The sequencing data were obtained under ENA project PRJEB79569. Twelve physical samples represented the two conditions, three cleaning cycles and two sequential sampling fractions, Initial and Backflush. Twelve metagenomic runs and 23 metatranscriptomic runs were mapped to these physical samples using the project metadata. Technical metatranscriptomic runs were summed within physical sample before modelling. The original experimental apparatus, treatment delivery and phenotype measurements are attributed to the source study; the genome-resolved integration and modelling described below were undertaken in this reanalysis.
+
+## Read processing, co-assembly and genome recovery
+
+Metagenomic and metatranscriptomic reads were processed with fastp 1.3.3, with paired-end adapter detection enabled and a minimum retained length of 36 bases [@Chen2018fastp]. Ribosomal RNA reads were removed from the metatranscriptomic libraries using SortMeRNA and the smr_v4.3_default_db.fasta reference [@Kopylova2012SortMeRNA]. Paired and unpaired non-rRNA reads were retained as separate streams. Processed metagenomic and metatranscriptomic reads were coassembled separately for each physical sample using MEGAHIT, with unpaired reads and metatranscriptomic contigs included as additional inputs [@Li2015MEGAHIT].
+
+Contigs classified by DeepMicroClass as prokaryotic, prokaryotic viral or plasmid sequences were combined as binning inputs [@Hou2024DeepMicroClass]. Candidate bins were generated with CONCOCT, MaxBin2, MetaBAT2, Vamb, and the single-sample and multisample workflows of SemiBin2 [@Alneberg2014CONCOCT; @Wu2016MaxBin; @Kang2019MetaBAT; @Nissen2021Vamb; @Pan2023SemiBin2]. The six assignment streams were combined and refined per sample with MAGScoT [@Ruehlemann2022]. MaxBin2, MetaBAT2, Vamb and SemiBin2 used a minimum contig length of 1,500 bases. Vamb additionally used a minimum output-bin length of 200,000 bases. CONCOCT inputs were split into 1,000-base segments with the final segment merged, and clustering used a 1,500-base length threshold.
+
+Refined bins were dereplicated across samples with dRep, using completeness and contamination eligibility thresholds of 75% and 25%, primary and secondary average-nucleotide-identity thresholds of 0.90 and 0.95, and tertiary clustering [@Olm2017dRep]. Quality estimates followed the CheckM lineage workflow [@Parks2015CheckM]. The resulting catalogue comprised 348 representative MAGs. Taxonomic assignments were obtained with CAT/BAT 6.0.1 against the GTDB-derived database built on 21 November 2023 [@vonMeijenfeldt2019; @Parks2022]. MAG genes were annotated using Bakta 1.12.0 with the full database version 6.0 dated 24 February 2025 [@Schwengers2021].
+
+## Viral sequence discovery, clustering and annotation
+
+Viral discovery incorporated the sample coassemblies and additional single-omics assemblies. Candidates identified by geNomad, VirSorter2 and ViraLM were consolidated, with DeepMicroClass candidates additionally included for coassemblies [@Camargo2024geNomad; @Guo2021VirSorter2; @Peng2024ViraLM; @Hou2024DeepMicroClass]. Pooled sequences were clustered with Vclust using Leiden clustering at 0.95 average nucleotide identity and 0.85 query coverage, and cluster representatives defined viral operational taxonomic units (vOTUs) [@Zielezinski2025Vclust]. Quality was assessed with CheckV 1.1.1 and database version 1.5 [@Nayfach2021]. Viral annotations were obtained with Cenote-Taker 3 version 3.4.4 [@Tisza2026CenoteTaker3].
+
+The taxonomic composition and differential-abundance analyses used the same catalogue of 634 CheckV high-quality representatives with at least one viral gene. Eligibility did not require a Cenote-Taker record or taxonomic assignment.
+
+## Unified mapping catalogue and gene counts
+
+Representative MAG and vOTU sequences were combined into a unified mapping catalogue. Metagenomic and metatranscriptomic reads were mapped separately with BWA-MEM using the `-M` option [@Li2013BWAMEM]. Paired and unpaired alignments were merged and coordinate-sorted using SAMtools [@Li2009SAMtools]. CoverM supplied metagenomic coverage and abundance summaries [@Aroney2025]. Metagenomic counts were summed across contigs within each MAG, while each viral representative supplied its own count vector.
+
+The common gene-coordinate reference combined Bakta MAG annotations with Cenote-Taker viral annotations. Original catalogue identifiers were recovered through the archived viral name map. Viral starts were converted to zero-based BED coordinates; chunk offsets were added to both boundaries for genes reported within extracted prophage regions. Coordinate-aware identifiers combined contig, start, end, gene identifier and strand. The combined BED contained 1,734,193 records, representing 1,734,019 unique coordinate-aware features.
+
+Metatranscriptomic gene counts were obtained with BEDTools `coverage`, using the BED6 reference and each run's alignment BAM [@Quinlan2010BEDTools]. The seventh output column, the number of overlapping alignments, supplied the count matrix. Counting was unstranded and required at least one base of overlap. The recorded mapping and counting commands applied no additional mapping-quality threshold or secondary-alignment exclusion. Exact duplicates across all ten coverage-output columns were removed within a run; conflicting duplicates for the same feature identifier triggered an error. Counts from the 23 runs were summed exactly once into 12 physical-sample columns.
+
+## cDNA-derived 16S amplicon processing
+
+We integrated the collaborator-returned DADA2 analysis without rerunning its preprocessing. Anchored 515F and 907R primers were removed using cutadapt 5.2, discarding pairs lacking either primer [@Martin2011]. Primer-free reads were subsampled to 150,000 pairs per sample with a fixed seed before denoising. DADA2 1.34.0 in R 4.4.3 used forward and reverse truncation lengths of 279 and 200 bases, maximum expected errors of 2 per mate, truncation quality 2, and a minimum paired-read overlap of 20 bases [@Callahan2016]. Sequence inference was performed without pooling, with an error-learning budget of 50 million bases and seed 20260901, followed by consensus chimera removal. Taxonomy was assigned against SILVA 138.2 with minimum bootstrap support of 80 [@Quast2013]. Counts, taxonomy and metadata were assembled using phyloseq 1.50.0 [@McMurdie2013]. The returned table contained 2,700 ASVs across the 12 physical samples.
+
+## Community composition and cross-assay comparison
+
+Relative profiles were computed separately for each assay. MAG-mapped metagenomic counts were divided by their sample total. For metatranscriptomics, counts from all genes assigned to each MAG were summed before differential-expression filtering and divided by the MAG-assigned transcript total. Non-MAG assignments were recorded separately. ASV counts were divided by the amplicon sample total. Taxonomic means gave equal weight to each sample. MAG assignments retained the GTDB-derived labels and ASVs retained their SILVA assignments.
+
+Bray-Curtis dissimilarities were calculated between all pairs of the 12 samples within each assay. Cross-assay agreement was summarised by Spearman correlation of the corresponding 66 unique sample-pair dissimilarities. Consecutive-cycle dissimilarities were calculated separately within each condition and sampling phase. For the paired DNA/transcript contribution display, MAGs were ranked by the larger of their mean MG and MT read shares and the first 12 were shown; all 348 remained in the accompanying table. Taxonomic heat trees used metacoder, with taxonomic shades informed by microshades [@Foster2017Metacoder; @Dahl2022]. The same fixed MAG colours were retained across community trees, relative-abundance plots and host-link networks. Heat-tree branch structure represents the taxonomic hierarchy.
+
+## Differential abundance of MAGs and vOTUs
+
+MAG and vOTU counts were analysed separately with DESeq2 1.50.2 [@Love2014]. Counts were rounded to integers, recording the maximum rounding difference per feature. Features required at least ten counts in at least three samples, retaining 348 MAGs and 578 of the 634 eligible vOTUs. Condition, phase and cycle were factors with Control, Initial and cycle 1 as reference levels. Size factors were estimated separately for the MAG and vOTU count matrices, and dispersion trends used the local fit.
+
+The additive model was `~ phase + cycle + condition`, with a treatment-minus-control Wald test. The interaction model was `~ phase + cycle * condition`; a likelihood-ratio test against the additive model jointly tested the two condition-by-cycle interaction coefficients, with two degrees of freedom. Secondary Wald tests reported the separately named cycle 2 and cycle 3 interaction coefficients. Main-effect and joint tests used separate per-community correction families; secondary interaction coefficients were additionally corrected across both coefficient sets within community. Default independent filtering was retained, and all-nonmissing Benjamini-Hochberg adjusted values were also exported [@Benjamini1995]. The joint likelihood-ratio statistic was not represented by an individual log fold change. No fold-change shrinkage was applied.
+
+## Full-transcriptome differential expression
+
+Differential expression was fitted to the complete count universe using edgeR 4.8.2 in R 4.5.1 [@Robinson2010edgeR; @Chen2016QL]. Features were filtered with `filterByExpr`, using the additive design, `min.count = 10` and `min.total.count = 15`. Of 1,734,019 coordinate-aware features, 361,907 were retained. Libraries were normalised using the trimmed mean of M-values method [@Robinson2010TMM]. Dispersion estimation and quasi-likelihood fitting used `robust = TRUE`.
+
+The additive design was `~ phase + cycle + condition`; the treatment coefficient was evaluated using a quasi-likelihood F test. A separate fit used `~ phase + cycle * condition`, with both individual interaction-coefficient tests and a two-degree-of-freedom joint test. Cycle was categorical and the same reference levels were used as for abundance modelling. Benjamini-Hochberg adjustment was applied across the full tested transcriptome for each reported contrast [@Benjamini1995]. Biofilm and SOS genes were selected from these full-model results after fitting, retaining the original adjusted values. The functional displays used an adjusted threshold of 0.05, and additive log fold changes defined the direction of response.
+
+## Biofilm-associated and SOS gene definitions
+
+We used one combined biofilm-associated definition throughout. This combined the historical annotation-keyword lists in the original study's analysis code with six annotation-search categories: explicit biofilm annotation, adhesion, exopolysaccharide-associated synthesis, motility or flagella, pili or pilus, and quorum sensing [@Myshkevych2025]. Historical terms included biofilm, quorum sensing, adhesion, exopolysaccharide, motility, flagella, pili, extracellular, matrix, polymeric substance, formation and polysaccharide synthesis. The additional case-insensitive patterns were `biofilm`, `adhesi`, `exopolysacchar|extracellular polymeric|polysaccharide (synth|biosynth)`, `motility|flagell`, `pili|pilus`, and `quorum sensing`.
+
+The unique union comprised 3,905 MAG-assigned tested genes. For every member, the supplementary evidence table retains its coordinate-aware identifier, MAG, annotation, exact matched patterns and separate historical/current inclusion flags. The SOS set was defined separately using the frozen symbol and product-annotation rules for recA, lexA, umuC, umuD, dinB, sulA and recN, yielding 523 tested genes; the biological interpretation follows the SOS response framework reviewed by Maslowska et al. [@Maslowska2019]. The combined table contains 4,428 gene-set records and preserves the full-transcriptome main and joint statistics.
+
+## Concentration of supported functional responses within MAGs
+
+We evaluated four endpoints within each functional set: all additive-condition hits, hits up in Treatment, hits down in Treatment, and joint interaction hits. If MAG j contained h_j supported genes and the total supported count was K, concentration was summarised as C = sum_j(h_j/K)^2. We also calculated the maximum MAG share. Random allocations preserved the eligible gene counts per MAG and total K, using multivariate hypergeometric draws without replacement. A matched allocation additionally preserved supported counts within strata defined by mean-CPM tertiles, gene-length tertiles and detection in at most six, seven to eleven, or all twelve samples.
+
+Each null used 100,000 draws with the L'Ecuyer-CMRG generator and seed 20260913. One-sided empirical P values were calculated as (b + 1)/(100,000 + 1), where b counted null values at least as large as observed. Exact binomial intervals described Monte Carlo uncertainty. Benjamini-Hochberg correction was applied across the implemented set-by-endpoint tests separately for each null and statistic. Per-MAG hypergeometric calculations used both an across-community eligible-set baseline and a within-MAG baseline conditional on the MAG's full-transcriptome supported count; these were corrected across their respective exported families.
+
+We assessed genomic proximity by collapsing genes into fixed 10-kb windows, 50-kb windows, and whole contigs within each MAG and functional set. A block was supported if at least one member met the endpoint definition. Allocations matched blocks by eligible-gene-count class (1, 2, 3–5 or at least 6) and mean-CPM tertile, preserving supported-block counts within strata. The block analysis used 100,000 draws and seed 20260914. The primary correction family contained all 24 planned tests: two functional sets, four endpoints and three block scales, including non-estimable endpoints in the declared family size. The concentration ratio shown in the figure was observed concentration divided by the mean random concentration at the same scale.
+
+## Population-genomic variation
+
+Population-genomic comparisons used the existing priority-20 inStrain analysis, version 1.10.0 [@Olm2021]. These mappings used the MAG-only reference rather than the unified MAG/vOTU counting catalogue. The archived comparison ran in database mode over 12 sample profiles without clustering-threshold overrides. Returned population-ANI cluster assignments were used without reclustering; release defaults used average linkage, a 99.999% ANI threshold and a minimum compared fraction of 0.10. Cluster identifiers were relabelled within MAG for display.
+
+Pairs required at least one million compared bases and an inStrain-reported compared fraction of at least 0.50. The denominator of this fraction was reconstructed from the lengths of retained scaffolds and checked against independent dRep MAG lengths. A MAG required at least ten qualified pairs spanning six or more samples. Five MAGs and 139 pairs met these criteria. Consensus differences were divided by compared bases and reported per million bases. Sample-level diversity used the reported callable-weighted nucleotide diversity, retaining the existing sample-QC flag, mean coverage of at least 5 and callable breadth of at least 0.50. No missing values were imputed.
+
+## Cleaning-performance score
+
+We developed a composite outcome using sequential release measurements and TMP regrowth lag from the original study [@Myshkevych2025]. For readout k, representing cells, protein or polysaccharides, I_k and BF_k denote the amounts recovered in Initial and Backflush. We defined the release-pattern component as
+
+$$R_k = I_k/(I_k+BF_k), \qquad P=(R_{cells}+R_{protein}+R_{polysaccharides})/3.$$
+
+Release means were digitised from the source Figure 2. Cell counts were back-transformed from log10 values before ratio calculation; protein and polysaccharide measurements retained the published membrane-area normalisation. Exact regrowth lags from source Table 1 were 6, 4 and 0 days for Control and 18, 12 and 1 days for Treatment. Published cleaning rounds 2–4 were aligned in order with omics cycles 1–3.
+
+For the six membrane-cycle observations, each component was standardised using its pooled mean and sample standard deviation:
+
+$$z(X_i)=(X_i-\bar X)/s_X, \qquad S_i=0.5z(P_i)+0.5z(L_i).$$
+
+The three release ratios contributed equally to P, and standardised P and regrowth lag L each received 50% of the composite weight. Individual release ratios were not separately standardised. Higher S denotes preferential Initial release and longer regrowth lag. The reference means and standard deviations were frozen for every subsequent model and scenario. Missing readouts and zero denominators produced unavailable scores; negative amounts and zero reference variance were rejected.
+
+## MAG predictors and outcome models
+
+Fourteen MAGs carrying at least one combined-list biofilm gene upregulated in Treatment at full-transcriptome adjusted P < 0.05 formed the candidate set. The DNA predictor was log2 DESeq2-size-factor-normalised whole-MAG count. All selected values were positive, so no pseudocount was added. The RNA predictor was the mean gene-centred log2 CPM across all tested combined-list genes within each candidate MAG, including genes without differential-expression support. Log2 CPM used the full-transcriptome effective library sizes and edgeR `prior.count = 0.5`; each gene was centred across the 12 samples before averaging.
+
+DNA and RNA predictors were fitted separately by MAG and sampling phase. Each fit used six membrane-cycle scores, with Initial and Backflush providing separate predictor views. Ordinary least-squares models were `score ~ condition + x`, `score ~ factor(cycle) + condition + x`, and `score ~ cycle + condition + x`. These had three, one and two residual degrees of freedom, respectively. Both the condition-adjusted and categorical-cycle-adjusted specifications were retained, with linear cycle as a sensitivity.
+
+We reported two-sided t tests, 95% coefficient intervals and HC3 heteroscedasticity-consistent standard-error sensitivities. Each specification comprised 56 slope tests: 14 MAGs, two predictor types and two phases. Benjamini-Hochberg correction was applied across each 56-test specification and across all 168 tests jointly; ordinary and HC3 calculations were corrected separately. Leverage, Cook's distance, predictor variance inflation and leave-one-cycle-out slope signs were recorded. Fitted-versus-observed panels used in-sample predictions.
+
+## Suppression scenarios and separate SOS/diversity models
+
+For a fractional reduction f in whole-MAG DNA abundance, condition, cycle, size factors, score normalisation and fitted coefficients were held fixed. The predictor contrast and modelled score change were
+
+$$\Delta x=\log_2(1-f), \qquad \Delta\widehat S=\widehat\beta_x\log_2(1-f).$$
+
+We evaluated f = 0, 0.10, 0.25, 0.50, 0.75, 0.90 and 0.95. At 50% suppression, the score contrast equals minus the DNA coefficient. Scenario intervals were obtained by transforming and ordering the coefficient-interval endpoints. Values shifted beyond the observed predictor range were flagged. Other MAGs were not renormalised, and effects from separate single-MAG models were not added. Main-panel selection retained 12 of the 14 candidates, ranked by the number of positive score-change views across two specifications and two phases at 50% suppression, followed by median change and MAG identifier. All 14 candidates and their intervals remained in the supporting tables.
+
+Separate SOS models used all tested SOS genes within the fixed biofilm-candidate MAGs, with the same gene-centred log2 CPM construction. Thirteen candidates had eligible annotations. Separate genomic models used the five-MAG coverage-qualified set and required complete values across six observations within a MAG-phase combination. Two combinations qualified. Both layers used the three regression specifications above; genomic models additionally included `log10(coverage)` in a condition-adjusted sensitivity. Benjamini-Hochberg correction was applied within the SOS and genomic layers, comprising 78 and eight tests, and across all 86 tests jointly. HC3 values were corrected separately. SOS and diversity were not combined into one predictor or model.
+
+## Candidate host-phage links
+
+CRISPR arrays were identified in dereplicated MAGs using PILER-CR and MinCED [@Edgar2007; @MinCED]. Their outputs were supplied jointly to SpacePHARER `easy-predict` against the project viral sequence database [@Zhang2021SpacePHARER]. The executed rule used 12 threads without additional search-threshold overrides, running prediction when the PILER-CR output exceeded five lines and the MinCED output was non-empty.
+
+Predictions were reduced to unique MAG–viral-contig pairs. For duplicate pairs, the greatest hit count, then greatest score, determined the retained display attributes. Viral contigs were mapped through cluster membership to catalogue representatives and checked against CheckV quality, viral-gene content and taxonomy. The network retained all 86 deduplicated links involving 80 MAGs and 85 viral contigs. Candidate MAGs were joined by exact genome identifier, retaining linked-contig and representative-vOTU counts separately. Functional response and taxonomic colours were overlaid using the same MAG identifiers as in the other analyses.
+
+## Reproducibility and reporting
+
+Analysis code is maintained in the phage_uv_ecology_analysis repository as executable Quarto notebooks. Source matrices, metadata contracts, exact gene memberships, matching strata, model outputs, diagnostics and source hashes accompany the derived outputs. Runtime versions are reported from execution records where recovered, rather than inferred from the current installation. Treatment and Control retain fixed colours throughout; genome colours are shared across community displays. Adjusted P values, correction families and feature denominators are retained with every inferential table. Superseded subset-first expression analyses and previous phenotype-outcome definitions are excluded from the active manuscript evidence.
+
+## References

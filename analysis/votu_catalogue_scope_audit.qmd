@@ -1,0 +1,28 @@
+---
+title: "Viral composition and differential-abundance eligibility audit"
+format: html
+---
+
+Read-only comparison; does not refit or alter existing models.
+
+```{r}
+library(data.table)
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out));dir.create(out,recursive=TRUE)
+r<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+p<-file.path(r,"votu_taxonomic_resolution_review_2026-09-13-v4/tables")
+a<-fread(file.path(p,"catalogue_rank_assignments.tsv"))
+counts<-fread(file.path(p,"votu_sample_counts.tsv"))
+da<-fread(file.path(r,"community_cycle_models_2026-09-13-v1/tables/votu_counts.tsv"))
+stopifnot(nrow(a)==634,nrow(da)==616,!anyDuplicated(a$contig_id),all(da$feature_id%in%a$contig_id))
+a[,DA_eligible:=contig_id%in%da$feature_id]
+a[,retained_by_count_filter:=contig_id%in%da[rowSums(as.matrix(da[,-1])>=10)>=3,feature_id]]
+excluded<-a[DA_eligible==FALSE]
+stopifnot(nrow(excluded)==18,all(!excluded$has_cenote_record))
+counts<-merge(counts,a[,.(contig_id,DA_eligible)],by="contig_id")
+fractions<-counts[,.(all_reads=sum(reads),excluded_reads=sum(reads[!DA_eligible]),
+ excluded_fraction=sum(reads[!DA_eligible])/sum(reads)),by=sample_title]
+fwrite(a,file.path(out,"catalogue_eligibility.tsv"),sep="\t")
+fwrite(excluded,file.path(out,"excluded_18_vOTUs.tsv"),sep="\t")
+fwrite(fractions,file.path(out,"excluded_read_fractions.tsv"),sep="\t")
+print(a[,.(vOTUs=.N,retained=sum(retained_by_count_filter)),by=DA_eligible]);print(fractions)
+```
