@@ -60,6 +60,8 @@ if out.exists():
     raise SystemExit(f"Refusing to overwrite existing version: {out}")
 spec_path = repo / "manuscript/supplementary_report_sources.json"
 spec = json.loads(spec_path.read_text())
+if str(spec.get("status", "")).startswith("quarantined"):
+    raise SystemExit("Blocked: quarantined legacy supplementary package. Read docs/manuscript_exclusion_register.md and reconcile current sources; do not just relabel the status.")
 version=spec["version"].rsplit("-",1)[1]
 legends_path = repo / "manuscript/figure_legends.md"
 legend_source = legends_path.read_text()

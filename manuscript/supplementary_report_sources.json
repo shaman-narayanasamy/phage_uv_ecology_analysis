@@ -1,5 +1,7 @@
 {
-  "status": "working_author_review",
+  "status": "quarantined_legacy_package",
+  "quarantine_register": "docs/manuscript_exclusion_register.md",
+  "quarantine_reason": "Obsolete numbering and superseded source scope. Not eligible for submission rebuild; reconcile current sources first.",
   "version": "2026-09-09-v4",
   "manuscript_snapshot": "manuscript_author_review_2026-09-08/api_review_verification_20260909T191526Z/accepted_preview.txt",
   "path_base": "PRJEB79569/derived",
