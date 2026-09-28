@@ -1,0 +1,506 @@
+---
+title: "Interpret Full-Transcriptome Differential Expression"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for `scripts/interpret_full_transcriptome_de.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/interpret_full_transcriptome_de.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: interpret-full-transcriptome-de
+#| echo: true
+# Post-model interpretation of the complete PRJEB79569 transcriptome-wide DE
+# universe. This script never fits a category-restricted expression model.
+
+suppressPackageStartupMessages({
+  library(data.table)
+  library(edgeR)
+  library(ggplot2)
+  library(limma)
+  library(matrixStats)
+})
+
+notebook_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+repo_root <- if (nzchar(notebook_path)) {
+  normalizePath(file.path(dirname(notebook_path), ".."))
+} else if (length(script_file)) {
+  normalizePath(file.path(dirname(sub("^--file=", "", script_file[[1]])), ".."))
+} else {
+  current <- normalizePath(".")
+  if (basename(current) == "scripts") dirname(current) else current
+}
+source(file.path(repo_root, "R", "full_de_interpretation_functions.R"))
+source(file.path(repo_root, "R", "figure_style.R"))
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+parse_cli <- function(args) {
+  data_root <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+    "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"), mustWork = TRUE)
+  values <- list(
+    de_dir = file.path(data_root, "derived", "full_transcriptome_de"),
+    taxonomy = file.path(data_root, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
+    signature_hits = file.path(data_root, "community_uv_response", "uv_signature_hits.tsv"),
+    category_registry = file.path(repo_root, "resources", "full_de_category_registry.tsv"),
+    output_dir = file.path(data_root, "derived", "full_de_interpretation"),
+    overwrite = FALSE
+  )
+  if ("--help" %in% args || "-h" %in% args) {
+    cat(paste(
+      "Usage: bash scripts/run_qmd.sh scripts/interpret_full_transcriptome_de.qmd [options]",
+      "  --de-dir PATH",
+      "  --taxonomy PATH",
+      "  --signature-hits PATH",
+      "  --category-registry PATH",
+      "  --output-dir PATH",
+      "  --overwrite",
+      sep = "\n"
+    ))
+    quit(status = 0)
+  }
+  i <- 1L
+  while (i <= length(args)) {
+    key <- args[[i]]
+    if (key == "--overwrite") {
+      values$overwrite <- TRUE
+      i <- i + 1L
+      next
+    }
+    if (!startsWith(key, "--") || i == length(args)) abort("Invalid argument: %s", key)
+    name <- gsub("-", "_", substring(key, 3L))
+    if (!name %in% names(values)) abort("Unknown argument: %s", key)
+    values[[name]] <- args[[i + 1L]]
+    i <- i + 2L
+  }
+  values
+}
+
+read_required <- function(path, ...) {
+  if (!file.exists(path) || file.info(path)$size == 0) abort("Missing or empty input: %s", path)
+  fread(path, ...)
+}
+
+build_taxonomy <- function(path) {
+  x <- read_required(path, sep = "\t", header = TRUE, quote = "", na.strings = c("", "NA"))
+  setnames(x, names(x)[1], "bin")
+  lineage_column <- grep("^lineage$", names(x), value = TRUE)
+  if (length(lineage_column) != 1L) abort("Taxonomy table lacks a unique lineage column")
+  x[, MAG_ID := sub("\\.fasta$", "", bin)]
+  x[, domain := extract_lineage_rank(get(lineage_column), "d__")]
+  x[, phylum := extract_lineage_rank(get(lineage_column), "p__")]
+  x[, class := extract_lineage_rank(get(lineage_column), "c__")]
+  x[, order := extract_lineage_rank(get(lineage_column), "o__")]
+  x[, family := extract_lineage_rank(get(lineage_column), "f__")]
+  x[, genus := extract_lineage_rank(get(lineage_column), "g__")]
+  x[, species := extract_lineage_rank(get(lineage_column), "s__")]
+  unique(x[, .(MAG_ID, domain, phylum, class, order, family, genus, species, taxonomy_assignment = classification)])
+}
+
+camera_with_metadata <- function(result, membership, registry, coefficient_id,
+                                 directional = TRUE, minimum_size = 10L) {
+  indices <- split(match(membership$feature_id, result$feature_id), membership$category)
+  indices <- lapply(indices, function(x) unique(x[!is.na(x)]))
+  statistic <- if (directional) {
+    signed_ql_statistic(result$logFC, result$F)
+  } else {
+    sqrt(pmax(result$F, 0))
+  }
+  tested <- run_camera_pr(statistic, indices, directional, minimum_size)
+  if (!nrow(tested)) return(tested)
+  if (!"Direction" %in% names(tested)) tested[, Direction := "Non-directional"]
+  tested[, coefficient := coefficient_id]
+  tested[, test_directionality := ifelse(directional, "directional", "non_directional")]
+  merge(tested, registry, by.x = "set_id", by.y = "category", all.x = TRUE, sort = FALSE)
+}
+
+camera_mags <- function(result, base, eligible_mags, coefficient_id, directional = TRUE) {
+  membership <- base[MAG_ID %chin% eligible_mags, .(feature_id, MAG_ID)]
+  indices <- split(match(membership$feature_id, result$feature_id), membership$MAG_ID)
+  indices <- lapply(indices, function(x) unique(x[!is.na(x)]))
+  statistic <- if (directional) signed_ql_statistic(result$logFC, result$F) else sqrt(pmax(result$F, 0))
+  tested <- run_camera_pr(statistic, indices, directional, minimum_size = 20L)
+  if (!nrow(tested)) return(tested)
+  setnames(tested, "set_id", "MAG_ID")
+  tested[, coefficient := coefficient_id]
+  tested[, test_directionality := ifelse(directional, "directional", "non_directional")]
+  tested
+}
+
+write_checksums <- function(root) {
+  paths <- list.files(root, recursive = TRUE, full.names = TRUE)
+  paths <- paths[file.info(paths)$isdir %in% FALSE]
+  paths <- paths[basename(paths) != "output_checksums.md5.tsv"]
+  sums <- tools::md5sum(paths)
+  out <- data.table(path = substring(names(sums), nchar(root) + 2L), md5 = unname(sums))
+  fwrite(out[order(path)], file.path(root, "output_checksums.md5.tsv"), sep = "\t")
+}
+
+run_workflow <- function(args) {
+  input_paths <- c(
+    file.path(args$de_dir, "tables", "de_condition_adjusted.tsv"),
+    file.path(args$de_dir, "tables", "de_condition_cycle_interaction_coefficients.tsv"),
+    file.path(args$de_dir, "tables", "de_condition_cycle_interaction_omnibus.tsv"),
+    file.path(args$de_dir, "tables", "collapsed_raw_count_matrix.tsv"),
+    file.path(args$de_dir, "tables", "library_sizes_and_normalization.tsv"),
+    args$taxonomy, args$signature_hits, args$category_registry
+  )
+  missing <- input_paths[!file.exists(input_paths) | file.info(input_paths)$size == 0]
+  if (length(missing)) abort("Missing or empty inputs: %s", paste(missing, collapse = ", "))
+  if (dir.exists(args$output_dir) && !args$overwrite) abort("Output exists; use --overwrite: %s", args$output_dir)
+
+  stage <- paste0(args$output_dir, ".staging-", Sys.getpid())
+  if (dir.exists(stage)) unlink(stage, recursive = TRUE)
+  dir.create(file.path(stage, "tables"), recursive = TRUE)
+  dir.create(file.path(stage, "figures"), recursive = TRUE)
+  committed <- FALSE
+  on.exit(if (!committed && dir.exists(stage)) unlink(stage, recursive = TRUE), add = TRUE)
+
+  condition <- read_required(input_paths[[1]])
+  interactions <- read_required(input_paths[[2]])
+  omnibus <- read_required(input_paths[[3]])
+  if (nrow(condition) != 361907L || uniqueN(condition$feature_id) != nrow(condition)) {
+    abort("Condition result is not the frozen 361,907-feature universe")
+  }
+  if (!all(table(interactions$feature_id) == 2L) || uniqueN(interactions$feature_id) != nrow(condition)) {
+    abort("Interaction coefficient table is not two rows per tested feature")
+  }
+  if (!setequal(condition$feature_id, omnibus$feature_id)) abort("Omnibus universe differs from condition universe")
+
+  taxonomy <- build_taxonomy(args$taxonomy)
+  base <- copy(condition)
+  base <- merge(base, taxonomy, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+  base[, taxonomy_match_status := fifelse(
+    is.na(MAG_ID), "non_MAG_feature",
+    fifelse(is.na(phylum), "unmatched_MAG_taxonomy", "matched_MAG_taxonomy")
+  )]
+  registry <- read_required(args$category_registry)
+  if (nrow(registry) != 8L || uniqueN(registry$category) != 8L) abort("Category registry must contain eight unique frozen categories")
+
+  hits <- read_required(args$signature_hits)
+  required_hits <- c("entity_type", "MAG_ID", "gene_id", "signature_tier", "signature_category", "signature_gene_symbol", "match_type")
+  if (length(setdiff(required_hits, names(hits)))) abort("Signature-hit schema changed")
+  hits <- unique(hits[entity_type == "MAG" & signature_category %chin% registry$category,
+    .(MAG_ID, gene_id, category = signature_category, signature_tier, signature_gene_symbol, match_type)])
+  membership <- unique(merge(
+    base[, .(feature_id, MAG_ID, gene_id)], hits,
+    by = c("MAG_ID", "gene_id"), all = FALSE, allow.cartesian = TRUE
+  ), by = c("feature_id", "category"))
+  membership_summary <- membership[, .(
+    categories = paste(sort(unique(category)), collapse = ";"),
+    n_categories = uniqueN(category)
+  ), by = feature_id]
+  base <- merge(base, membership_summary, by = "feature_id", all.x = TRUE, sort = FALSE)
+  base[is.na(n_categories), n_categories := 0L]
+
+  join_audit <- rbindlist(list(
+    base[, .(audit_family = "annotation_match", status = annotation_match_status, features = .N), by = annotation_match_status][, annotation_match_status := NULL],
+    base[, .(audit_family = "taxonomy_match", status = taxonomy_match_status, features = .N), by = taxonomy_match_status][, taxonomy_match_status := NULL],
+    base[, .(audit_family = "signature_membership", status = fifelse(n_categories == 0L, "no_frozen_category", fifelse(n_categories == 1L, "one_category", "multiple_categories")), features = .N), by = n_categories][, n_categories := NULL]
+  ), fill = TRUE)
+  fwrite(join_audit, file.path(stage, "tables", "annotation_and_membership_audit.tsv"), sep = "\t")
+  fwrite(membership, file.path(stage, "tables", "tested_feature_category_membership.tsv"), sep = "\t")
+  fwrite(base, file.path(stage, "tables", "full_de_gene_annotation_taxonomy.tsv.gz"), sep = "\t", compress = "gzip")
+
+  coefficient_results <- list(
+    condition_adjusted = condition,
+    cycle2_interaction = interactions[coefficient == "cycle2:conditiontreatment"],
+    cycle3_interaction = interactions[coefficient == "cycle3:conditiontreatment"]
+  )
+  category_enrichment <- rbindlist(lapply(names(coefficient_results), function(id) {
+    camera_with_metadata(coefficient_results[[id]], membership, registry, id, directional = TRUE)
+  }), fill = TRUE)
+  category_enrichment <- rbindlist(list(
+    category_enrichment,
+    camera_with_metadata(omnibus, membership, registry, "condition_cycle_omnibus", directional = FALSE)
+  ), fill = TRUE)
+  fwrite(category_enrichment, file.path(stage, "tables", "functional_category_enrichment.tsv"), sep = "\t")
+
+  category_effects <- rbindlist(lapply(names(coefficient_results), function(id) {
+    x <- coefficient_results[[id]][membership, on = "feature_id", nomatch = 0L, allow.cartesian = TRUE]
+    x[, .(
+      n_tested_features = uniqueN(feature_id),
+      median_logFC = as.numeric(median(logFC)),
+      q25_logFC = as.numeric(quantile(logFC, 0.25)),
+      q75_logFC = as.numeric(quantile(logFC, 0.75)),
+      fraction_positive = mean(logFC > 0),
+      n_fdr_0_05 = sum(FDR < 0.05),
+      n_fdr_0_05_abs_logFC_1 = sum(FDR < 0.05 & abs(logFC) >= 1),
+      median_mean_CPM = as.numeric(median(mean_CPM)),
+      median_samples_detected = as.numeric(median(n_samples_detected))
+    ), by = .(category)][, coefficient := id]
+  }), fill = TRUE)
+  category_effects <- merge(category_effects, registry, by = "category", all.x = TRUE, sort = FALSE)
+  fwrite(category_effects, file.path(stage, "tables", "functional_category_effect_summary.tsv"), sep = "\t")
+
+  mag_support <- base[!is.na(MAG_ID), .(
+    n_tested_genes = .N,
+    n_annotated_genes = sum(!is.na(annotation) & nzchar(annotation)),
+    annotation_fraction = mean(!is.na(annotation) & nzchar(annotation)),
+    total_count = sum(total_count),
+    median_mean_CPM = as.numeric(median(mean_CPM)),
+    median_samples_detected = as.numeric(median(n_samples_detected)),
+    domain = first(na.omit(domain)), phylum = first(na.omit(phylum)),
+    class = first(na.omit(class)), order = first(na.omit(order)),
+    family = first(na.omit(family)), genus = first(na.omit(genus)), species = first(na.omit(species))
+  ), by = MAG_ID]
+  mag_support[, eligible := n_tested_genes >= 20L & median_samples_detected >= 6]
+  eligible_mags <- mag_support[eligible == TRUE, MAG_ID]
+  mag_coherence <- rbindlist(lapply(names(coefficient_results), function(id) {
+    result <- coefficient_results[[id]]
+    camera <- camera_mags(result, base, eligible_mags, id, directional = TRUE)
+    summary <- result[base[MAG_ID %chin% eligible_mags, .(feature_id, MAG_ID)], on = "feature_id", nomatch = 0L][, .(
+      median_logFC = as.numeric(median(logFC)),
+      q25_logFC = as.numeric(quantile(logFC, 0.25)),
+      q75_logFC = as.numeric(quantile(logFC, 0.75)),
+      fraction_positive = mean(logFC > 0),
+      n_gene_fdr_0_05 = sum(FDR < 0.05),
+      n_gene_fdr_0_05_abs_logFC_1 = sum(FDR < 0.05 & abs(logFC) >= 1)
+    ), by = MAG_ID]
+    merge(camera, summary, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+  }), fill = TRUE)
+  mag_coherence <- merge(mag_coherence, mag_support, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+
+  library_info <- read_required(input_paths[[5]])
+  raw <- read_required(input_paths[[4]], select = c("feature_id", library_info$sample_title))
+  setkey(raw, feature_id)
+  raw <- raw[condition$feature_id]
+  if (nrow(raw) != nrow(condition) || anyNA(raw$feature_id)) abort("Raw count matrix could not be aligned to tested universe")
+  sample_columns <- library_info$sample_title
+  counts <- as.matrix(raw[, ..sample_columns])
+  storage.mode(counts) <- "numeric"
+  log_cpm <- edgeR::cpm(
+    counts,
+    lib.size = library_info$effective_library_size,
+    log = TRUE,
+    prior.count = 0.5
+  )
+  effect_names <- character()
+  effect_columns <- list()
+  for (phase_value in c("initial", "backflush")) {
+    for (cycle_value in 1:3) {
+      control_sample <- library_info[condition == "control" & phase == phase_value & cycle == cycle_value, sample_title]
+      treatment_sample <- library_info[condition == "treatment" & phase == phase_value & cycle == cycle_value, sample_title]
+      if (length(control_sample) != 1L || length(treatment_sample) != 1L) abort("Cell mapping is not one control and one treatment sample")
+      name <- sprintf("%s_cycle%d", phase_value, cycle_value)
+      effect_names <- c(effect_names, name)
+      effect_columns[[name]] <- log_cpm[, treatment_sample] - log_cpm[, control_sample]
+    }
+  }
+  effect_matrix <- do.call(cbind, effect_columns)
+  recurrence <- classify_recurrence(effect_matrix)
+  recurrence[, feature_id := condition$feature_id]
+  for (name in effect_names) recurrence[, (paste0("log2cpm_difference_", name)) := effect_matrix[, name]]
+  recurrence[, phase_concordant_cycles := rowSums(
+    sign(effect_matrix[, paste0("initial_cycle", 1:3), drop = FALSE]) ==
+      sign(effect_matrix[, paste0("backflush_cycle", 1:3), drop = FALSE]) &
+      sign(effect_matrix[, paste0("initial_cycle", 1:3), drop = FALSE]) != 0
+  )]
+  recurrence[, initial_cycle_direction_cells := pmax(
+    rowSums(effect_matrix[, paste0("initial_cycle", 1:3), drop = FALSE] > 0),
+    rowSums(effect_matrix[, paste0("initial_cycle", 1:3), drop = FALSE] < 0)
+  )]
+  recurrence[, backflush_cycle_direction_cells := pmax(
+    rowSums(effect_matrix[, paste0("backflush_cycle", 1:3), drop = FALSE] > 0),
+    rowSums(effect_matrix[, paste0("backflush_cycle", 1:3), drop = FALSE] < 0)
+  )]
+  fwrite(recurrence, file.path(stage, "tables", "gene_six_cell_recurrence.tsv.gz"), sep = "\t", compress = "gzip")
+
+  recurrence_long <- melt(
+    recurrence,
+    id.vars = "feature_id",
+    measure.vars = patterns("^log2cpm_difference_"),
+    variable.name = "cell", value.name = "log2cpm_difference"
+  )
+  recurrence_long[, cell := sub("^log2cpm_difference_", "", cell)]
+  category_cells <- recurrence_long[membership, on = "feature_id", nomatch = 0L, allow.cartesian = TRUE][, .(
+    median_log2cpm_difference = as.numeric(median(log2cpm_difference)),
+    q25_log2cpm_difference = as.numeric(quantile(log2cpm_difference, 0.25)),
+    q75_log2cpm_difference = as.numeric(quantile(log2cpm_difference, 0.75)),
+    n_tested_features = uniqueN(feature_id)
+  ), by = .(category, cell)]
+  fwrite(category_cells, file.path(stage, "tables", "functional_category_six_cell_effects.tsv"), sep = "\t")
+
+  mag_cells <- recurrence_long[base[!is.na(MAG_ID), .(feature_id, MAG_ID)], on = "feature_id", nomatch = 0L][, .(
+    median_log2cpm_difference = as.numeric(median(log2cpm_difference)),
+    q25_log2cpm_difference = as.numeric(quantile(log2cpm_difference, 0.25)),
+    q75_log2cpm_difference = as.numeric(quantile(log2cpm_difference, 0.75)),
+    n_tested_genes = uniqueN(feature_id)
+  ), by = .(MAG_ID, cell)]
+  fwrite(mag_cells, file.path(stage, "tables", "mag_six_cell_effects.tsv"), sep = "\t")
+
+  recurrence_small <- recurrence[, .(
+    feature_id, recurrence_class, dominant_direction_cells,
+    median_cell_log2cpm_difference, phase_concordant_cycles,
+    initial_cycle_direction_cells, backflush_cycle_direction_cells
+  )]
+  mag_recurrence <- recurrence_small[base[!is.na(MAG_ID), .(feature_id, MAG_ID)], on = "feature_id", nomatch = 0L][, .(
+    recurrent_treatment_higher_genes = sum(recurrence_class == "recurrent_treatment_higher"),
+    recurrent_control_higher_genes = sum(recurrence_class == "recurrent_control_higher"),
+    median_gene_cell_difference = as.numeric(median(median_cell_log2cpm_difference)),
+    median_dominant_direction_cells = as.numeric(median(dominant_direction_cells))
+  ), by = MAG_ID]
+  mag_coherence <- merge(mag_coherence, mag_recurrence, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+  fwrite(mag_coherence, file.path(stage, "tables", "mag_coherence.tsv"), sep = "\t")
+
+  gene_candidates <- merge(condition, recurrence_small, by = "feature_id", all.x = TRUE, sort = FALSE)
+  gene_candidates <- gene_candidates[
+    FDR < 0.05 & abs(logFC) >= 1 & n_samples_detected >= 6 &
+      !is.na(annotation) & nzchar(annotation) &
+      recurrence_class %chin% c("recurrent_treatment_higher", "recurrent_control_higher")
+  ]
+  gene_candidates <- merge(gene_candidates, base[, .(feature_id, domain, phylum, class, order, family, genus, species, categories, n_categories)], by = "feature_id", all.x = TRUE, sort = FALSE)
+  gene_candidates[, absolute_logFC_for_ranking := abs(logFC)]
+  setorder(gene_candidates, FDR, -absolute_logFC_for_ranking)
+  gene_candidates[, absolute_logFC_for_ranking := NULL]
+  fwrite(gene_candidates, file.path(stage, "tables", "predeclared_gene_candidates.tsv"), sep = "\t")
+
+  enrichment_plot <- copy(category_enrichment)
+  enrichment_plot[, signed_log10_fdr := pmin(-log10(pmax(FDR, .Machine$double.xmin)), 12) * fifelse(Direction == "Down", -1, 1)]
+  enrichment_plot[, support_status := factor(
+    fifelse(FDR < 0.05, "BH FDR < 0.05", "Not supported"),
+    levels = c("Not supported", "BH FDR < 0.05")
+  )]
+  enrichment_plot[, label := factor(label, levels = rev(registry$label))]
+  enrichment_plot[, coefficient := factor(coefficient, levels = c("condition_adjusted", "cycle2_interaction", "cycle3_interaction", "condition_cycle_omnibus"))]
+  p_category <- ggplot(enrichment_plot, aes(x = signed_log10_fdr, y = label, colour = set_id, shape = support_status)) +
+    geom_vline(xintercept = 0, linewidth = 0.3, colour = "#777777") +
+    geom_point(size = 2.4) +
+    facet_wrap(vars(coefficient), scales = "free_x") +
+    scale_colour_manual(values = phage_uv_signature_colours, guide = "none") +
+    scale_shape_manual(values = c("Not supported" = 1, "BH FDR < 0.05" = 16), name = NULL) +
+    labs(x = "Signed -log10(BH FDR); omnibus values are non-directional and shown positive", y = NULL) +
+    theme_phage_uv()
+  ggsave(file.path(stage, "figures", "functional-category-enrichment.pdf"), p_category, width = 10, height = 6, device = grDevices::pdf)
+
+  condition_mag <- copy(mag_coherence[coefficient == "condition_adjusted"])
+  condition_mag[, absolute_median_logFC_for_ranking := abs(median_logFC)]
+  setorder(condition_mag, FDR, -absolute_median_logFC_for_ranking)
+  condition_mag[, absolute_median_logFC_for_ranking := NULL]
+  condition_mag <- rbindlist(list(
+    head(condition_mag[Direction == "Up"], 15L),
+    head(condition_mag[Direction == "Down"], 15L)
+  ))
+  setorder(condition_mag, median_logFC)
+  condition_mag[, support_status := factor(
+    fifelse(FDR < 0.05, "BH FDR < 0.05", "Not supported"),
+    levels = c("Not supported", "BH FDR < 0.05")
+  )]
+  condition_mag[, display_taxon := fifelse(!is.na(genus) & nzchar(genus), genus, MAG_ID)]
+  condition_mag[, display_taxon := make.unique(display_taxon)]
+  condition_mag[, display_taxon := factor(display_taxon, levels = rev(display_taxon))]
+  p_mag <- ggplot(condition_mag, aes(x = median_logFC, y = display_taxon)) +
+    geom_vline(xintercept = 0, linewidth = 0.3, colour = "#777777") +
+    geom_point(aes(colour = phylum, shape = support_status, size = log10(pmax(median_mean_CPM, 1e-6) + 1))) +
+    scale_colour_manual(values = setNames(phage_uv_phylum_colour(unique(condition_mag$phylum)), unique(condition_mag$phylum)), na.value = phage_uv_phylum_colours[["Unclassified"]]) +
+    scale_shape_manual(values = c("Not supported" = 1, "BH FDR < 0.05" = 16), name = NULL) +
+    scale_size_continuous(name = "log10(median mean CPM + 1)", range = c(1.5, 4)) +
+    labs(x = "Median gene-level adjusted-condition logFC", y = NULL, colour = "Phylum") +
+    theme_phage_uv()
+  ggsave(file.path(stage, "figures", "mag-condition-coherence.pdf"), p_mag, width = 8.5, height = 8, device = grDevices::pdf)
+
+  top_genes <- rbindlist(list(
+    head(gene_candidates[recurrence_class == "recurrent_treatment_higher"], 20L),
+    head(gene_candidates[recurrence_class == "recurrent_control_higher"], 20L)
+  ))
+  if (nrow(top_genes)) {
+    heat <- recurrence_long[feature_id %chin% top_genes$feature_id]
+    labels <- top_genes[, .(feature_id, gene_label = fifelse(!is.na(gene_symbol) & nzchar(gene_symbol), paste0(gene_symbol, " | ", MAG_ID), paste0(gene_id, " | ", MAG_ID)))]
+    labels[, gene_label := make.unique(gene_label)]
+    heat <- merge(heat, labels, by = "feature_id", all.x = TRUE, sort = FALSE)
+    heat[, gene_label := factor(gene_label, levels = rev(labels$gene_label))]
+    heat[, cell := factor(cell, levels = effect_names)]
+    limit <- max(abs(heat$log2cpm_difference), na.rm = TRUE)
+    p_heat <- ggplot(heat, aes(x = cell, y = gene_label, fill = log2cpm_difference)) +
+      geom_tile() +
+      scale_fill_gradient2(
+        low = phage_uv_condition_colours[["control"]], mid = "white",
+        high = phage_uv_condition_colours[["treatment"]], midpoint = 0,
+        limits = c(-limit, limit), name = "Treatment - control\nlog2 CPM"
+      ) +
+      labs(x = NULL, y = NULL) +
+      theme_phage_uv() +
+      theme(axis.text.x = element_text(angle = 35, hjust = 1))
+    ggsave(file.path(stage, "figures", "recurrent-gene-cell-effects.pdf"), p_heat, width = 10, height = 10, device = grDevices::pdf)
+  }
+
+  expected_figures <- c(
+    "functional-category-enrichment.pdf",
+    "mag-condition-coherence.pdf",
+    if (nrow(top_genes)) "recurrent-gene-cell-effects.pdf" else character()
+  )
+  expected_figure_paths <- file.path(stage, "figures", expected_figures)
+  if (any(!file.exists(expected_figure_paths)) || any(file.info(expected_figure_paths)$size == 0)) {
+    abort("One or more expected candidate PDFs were not rendered")
+  }
+
+  result_summary <- rbindlist(list(
+    data.table(metric = "tested_features", value = nrow(base)),
+    data.table(metric = "tested_features_with_frozen_category", value = uniqueN(membership$feature_id)),
+    data.table(metric = "multiply_assigned_tested_features", value = base[n_categories > 1L, .N]),
+    data.table(metric = "eligible_MAGs", value = length(eligible_mags)),
+    data.table(metric = "predeclared_gene_candidates", value = nrow(gene_candidates)),
+    data.table(metric = "category_tests_BH_0_05", value = category_enrichment[FDR < 0.05, .N]),
+    data.table(metric = "MAG_tests_BH_0_05", value = mag_coherence[FDR < 0.05, .N])
+  ))
+  fwrite(result_summary, file.path(stage, "tables", "interpretation_summary.tsv"), sep = "\t")
+  fwrite(data.table(
+    artifact = c("functional-category-enrichment.pdf", "mag-condition-coherence.pdf", "recurrent-gene-cell-effects.pdf"),
+    status = c("candidate", "candidate", ifelse(nrow(top_genes), "candidate", "not_rendered_no_eligible_genes")),
+    allocation = "unnumbered_unallocated",
+    boundary = c(
+      "Competitive rank enrichment within the full tested universe; categories are not mechanisms",
+      "Two-membrane system MAG coherence; not a population-level treatment effect",
+      "Descriptive six-cell recurrence among predeclared candidates; one sample per condition-cell"
+    )
+  ), file.path(stage, "candidate_figure_registry.tsv"), sep = "\t")
+  writeLines(c(
+    "Condition is confounded with membrane identity.",
+    "All outputs describe the observed two-membrane longitudinal system.",
+    "SOS or repair-associated transcription is not direct evidence of DNA damage.",
+    "Six-cell recurrence summaries are descriptive and are not additional hypothesis tests."
+  ), file.path(stage, "INTERPRETATION_BOUNDARY.txt"))
+  fwrite(data.table(
+    input = input_paths,
+    bytes = file.info(input_paths)$size,
+    md5 = unname(tools::md5sum(input_paths))
+  ), file.path(stage, "input_provenance.tsv"), sep = "\t")
+  fwrite(data.table(
+    software = c("R", "data.table", "edgeR", "ggplot2", "limma", "matrixStats"),
+    version = c(
+      as.character(getRversion()),
+      as.character(packageVersion("data.table")),
+      as.character(packageVersion("edgeR")),
+      as.character(packageVersion("ggplot2")),
+      as.character(packageVersion("limma")),
+      as.character(packageVersion("matrixStats"))
+    )
+  ), file.path(stage, "software_versions.tsv"), sep = "\t")
+  write_checksums(stage)
+
+  if (dir.exists(args$output_dir)) unlink(args$output_dir, recursive = TRUE)
+  if (!file.rename(stage, args$output_dir)) abort("Failed to atomically promote staged output")
+  committed <- TRUE
+  invisible(result_summary)
+}
+
+if (sys.nframe() == 0L && !interactive()) {
+  run_workflow(parse_cli(commandArgs(trailingOnly = TRUE)))
+}
+
+```

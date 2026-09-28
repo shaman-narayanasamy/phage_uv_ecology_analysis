@@ -1,0 +1,182 @@
+---
+title: "Assign 16S Taxonomy with SILVA and Cross-check against GTDB"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/assign_16s_taxonomy.qmd`. SILVA 138.2 is the primary assignment
+because the original study used SILVA 138 and comparability matters. GTDB r220
+is assigned as a second, independent labelling so that 16S genus names can be
+reconciled with the CAT/BAT GTDB lineages already carried by the metagenomic
+side of the manuscript. The two are reported side by side; neither is silently
+merged into the other.
+
+```sh
+bash scripts/run_qmd.sh scripts/assign_16s_taxonomy.qmd [dada2_dir] [reference_dir] [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: assign-16s-taxonomy
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+dada2_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_DADA2_DIR")
+reference_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_REFERENCE_DIR")
+output_dir <- if (length(args) >= 3L) args[[3L]] else Sys.getenv("PHAGE_UV_16S_TAXONOMY_DIR")
+if (!nzchar(dada2_dir) || !nzchar(reference_dir) || !nzchar(output_dir)) {
+  abort("Provide dada2_dir, reference_dir and output_dir, or source config/16s_analysis_paths.sh first.")
+}
+if (!requireNamespace("dada2", quietly = TRUE)) abort("Package dada2 is required.")
+
+threads <- as.integer(Sys.getenv("PHAGE_UV_16S_THREADS", "4"))
+min_boot <- as.integer(Sys.getenv("PHAGE_UV_16S_MIN_BOOT", "80"))
+set.seed(20260901L)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+seqtab_path <- file.path(dada2_dir, "16s_seqtab_nochim.rds")
+if (!file.exists(seqtab_path)) abort("Missing %s. Run scripts/run_16s_dada2.qmd first.", seqtab_path)
+seqtab <- readRDS(seqtab_path)
+sequences <- dada2::getSequences(seqtab)
+
+reference_path <- function(filename) {
+  path <- file.path(reference_dir, filename)
+  if (!file.exists(path)) {
+    abort("Missing reference %s. Run scripts/fetch_16s_reference_databases.sh first.", path)
+  }
+  path
+}
+
+# Each reference is assigned once and cached. A k-mer index for SILVA nr99 is
+# several gigabytes, so on a small machine the two references must not be
+# resident together: run this notebook twice and each pass gets a clean heap.
+silva_cache <- file.path(output_dir, "16s_taxonomy_silva_raw.rds")
+gtdb_cache <- file.path(output_dir, "16s_taxonomy_gtdb_raw.rds")
+
+if (file.exists(silva_cache)) {
+  cat("Loading cached SILVA 138.2 assignment\n")
+  silva_cached <- readRDS(silva_cache)
+  silva_taxa <- silva_cached$tax
+  silva_boot <- silva_cached$boot
+  rm(silva_cached)
+} else {
+  cat(sprintf("Assigning SILVA 138.2 taxonomy to %d ASVs (minBoot = %d)\n",
+              length(sequences), min_boot))
+  silva <- dada2::assignTaxonomy(
+    seqtab, reference_path("silva_nr99_v138.2_toGenus_trainset.fa.gz"),
+    minBoot = min_boot, multithread = threads, outputBootstraps = TRUE
+  )
+  silva_taxa <- dada2::addSpecies(
+    silva$tax, reference_path("silva_v138.2_assignSpecies.fa.gz"))
+  silva_boot <- silva$boot
+  saveRDS(list(tax = silva_taxa, boot = silva_boot), silva_cache)
+  rm(silva)
+}
+invisible(gc(full = TRUE))
+
+# The GTDB cross-check is secondary. Where it does not fit in memory, the run
+# proceeds on SILVA alone and says so in the concordance table rather than
+# failing the whole step.
+gtdb_enabled <- tolower(Sys.getenv("PHAGE_UV_16S_GTDB_CROSSCHECK", "true")) %in%
+  c("true", "1", "yes")
+if (!gtdb_enabled) {
+  cat("GTDB r220 cross-check disabled by PHAGE_UV_16S_GTDB_CROSSCHECK.\n")
+  gtdb_taxa <- NULL
+} else if (file.exists(gtdb_cache)) {
+  cat("Loading cached GTDB r220 assignment\n")
+  gtdb_taxa <- readRDS(gtdb_cache)
+} else {
+  cat("Assigning GTDB r220 cross-check taxonomy\n")
+  gtdb_taxa <- dada2::assignTaxonomy(
+    seqtab, reference_path("GTDB_bac120_arc53_ssu_r220_fullTaxo.fa.gz"),
+    minBoot = min_boot, multithread = threads
+  )
+  saveRDS(gtdb_taxa, gtdb_cache)
+}
+invisible(gc(full = TRUE))
+
+asv_ids <- sprintf("ASV%04d", seq_along(sequences))
+names(asv_ids) <- sequences
+
+tidy_taxonomy <- function(tax, source) {
+  out <- as.data.frame(tax, stringsAsFactors = FALSE)
+  out$asv_id <- asv_ids[rownames(out)]
+  out$sequence <- rownames(out)
+  out$reference <- source
+  rownames(out) <- NULL
+  out[, c("asv_id", "reference", setdiff(names(out), c("asv_id", "reference", "sequence")), "sequence")]
+}
+
+silva_table <- tidy_taxonomy(silva_taxa, "silva_138.2")
+gtdb_table <- if (is.null(gtdb_taxa)) NULL else tidy_taxonomy(gtdb_taxa, "gtdb_r220")
+
+boot_table <- as.data.frame(silva_boot, stringsAsFactors = FALSE)
+boot_table$asv_id <- asv_ids[rownames(boot_table)]
+rownames(boot_table) <- NULL
+boot_table <- boot_table[, c("asv_id", setdiff(names(boot_table), "asv_id"))]
+
+# Read-weighted concordance per rank. Unassigned on either side is reported
+# separately from a genuine disagreement, because they mean different things.
+abundance <- colSums(seqtab)
+strip_prefix <- function(x) sub("^[a-z]__", "", x)
+common_ranks <- if (is.null(gtdb_taxa)) character(0) else
+  intersect(colnames(silva_taxa), colnames(gtdb_taxa))
+concordance <- do.call(rbind, lapply(common_ranks, function(rank) {
+  a <- strip_prefix(silva_taxa[sequences, rank])
+  b <- strip_prefix(gtdb_taxa[sequences, rank])
+  both <- !is.na(a) & !is.na(b)
+  agree <- both & a == b
+  data.frame(
+    rank = rank,
+    asvs_total = length(sequences),
+    asvs_assigned_silva = sum(!is.na(a)),
+    asvs_assigned_gtdb = sum(!is.na(b)),
+    asvs_comparable = sum(both),
+    asvs_agreeing = sum(agree),
+    asv_agreement_fraction = round(ifelse(sum(both) > 0, sum(agree) / sum(both), NA), 4),
+    read_agreement_fraction = round(
+      ifelse(sum(abundance[both]) > 0, sum(abundance[agree]) / sum(abundance[both]), NA), 4),
+    stringsAsFactors = FALSE
+  )
+}))
+
+write.table(silva_table, file.path(output_dir, "16s_taxonomy_silva138.2.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+if (!is.null(gtdb_table)) {
+  write.table(gtdb_table, file.path(output_dir, "16s_taxonomy_gtdb_r220.tsv"),
+              sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+}
+if (is.null(concordance)) {
+  concordance <- data.frame(
+    rank = NA_character_, asvs_total = length(sequences),
+    asvs_assigned_silva = sum(!is.na(silva_taxa[sequences, "Genus"])),
+    asvs_assigned_gtdb = NA_integer_, asvs_comparable = NA_integer_,
+    asvs_agreeing = NA_integer_, asv_agreement_fraction = NA_real_,
+    read_agreement_fraction = NA_real_,
+    note = paste("GTDB r220 cross-check not run; SILVA 138.2 is the sole",
+                 "assignment for this execution"),
+    stringsAsFactors = FALSE
+  )
+}
+write.table(boot_table, file.path(output_dir, "16s_taxonomy_silva_bootstraps.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+write.table(concordance, file.path(output_dir, "16s_taxonomy_concordance.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+saveRDS(list(silva = silva_taxa, silva_bootstraps = silva_boot, gtdb = gtdb_taxa,
+             asv_ids = asv_ids),
+        file.path(output_dir, "16s_taxonomy.rds"))
+
+print(concordance)
+cat(sprintf("\nWrote taxonomy tables to %s\n", output_dir))
+cat("Report SILVA in the manuscript. Use GTDB only to state how far the 16S and MAG\n")
+cat("naming systems agree; do not relabel SILVA assignments with GTDB names.\n")
+```

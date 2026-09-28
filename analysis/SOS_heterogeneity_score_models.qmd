@@ -1,0 +1,114 @@
+---
+title: "Separate SOS and genomic-diversity associations with cleaning performance"
+format: html
+editor: source
+---
+
+Outcome and frozen normalization are unchanged. SOS scope is the fixed14biofilm
+candidate MAGs, using all tested SOS_response genes in each, without selecting
+SOS genes by significance. A MAG with no SOS annotation is unavailable, not zero.
+Compute mean gene-centred log2CPM using full-library effective sizes and prior0.5,
+as for biofilm scores. This is not per-cell activity or UV-specific resistance.
+
+Genomic scope is the existing five-MAG coverage-qualified dataset, NOT the14MAG
+candidate set. Only MAG-phase combinations with all six samples passing the
+existing >=5x mean coverage and >=0.5 callable-breadth rules are eligible.
+Use reported callable-weighted nucleotide diversity, with no imputation or
+substitution of pairwise distances. Require complete finite predictor values.
+Coverage and strain mixture can affect diversity. No damage/mutation-rate claim.
+
+Each eligible MAG-phase gets score~condition+x, score~factor(cycle)+condition+x,
+and score~cycle+condition+x. Genomics additionally gets score~condition+x+
+log10_coverage. No joint SOS/diversity fit. Two-sided OLS and HC3 approximate
+t tests, BH across all tests within each evidence layer; also across all tests.
+These post hoc exploratory models assume independent errors despite repeated
+membranes, condition/membrane confounding and fixed constructed scores. No
+calibrated treatment-effect inference. Model df and coverage sensitivity reported.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(edgeR)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+paths<-c(score=file.path(root,"cleaning_performance_score_2026-09-14-v1/cleaning_score.rds"),
+ candidates=file.path(root,"cleaning_score_condition_models_2026-09-14-v1/models.tsv"),
+ membership=file.path(root,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ counts=file.path(root,"full_transcriptome_de/tables/collapsed_raw_count_matrix.tsv"),
+ libs=file.path(root,"full_transcriptome_de/tables/library_sizes_and_normalization.tsv"),
+ genomic=file.path(root,"manuscript_candidates/tables/mag_genomic_variation_sample_qc.tsv"))
+sha<-function(p)digest::digest(file=p,algo="sha256");before<-vapply(paths,sha,character(1))
+score<-readRDS(paths['score'])$scores
+cand<-unique(fread(paths['candidates'])[,.(MAG_ID,genus)])
+m<-fread(paths['membership'])[set_id=="SOS_response" & MAG_ID %in% cand$MAG_ID]
+stopifnot(!anyDuplicated(m$feature_id))
+libs<-fread(paths['libs']);samples<-libs$sample_title
+counts<-fread(paths['counts'],select=c("feature_id",samples))
+counts<-counts[match(m$feature_id,feature_id)];stopifnot(identical(counts$feature_id,m$feature_id))
+lcpm<-cpm(as.matrix(counts[,..samples]),lib.size=libs$effective_library_size,log=TRUE,prior.count=.5)
+centred<-lcpm-rowMeans(lcpm)
+s<-as.data.table(centred);setnames(s,samples);s[,MAG_ID:=m$MAG_ID]
+s<-s[,lapply(.SD,mean),by=MAG_ID,.SDcols=samples]
+s<-melt(s,id.vars="MAG_ID",variable.name="sample_title",value.name="x")
+s<-merge(s,libs[,.(sample_title,condition,phase,cycle)],by="sample_title")
+s<-merge(s,cand,by="MAG_ID");s[,layer:="SOS"]
+membership_summary<-m[,.(n_SOS_genes=.N,n_condition_up=sum(FDR<.05 & logFC>0),
+ n_condition_down=sum(FDR<.05 & logFC<0)),by=MAG_ID]
+eligibility<-merge(cand,membership_summary,by="MAG_ID",all.x=TRUE)
+eligibility[,SOS_available:=!is.na(n_SOS_genes)]
+q<-fread(paths['genomic'])
+stopifnot(!anyDuplicated(q[,.(MAG_ID,condition,phase,cycle)]))
+q[,usable:=sample_passes_qc & mean_coverage>=5 & callable_breadth>=.5 & is.finite(nucleotide_diversity)]
+gqc<-q[,.(qualified=sum(usable),observed=.N),by=.(MAG_ID,phase)]
+eligible<-gqc[qualified==6 & observed==6,.(MAG_ID,phase)]
+g<-q[eligible,on=.(MAG_ID,phase)]
+g[,`:=`(x=nucleotide_diversity,layer="heterogeneity",log10_coverage=log10(mean_coverage))]
+z<-rbindlist(list(s,g[,.(MAG_ID,genus,condition,phase,cycle,x,layer,log10_coverage)]),fill=TRUE)
+z<-merge(z,score[,.(condition,cycle,score)],by=c("condition","cycle"),allow.cartesian=TRUE)
+keys<-unique(z[,.(MAG_ID,phase,layer)])
+results<-list();observations<-list();fits<-list()
+for(i in seq_len(nrow(keys))){
+ k<-keys[i];d<-copy(z[k,on=.(MAG_ID,phase,layer)]);setorder(d,condition,cycle)
+ d[,condition:=factor(condition)]
+ forms<-list(condition_only=score~condition+x,categorical_cycle=score~factor(cycle)+condition+x,
+ linear_cycle=score~cycle+condition+x)
+ if(k$layer=="heterogeneity")forms$coverage_adjusted<-score~condition+x+log10_coverage
+ for(spec in names(forms)){
+  f<-lm(forms[[spec]],d);X<-model.matrix(f);df<-df.residual(f)
+  stopifnot(nrow(d)==6,f$rank==ncol(X),df>0)
+  b<-unname(coef(f)['x']);se<-sqrt(vcov(f)['x','x']);h<-hatvalues(f)
+  stopifnot(all(h<1-1e-10))
+  V<-solve(crossprod(X));hc<-V%*%crossprod(X,X*as.numeric((resid(f)/(1-h))^2))%*%V
+  se3<-sqrt(hc['x','x'])
+  nuisance<-X[,colnames(X)!="x",drop=FALSE]
+  rx<-lm.fit(nuisance,d$x)$residuals;ry<-lm.fit(nuisance,d$score)$residuals
+  stopifnot(abs(b-sum(rx*ry)/sum(rx^2))<1e-7*max(1,abs(b)))
+  key<-paste(k$layer,k$MAG_ID,k$phase,spec,sep="/")
+  fits[[key]]<-f
+  results[[key]]<-data.table(layer=k$layer,MAG_ID=k$MAG_ID,genus=d$genus[1],phase=k$phase,
+   specification=spec,n=6,residual_df=df,beta=b,se=se,p=2*pt(-abs(b/se),df),
+   low=b-qt(.975,df)*se,high=b+qt(.975,df)*se,HC3_p=2*pt(-abs(b/se3),df),
+   beta_per_predictor_SD=b*sd(d$x),max_leverage=max(h))
+  dd<-copy(d);dd[,`:=`(specification=spec,fitted=fitted(f),residual=resid(f))];observations[[key]]<-dd
+ }
+}
+a<-rbindlist(results)
+a[,`:=`(FDR_layer=p.adjust(p,"BH"),HC3_FDR_layer=p.adjust(HC3_p,"BH")),by=layer]
+a[,`:=`(FDR_all=p.adjust(p,"BH"),HC3_FDR_all=p.adjust(HC3_p,"BH"))]
+stopifnot(identical(before,vapply(paths,sha,character(1))))
+dir.create(out,recursive=TRUE)
+for(n in c("models","observations","SOS_eligibility","genomic_eligibility","SOS_gene_membership")){
+ obj<-switch(n,models=a,observations=rbindlist(observations),SOS_eligibility=eligibility,
+ genomic_eligibility=gqc,SOS_gene_membership=m)
+ fwrite(obj,file.path(out,paste0(n,".tsv")),sep="\t")
+}
+saveRDS(fits,file.path(out,"fits.rds"))
+paths<-c(paths,notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(path=paths,sha256=vapply(paths,sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(paths['notebook'],file.path(out,basename(paths['notebook'])))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS: all fits full rank with six rows; independent FWL slopes; unchanged inputs.",
+ "SOS gene scores use all annotated tested SOS genes per candidate; missing annotations not zero.",
+ "Genomic models use separate existing coverage-qualified MAG set, not biofilm candidates."),file.path(out,"CHECKS.txt"))
+print(a[,.(tests=.N,raw=sum(p<.05),BH=sum(FDR_layer<.05),min_p=min(p),min_FDR=min(FDR_layer)),by=layer])
+print(a[layer=="heterogeneity",.(MAG_ID,phase,specification,beta,p,FDR_layer)])
+print(a[layer=="SOS"][order(p)][1:5,.(MAG_ID,phase,specification,beta,p,FDR_layer)])
+```

@@ -1,0 +1,66 @@
+---
+title: "All-MAG cleaning-score model audit"
+format: html
+execute:
+  enabled: false
+---
+
+Annotate all MAG results, verify the original DNA fits, and export the common
+50% reduction contrast. Expression flags are evidence fields, not an approved
+partition into biofilm and non-biofilm organisms. Model inference and limitations
+are specified in `cleaning_score_all_MAG_models.qmd`.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+out <- file.path(root,"cleaning_score_all_MAG_models_2026-09-21-v1")
+paths <- c(models=file.path(out,"tables/models.tsv"),
+ scenarios=file.path(out,"tables/DNA_suppression_scenarios.tsv"),
+ taxonomy=file.path(root,"mag_global_abundance_tree_2026-09-13-v2/tables/catalogue_rank_assignments.tsv"),
+ membership=file.path(root,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ original=file.path(root,"cleaning_score_MAG_models_2026-09-14-v1/tables/models.tsv"),
+ condition=file.path(root,"cleaning_score_condition_models_2026-09-14-v1/models.tsv"))
+sha <- function(p)digest::digest(file=p,algo="sha256")
+before <- vapply(paths,sha,character(1))
+a <- fread(paths['models']); sc <- fread(paths['scenarios'])
+b <- rbindlist(list(fread(paths['original'])[predictor=="DNA"],fread(paths['condition'])[predictor=="DNA"]),fill=TRUE)
+j <- merge(a,b,by=c("specification","MAG_ID","phase"))
+stopifnot(nrow(j)==84,max(abs(j$beta.x-j$beta.y))<1e-10,max(abs(j$p.x-j$p.y))<1e-10)
+fwrite(j[,.(specification,MAG_ID,phase,beta_difference=beta.x-beta.y,p_difference=p.x-p.y)],file.path(out,"tables/original_84_fit_reconciliation.tsv"),sep="\t")
+tax <- fread(paths['taxonomy'])[,.(MAG_ID,phylum,family,genus,species)]
+stopifnot(!anyDuplicated(tax$MAG_ID),setequal(tax$MAG_ID,a$MAG_ID))
+m <- fread(paths['membership'])[set_id=="biofilm_combined"]
+evidence <- m[,.(tested_biofilm_genes=.N,upregulated_genes=sum(FDR<.05 & logFC>0,na.rm=TRUE),
+ downregulated_genes=sum(FDR<.05 & logFC<0,na.rm=TRUE),interaction_genes=sum(joint_FDR<.05,na.rm=TRUE)),by=MAG_ID]
+evidence <- merge(tax,evidence,by="MAG_ID",all.x=TRUE)
+for(nm in c("tested_biofilm_genes","upregulated_genes","downregulated_genes","interaction_genes"))set(evidence,which(is.na(evidence[[nm]])),nm,0L)
+evidence[,existing_14_candidate:=upregulated_genes>0]
+stopifnot(nrow(evidence)==348,sum(evidence$existing_14_candidate)==14)
+fwrite(evidence,file.path(out,"tables/MAG_expression_evidence.tsv"),sep="\t")
+a[,genus:=NULL];a <- merge(a,evidence,by="MAG_ID")
+fwrite(a,file.path(out,"tables/models_annotated.tsv"),sep="\t")
+s50 <- sc[suppression==.5];s50[,genus:=NULL]
+s50 <- merge(s50,evidence,by="MAG_ID")
+s50 <- merge(s50,a[,.(MAG_ID,phase,specification,HC3_low,HC3_high,leave_cycle_same_sign,leave_cycle_estimable,predictor_VIF)],by=c("MAG_ID","phase","specification"))
+s50[,`:=`(HC3_delta_low=-HC3_high,HC3_delta_high=-HC3_low)]
+s50[,rank_by_predicted_gain:=frank(-delta_score,ties.method="min"),by=.(specification,phase)]
+fwrite(s50[order(specification,phase,rank_by_predicted_gain)],file.path(out,"tables/50_percent_reduction_annotated.tsv"),sep="\t")
+summary <- a[,.(tests=.N,residual_df=unique(residual_df),nominal_p_below_005=sum(p<.05),BH_below_005=sum(FDR_696<.05),min_p=min(p),min_BH=min(FDR_696)),by=specification]
+fwrite(summary,file.path(out,"tables/model_summary.tsv"),sep="\t")
+# All-MAG distribution without imposing the pending expression-group definition.
+p <- ggplot(s50,aes(delta_score))+stat_ecdf(geom="step",linewidth=.5)+
+ geom_vline(xintercept=0,colour="grey60",linetype=2)+
+ facet_grid(phase~specification,labeller=label_wrap_gen(20))+
+ theme_bw(base_size=9)+labs(x="Predicted cleaning-score change at 50% lower MAG abundance",y="Cumulative fraction of MAGs")
+ggsave(file.path(out,"figures/all_MAG_reduction_distribution.pdf"),p,width=10,height=5,device=grDevices::pdf)
+ggsave(file.path(out,"figures/all_MAG_reduction_distribution.png"),p,width=10,height=5,dpi=160,device=ragg::agg_png)
+stopifnot(identical(before,vapply(paths,sha,character(1))))
+notebook <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+file.copy(notebook,file.path(out,"source",basename(notebook)))
+fwrite(data.table(path=c(paths,notebook),sha256=vapply(c(paths,notebook),sha,character(1))),file.path(out,"review_input_sha256.tsv"),sep="\t")
+writeLines(c("PASS: all 84 pre-existing candidate DNA slopes and nominal p-values reproduced within 1e-10.",
+ "PASS: 348 unique taxonomy/evidence rows; 14 original up-hit candidates.",
+ "PASS: 2088 common 50% scenarios, across 348 MAGs, two phases and three specifications.",
+ "PASS: source hashes unchanged.","Group comparison pending author definition; no between-group superiority test performed."),file.path(out,"REVIEW_CHECKS.txt"))
+print(summary)
+```

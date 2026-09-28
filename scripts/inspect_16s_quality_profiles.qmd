@@ -1,0 +1,137 @@
+---
+title: "Inspect 16S Quality Profiles and Plan Truncation"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/inspect_16s_quality_profiles.qmd`. It profiles the primer-removed
+reads and turns truncation from a habit into a recorded decision: the length
+budget must leave enough overlap to merge the amplicon, and the quality tail
+must not be carried into the error model.
+
+```sh
+bash scripts/run_qmd.sh scripts/inspect_16s_quality_profiles.qmd [trimmed_dir] [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: inspect-16s-quality-profiles
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+trimmed_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_TRIMMED_DIR")
+output_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_QUALITY_DIR")
+if (!nzchar(trimmed_dir) || !nzchar(output_dir)) {
+  abort("Provide trimmed_dir and output_dir, or source config/16s_analysis_paths.sh first.")
+}
+for (pkg in c("dada2", "ShortRead", "ggplot2")) {
+  if (!requireNamespace(pkg, quietly = TRUE)) abort("Package %s is required.", pkg)
+}
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+forward <- sort(list.files(trimmed_dir, pattern = "_R1\\.trimmed\\.fastq\\.gz$", full.names = TRUE))
+reverse <- sort(list.files(trimmed_dir, pattern = "_R2\\.trimmed\\.fastq\\.gz$", full.names = TRUE))
+if (!length(forward) || length(forward) != length(reverse)) {
+  abort("Expected matched R1/R2 trimmed FASTQs in %s; found %d and %d.",
+        trimmed_dir, length(forward), length(reverse))
+}
+
+# Aggregated quality profiles across all samples, then per-sample panels.
+pdf(file.path(output_dir, "16s_quality_profiles.pdf"), width = 9, height = 6)
+print(dada2::plotQualityProfile(forward, aggregate = TRUE) +
+        ggplot2::ggtitle("Forward reads, aggregated"))
+print(dada2::plotQualityProfile(reverse, aggregate = TRUE) +
+        ggplot2::ggtitle("Reverse reads, aggregated"))
+print(dada2::plotQualityProfile(forward))
+print(dada2::plotQualityProfile(reverse))
+invisible(dev.off())
+
+# Per-cycle quality summary computed directly from the FASTQs, so the chosen
+# truncation points are reproducible from a table rather than read off a plot.
+cycle_summary <- function(files, direction, sample_n = 50000L) {
+  quality_matrix <- NULL
+  for (file in files) {
+    sampler <- ShortRead::FastqSampler(file, n = sample_n)
+    reads <- ShortRead::yield(sampler)
+    close(sampler)
+    scores <- methods::as(Biostrings::quality(reads), "matrix")
+    if (is.null(quality_matrix)) {
+      quality_matrix <- scores
+    } else {
+      width <- max(ncol(quality_matrix), ncol(scores))
+      pad <- function(m, w) {
+        if (ncol(m) == w) return(m)
+        cbind(m, matrix(NA_integer_, nrow = nrow(m), ncol = w - ncol(m)))
+      }
+      quality_matrix <- rbind(pad(quality_matrix, width), pad(scores, width))
+    }
+  }
+  data.frame(
+    read_direction = direction,
+    cycle = seq_len(ncol(quality_matrix)),
+    reads_scored = apply(quality_matrix, 2, function(x) sum(!is.na(x))),
+    median_quality = apply(quality_matrix, 2, stats::median, na.rm = TRUE),
+    q25_quality = apply(quality_matrix, 2, stats::quantile, probs = 0.25, na.rm = TRUE),
+    mean_quality = round(colMeans(quality_matrix, na.rm = TRUE), 3),
+    stringsAsFactors = FALSE
+  )
+}
+
+cycles <- rbind(cycle_summary(forward, "R1"), cycle_summary(reverse, "R2"))
+write.table(cycles, file.path(output_dir, "16s_per_cycle_quality.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+# Last cycle at which the median quality still meets a threshold. This is a
+# candidate truncation point, not an automatic decision.
+last_cycle_at <- function(direction, threshold) {
+  sub <- cycles[cycles$read_direction == direction & cycles$median_quality >= threshold, ]
+  if (!nrow(sub)) return(NA_integer_)
+  max(sub$cycle)
+}
+thresholds <- c(30, 28, 25, 20)
+candidates <- data.frame(
+  median_quality_threshold = thresholds,
+  trunc_len_r1 = vapply(thresholds, function(q) last_cycle_at("R1", q), integer(1)),
+  trunc_len_r2 = vapply(thresholds, function(q) last_cycle_at("R2", q), integer(1)),
+  stringsAsFactors = FALSE
+)
+
+# Overlap budget. The primer-free insert is the amplicon minus both primers.
+# The original methods report an approximately 550 bp amplicon, while the
+# 515F/907R product is usually near 410 bp. Both hypotheses are carried here
+# because the merge rate in step 4 is what settles the question empirically.
+primer_bases <- nchar(Sys.getenv("PHAGE_UV_16S_PRIMER_FWD", "GTGYCAGCMGCCGCGGTAA")) +
+  nchar(Sys.getenv("PHAGE_UV_16S_PRIMER_REV", "CCCCGYCAATTCMTTTRAGT"))
+min_overlap <- as.integer(Sys.getenv("PHAGE_UV_16S_MIN_OVERLAP", "20"))
+amplicon_hypotheses <- c(literature_515f_907r = 410L, original_methods_statement = 550L)
+
+planning <- do.call(rbind, lapply(names(amplicon_hypotheses), function(hypothesis) {
+  insert <- amplicon_hypotheses[[hypothesis]] - primer_bases
+  out <- candidates
+  out$amplicon_hypothesis <- hypothesis
+  out$assumed_amplicon_bp <- amplicon_hypotheses[[hypothesis]]
+  out$assumed_insert_bp <- insert
+  out$expected_overlap_bp <- out$trunc_len_r1 + out$trunc_len_r2 - insert
+  out$meets_min_overlap <- !is.na(out$expected_overlap_bp) & out$expected_overlap_bp >= min_overlap
+  out
+}))
+planning <- planning[, c("amplicon_hypothesis", "assumed_amplicon_bp", "assumed_insert_bp",
+                         "median_quality_threshold", "trunc_len_r1", "trunc_len_r2",
+                         "expected_overlap_bp", "meets_min_overlap")]
+write.table(planning, file.path(output_dir, "16s_truncation_planning.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+print(planning)
+cat(sprintf("\nWrote quality profiles, per-cycle table, and truncation planning to %s\n", output_dir))
+cat("Set PHAGE_UV_16S_TRUNC_LEN_R1 and PHAGE_UV_16S_TRUNC_LEN_R2 from this table before step 4.\n")
+cat("Any pair whose expected overlap fails under BOTH hypotheses must not be used.\n")
+```

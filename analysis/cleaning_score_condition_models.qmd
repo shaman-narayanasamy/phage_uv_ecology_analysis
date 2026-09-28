@@ -1,0 +1,104 @@
+---
+title: "Condition-adjusted MAG associations with cleaning performance"
+format: html
+editor: source
+---
+
+Author-requested sensitivity analysis, specified after viewing cycle-adjusted
+results. The composite and its frozen reference parameters are unchanged.
+For each of 14 fixed candidates, DNA/RNA and Initial/Backflush are separate views:
+`lm(score ~ condition + x)`. Six observations, three residual degrees of freedom.
+Two-sided OLS t tests, BH across all 56 new slope tests; HC3 t approximations
+corrected separately. Also report BH over all 168 tests including the earlier
+112 fits, without replacing their saved results. No cycle adjustment: shared
+temporal trends can drive these associations. Membrane and condition remain
+confounded. Independent Gaussian errors are a working assumption, not a verified
+repeated-measures model. Candidate selection and score construction uncertainty
+are not accounted for by these nominal p-values and intervals.
+
+DNA x is log2 normalized whole-MAG abundance; RNA x is the all-combined3905-gene
+mean centred log2CPM score. No phase pooling, no duplicated outcomes in a fit.
+DNA suppression changes are index units, not percent biofilm reduction. This
+analysis complements, and does not supplant, cycle-adjusted fits.
+
+```{r}
+suppressPackageStartupMessages(library(data.table))
+out<-commandArgs(TRUE)[1];stopifnot(length(out)==1,!is.na(out),!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+paths<-c(observations=file.path(root,"cleaning_score_MAG_models_2026-09-14-v1/tables/model_observations.tsv"),
+ old_models=file.path(root,"cleaning_score_MAG_models_2026-09-14-v1/tables/models.tsv"),
+ score=file.path(root,"cleaning_performance_score_2026-09-14-v1/cleaning_score.rds"))
+sha<-function(p)digest::digest(file=p,algo="sha256")
+before<-vapply(paths,sha,character(1))
+z<-fread(paths['observations'])[specification=="categorical_cycle"]
+old<-fread(paths['old_models']);scores<-readRDS(paths['score'])$scores
+stopifnot(nrow(z)==336,nrow(old)==112,uniqueN(z$MAG_ID)==14,
+ !anyDuplicated(z[,.(MAG_ID,predictor,phase,condition,cycle)]))
+check<-merge(z,scores[,.(condition,cycle,canonical_score=score)],by=c("condition","cycle"))
+stopifnot(nrow(check)==336,max(abs(check$score-check$canonical_score))<1e-12)
+ans<-list();observations<-list();deletions<-list();scenarios<-list();fits<-list()
+keys<-unique(z[,.(MAG_ID,predictor,phase)])
+for(i in seq_len(nrow(keys))){
+ key<-keys[i];d<-copy(z[key,on=.(MAG_ID,predictor,phase)])
+ setorder(d,condition,cycle);d[,condition:=factor(condition,levels=c("control","treatment"))]
+ fit<-lm(score~condition+x,d);X<-model.matrix(fit);df<-df.residual(fit)
+ stopifnot(nrow(d)==6,fit$rank==3,df==3)
+ b<-unname(coef(fit)['x']);se<-sqrt(vcov(fit)['x','x']);h<-hatvalues(fit)
+ stopifnot(all(h<1-1e-10))
+ V<-solve(crossprod(X));hc3<-V%*%crossprod(X,X*as.numeric((resid(fit)/(1-h))^2))%*%V
+ se3<-sqrt(hc3['x','x']);rx<-resid(lm(x~condition,d));ry<-resid(lm(score~condition,d))
+ stopifnot(abs(b-sum(rx*ry)/sum(rx^2))<1e-9)
+ dl<-rbindlist(lapply(1:3,function(cy){
+  ff<-lm(score~condition+x,d[cycle!=cy])
+  data.table(dropped_cycle=cy,beta=unname(coef(ff)['x']),rank=ff$rank,df=df.residual(ff))
+ }))
+ stopifnot(all(dl$rank==3),all(dl$df==1))
+ dl[,`:=`(MAG_ID=key$MAG_ID,predictor=key$predictor,phase=key$phase,same_sign=sign(beta)==sign(b))]
+ deletions[[i]]<-dl
+ ans[[i]]<-data.table(specification="condition_only",MAG_ID=key$MAG_ID,genus=d$genus[1],
+ predictor=key$predictor,phase=key$phase,n=6,residual_df=df,beta=b,se=se,
+ CI_low=b-qt(.975,df)*se,CI_high=b+qt(.975,df)*se,p=2*pt(-abs(b/se),df),
+ HC3_se=se3,HC3_p=2*pt(-abs(b/se3),df),
+ HC3_low=b-qt(.975,df)*se3,HC3_high=b+qt(.975,df)*se3,
+ max_leverage=max(h),max_Cook=max(cooks.distance(fit)),
+ predictor_VIF=1/(1-summary(lm(x~condition,d))$r.squared),
+ leave_cycle_same_sign=sum(dl$same_sign))
+ d[,`:=`(specification="condition_only",fitted=fitted(fit),residual=resid(fit),partial_x=rx,partial_score=ry)]
+ observations[[i]]<-d;fits[[paste(key,collapse="/")]]<-fit
+ if(key$predictor=="DNA"){
+  sc<-data.table(suppression=c(0,.1,.25,.5,.75,.9,.95))
+  sc[,delta_x:=log2(1-suppression)]
+  sc[,`:=`(MAG_ID=key$MAG_ID,genus=d$genus[1],phase=key$phase,
+   delta_score=b*delta_x,low=(b+qt(.975,df)*se)*delta_x,high=(b-qt(.975,df)*se)*delta_x)]
+  sc[,treated_below_observed_range:=vapply(delta_x,function(dx)sum(d[condition=="treatment",x]+dx<min(d$x)),integer(1))]
+  scenarios[[i]]<-sc
+  dd<-copy(d);dd[,x:=x-1]
+  stopifnot(max(abs(predict(fit,dd)-predict(fit,d)+b))<1e-9)
+ }
+}
+a<-rbindlist(ans);stopifnot(nrow(a)==56)
+a[,`:=`(FDR_56=p.adjust(p,"BH",n=56),HC3_FDR_56=p.adjust(HC3_p,"BH",n=56))]
+combined<-rbindlist(list(old,a),fill=TRUE)
+combined[,`:=`(FDR_168=p.adjust(p,"BH",n=168),HC3_FDR_168=p.adjust(HC3_p,"BH",n=168))]
+a<-combined[specification=="condition_only"]
+sc<-merge(rbindlist(scenarios),a[predictor=="DNA",.(MAG_ID,phase,p,FDR_56,FDR_168)],by=c("MAG_ID","phase"))
+stopifnot(nrow(sc)==196,all(sc[suppression==0,delta_score]==0),all(sc$low<=sc$high),
+ identical(before,vapply(paths,sha,character(1))))
+dir.create(out,recursive=TRUE)
+fwrite(a,file.path(out,"models.tsv"),sep="\t")
+fwrite(combined,file.path(out,"all_specifications.tsv"),sep="\t")
+fwrite(rbindlist(observations),file.path(out,"model_observations.tsv"),sep="\t")
+fwrite(rbindlist(deletions),file.path(out,"leave_cycle_out.tsv"),sep="\t")
+fwrite(sc,file.path(out,"DNA_suppression_scenarios.tsv"),sep="\t")
+saveRDS(fits,file.path(out,"fitted_models.rds"))
+paths<-c(paths,notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(path=paths,sha256=vapply(paths,sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(paths['notebook'],file.path(out,basename(paths['notebook'])))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS:56 full-rank six-row fits,3 residual df;unchanged canonical composite.",
+ "PASS:FWL slopes,168 cycle-deletion fits,196 DNA scenarios,predict contrasts,source hashes.",
+ "Two-sided OLS/HC3 t summaries;BH56 and BH168. Temporal confounding not adjusted."),file.path(out,"CHECKS.txt"))
+print(a[,.(tests=.N,nominal=sum(p<.05),BH56=sum(FDR_56<.05),BH168=sum(FDR_168<.05),
+ HC3_BH56=sum(HC3_FDR_56<.05),min_p=min(p),min_FDR=min(FDR_56))])
+print(a[order(p),.(MAG_ID,genus,predictor,phase,beta,p,FDR_56,HC3_FDR_56,leave_cycle_same_sign)][1:10])
+```

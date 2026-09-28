@@ -1,0 +1,82 @@
+---
+title: "Figure 2 gap: controlled display diagnostics"
+format: html
+execute:
+  enabled: false
+---
+
+Diagnostic only. No refitting, filtering, or manuscript replacement.
+Run with `bash scripts/run_qmd.sh analysis/figure2_gap_diagnostics.qmd NEW_OUTPUT`.
+Three colour-only comparisons use the same genes, draw order, axes, point size,
+and alpha. A separate matched comparison isolates the opacity manipulation.
+
+```{r}
+suppressPackageStartupMessages({library(data.table); library(ggplot2); library(patchwork)})
+out <- commandArgs(trailingOnly = TRUE)[[1]]
+stopifnot(!dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+input <- file.path(root, "figure2_transcriptome_preview_2026-09-13-v4-transparent-gray/tables/plotted_genes.tsv")
+hash <- digest::digest(file = input, algo = "sha256")
+d <- fread(input)
+stopifnot(nrow(d) == 361907L, !anyDuplicated(d$feature_id), all(is.finite(d$FDR)))
+# Preserve the existing background-first, significant-last ordering in all views.
+d <- rbind(d[FDR >= .05], d[FDR < .05])
+dir.create(out, recursive = TRUE)
+fwrite(data.table(path = input, sha256 = hash), file.path(out,"input_sha256.tsv"), sep="\t")
+cols <- c("Not significant"="#909090", "Downregulated"="#8FCB8A", "Upregulated"="#7E57C2")
+common <- list(scale_x_continuous(limits=range(d$logCPM), expand=expansion(mult=.03)),
+               scale_y_continuous(limits=range(d$logFC), expand=expansion(mult=.04)),
+               labs(x="Average expression (log2 CPM)", y="Phage-UV / control (log2 fold-change)"),
+               theme_classic(base_size=10),
+               theme(legend.position="bottom", plot.title=element_text(size=12),
+                     plot.subtitle=element_text(size=9), legend.text=element_text(size=8)))
+point <- function(mapping, ...) geom_point(mapping, size=.3, shape=16, ...)
+wrap <- function(layer) ggrastr::rasterise(layer, dpi=300, dev="ragg")
+mono <- ggplot(d,aes(logCPM,logFC)) + wrap(point(NULL,colour="#636363",alpha=.4)) + common +
+  labs(title="A  One colour", subtitle="No significance highlighting")
+continuous <- ggplot(d,aes(logCPM,logFC)) + wrap(point(aes(colour=FDR),alpha=.4)) + common +
+  scale_colour_gradient(low="#542788",high="#D9D9D9",limits=c(0,1),
+                        breaks=c(0,.5,1),name="BH FDR") +
+  labs(title="B  Continuous FDR",subtitle="Raw FDR, 0-1; no cutoff or clipping")
+categorical <- ggplot(d,aes(logCPM,logFC)) + wrap(point(aes(colour=display_class),alpha=.4)) + common +
+  scale_colour_manual(values=cols,name=NULL) +
+  guides(colour=guide_legend(ncol=1,override.aes=list(alpha=1,size=2))) +
+  labs(title="C  FDR cutoff",subtitle="Significant at BH FDR < 0.05")
+three <- (mono | continuous | categorical) +
+  plot_annotation(caption="All 361,907 tested genes in every panel; identical ordering, size and 40% opacity. Diagnostic, not a manuscript replacement.")
+ggsave(file.path(out,"colour-only-comparison.png"), three, width=16,height=6,dpi=180,device=ragg::agg_png,bg="white")
+# Separate one-variable test: foreground unchanged; vary only background opacity.
+opacity_plot <- function(a) {
+  ggplot(d,aes(logCPM,logFC)) +
+    wrap(geom_point(data=d[FDR>=.05],colour=cols[["Not significant"]],size=.25,alpha=a)) +
+    wrap(geom_point(data=d[FDR<.05],aes(colour=display_class),size=.4,alpha=.65)) +
+    scale_colour_manual(values=cols) + common + theme(legend.position="none") +
+    labs(title=paste0("Grey opacity: ",a*100,"%"),subtitle="Coloured points fixed at 65% opacity")
+}
+ggsave(file.path(out,"opacity-only-comparison.png"),opacity_plot(.02)|opacity_plot(.65),
+       width=12,height=5,dpi=180,device=ragg::agg_png,bg="white")
+# Counts in explicitly defined bands describe occupancy, not a formal multimodality test.
+d[, expression_bin := floor(logCPM)]
+d[, signed_fc_bin := floor(logFC/.25)*.25]
+bins <- d[,.(genes=.N,significant=sum(FDR<.05)),by=.(expression_bin,signed_fc_bin)]
+fwrite(bins,file.path(out,"occupancy_1logCPM_by_025logFC.tsv"),sep="\t")
+bands <- d[logCPM>=-1 & logCPM<4,
+           .(genes=.N,significant=sum(FDR<.05)),
+           by=.(direction=ifelse(logFC<0,"negative","positive"),
+                abs_logFC_band=cut(abs(logFC),c(0,.5,1,1.5,2,3,Inf),right=FALSE))]
+setorder(bands,direction,abs_logFC_band)
+fwrite(bands,file.path(out,"central_expression_band_counts.tsv"),sep="\t")
+stopifnot(sum(bins$genes)==nrow(d),
+          digest::digest(file=input,algo="sha256")==hash)
+for(p in list(mono,continuous,categorical)) {
+  built <- ggplot_build(p)$data[[1]]
+  stopifnot(nrow(built)==nrow(d),identical(built$x,d$logCPM),identical(built$y,d$logFC),
+            all(built$alpha==.4),all(built$size==.3))
+}
+stopifnot(file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"figure2_gap_diagnostics.qmd")))
+writeLines(capture.output(sessionInfo()),file.path(out,"sessionInfo.txt"))
+writeLines("PASS: 361907 identical points/order/axes, opacity and size in all three colour views; binned counts conserve genes; input SHA256 unchanged.",file.path(out,"CHECKS.txt"))
+payload<-list.files(out,full.names=TRUE)
+fwrite(data.table(file=basename(payload),sha256=vapply(payload,function(p)digest::digest(file=p,algo="sha256"),character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+print(bands)
+```

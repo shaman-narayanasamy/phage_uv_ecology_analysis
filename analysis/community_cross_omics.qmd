@@ -1,0 +1,100 @@
+---
+title: "Matched community structure across 16S, MG and MT"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Run `bash scripts/run_qmd.sh analysis/community_cross_omics.qmd NEW_OUTPUT`.
+This descriptive comparison uses all 12 matched samples, without rerunning the
+collaborator's 16S pipeline. MG denotes the fraction of reads assigned to each
+MAG; MT denotes the fraction of gene-assigned reads contributed by each MAG.
+Neither quantity is an absolute cell abundance or a per-cell transcription rate.
+16S uses the unrarefied ASV profile. Each assay is normalised separately.
+Bray–Curtis distances between samples can be compared without assuming that
+SILVA and GTDB labels are interchangeable. Correlations of distance matrices are
+descriptive; their 66 entries are not independent replicates. No p values are
+calculated. Taxonomic profiles retain their original assignments, including
+unassigned categories. MT counts are aggregated before any DE gene filtering.
+
+```{r}
+suppressPackageStartupMessages({library(data.table); library(digest)})
+out <- commandArgs(trailingOnly=TRUE)[1]
+stopifnot(!dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+ret <- file.path(root,"incoming/16s_collaborator_return_2026-09-07/extracted/derived/16s_analysis/05_phyloseq")
+paths <- c(MG=file.path(root,"derived/community_cycle_models_2026-09-13-v1/tables/mag_counts.tsv"),
+ MT=file.path(root,"derived/full_transcriptome_de/tables/collapsed_raw_count_matrix.tsv"),
+ ASV=file.path(ret,"16s_asv_counts_unrarefied.tsv"),
+ taxonomy16S=file.path(ret,"16s_asv_taxonomy_silva138.2.tsv"),
+ taxonomyMAG=file.path(root,"derived/manuscript_figure_candidates/tables/mag_taxonomic_context.tsv"),
+ metadata=file.path(getwd(),"metadata/sample_metadata.tsv"))
+stopifnot(all(file.exists(paths)))
+dir.create(out,recursive=TRUE)
+write <- function(x,n) fwrite(x,file.path(out,paste0(n,".tsv")),sep="\t")
+write(data.table(source=names(paths),path=paths,sha256=vapply(paths,function(p)digest(file=p,algo="sha256"),character(1))),"input_sha256")
+meta <- fread(paths['metadata'])[,.(sample_title,condition,phase,cycle)]
+setorder(meta,condition,phase,cycle)
+s <- meta$sample_title
+stopifnot(length(s)==12,!anyDuplicated(s),all(table(meta$condition,meta$phase,meta$cycle)==1))
+mg <- fread(paths['MG']); setnames(mg,"feature_id","MAG_ID")
+mt <- fread(paths['MT'])
+stopifnot(!anyDuplicated(mt$feature_id),all(mt$gene_length>0))
+mt <- mt[,lapply(.SD,sum),by=MAG_ID,.SDcols=s]
+write(data.table(sample_title=s,all_gene_assigned_reads=colSums(mt[,..s]),MAG_assigned_reads=colSums(mt[!is.na(MAG_ID) & MAG_ID!="",..s])),"MT_MAG_assignment_coverage")
+mt <- mt[!is.na(MAG_ID) & MAG_ID!=""]
+asv <- fread(paths['ASV'])
+tax <- fread(paths['taxonomyMAG'],select=c("MAG_ID","domain","phylum","class","order","family","genus","species"))
+tx16 <- fread(paths['taxonomy16S'])
+stopifnot(!anyDuplicated(tax$MAG_ID),!anyDuplicated(tx16$asv_id),
+ setequal(mg$MAG_ID,mt$MAG_ID),setequal(mg$MAG_ID,tax$MAG_ID),setequal(asv$asv_id,tx16$asv_id))
+matrix_of <- function(x,id){
+ stopifnot(all(s %in% names(x)),!anyDuplicated(x[[id]]))
+ m <- as.matrix(x[,..s]); rownames(m)<-x[[id]]
+ stopifnot(all(is.finite(m)),all(m>=0),all(colSums(m)>0))
+ sweep(m,2,colSums(m),"/")
+}
+profiles <- list(MG=matrix_of(mg,"MAG_ID"),MT=matrix_of(mt,"MAG_ID"),`16S`=matrix_of(asv,"asv_id"))
+stopifnot(all(vapply(profiles,function(x)max(abs(colSums(x)-1))<1e-12,logical(1))))
+bray <- function(m) {
+ d<-matrix(0,ncol(m),ncol(m),dimnames=list(colnames(m),colnames(m)))
+ for(i in seq_len(ncol(m)))for(j in seq_len(ncol(m)))d[i,j]<-sum(abs(m[,i]-m[,j]))/sum(m[,i]+m[,j])
+ d
+}
+distances<-lapply(profiles,bray)
+pairs<-combn(names(profiles),2,simplify=FALSE)
+write(rbindlist(lapply(pairs,function(p)data.table(assay1=p[1],assay2=p[2],n_pairs=66,
+ spearman=cor(distances[[p[1]]][lower.tri(distances[[p[1]]])],distances[[p[2]]][lower.tri(distances[[p[2]]])],method="spearman")))),"distance_concordance")
+turn_rows<-list()
+for(a in names(profiles)) for(co in unique(meta$condition)) for(ph in unique(meta$phase)) for(cy in 1:2){
+ x<-meta[condition==co & phase==ph & cycle==cy,sample_title];y<-meta[condition==co & phase==ph & cycle==cy+1,sample_title]
+ turn_rows[[length(turn_rows)+1L]]<-data.table(assay=a,condition=co,phase=ph,transition=paste(cy,cy+1,sep="-"),bray=distances[[a]][x,y])
+}
+turn<-rbindlist(turn_rows)
+write(turn,"cycle_turnover")
+for(a in names(profiles)){
+ m<-profiles[[a]];write(data.table(feature_id=rownames(m),m),paste0(a,"_relative_profile"))
+ tx<-if(a=="16S")copy(tx16) else copy(tax)
+ id<-if(a=="16S")"asv_id" else "MAG_ID"
+ ranks<-if(a=="16S")c("Phylum","Family","Genus") else c("phylum","family","genus","species")
+ tx<-tx[match(rownames(m),tx[[id]])]
+ for(rank in ranks){
+  labels<-tx[[rank]]; labels[is.na(labels)|labels==""]<-"Unassigned"
+  tab<-rowsum(m,labels); z<-data.table(taxon=rownames(tab),mean_percent=100*rowMeans(tab),100*tab)
+  setorder(z,-mean_percent);write(z,paste(a,rank,"profile",sep="_"))
+ }
+}
+mm<-profiles$MT[rownames(profiles$MG),,drop=FALSE]
+write(data.table(sample_title=s,spearman=vapply(seq_along(s),function(i)cor(profiles$MG[,i],mm[,i],method="spearman"),numeric(1))),"MG_MT_matched_rank_correlation")
+mag<-merge(tax,data.table(MAG_ID=rownames(profiles$MG),MG_mean_percent=100*rowMeans(profiles$MG),MT_mean_percent=100*rowMeans(mm)),by="MAG_ID")
+mag[,MT_to_MG_read_share:=MT_mean_percent/MG_mean_percent]
+setorder(mag,-MT_mean_percent);write(mag,"MAG_contributions")
+write(data.table(rank=c("genus","species"),unassigned_MAGs=c(sum(is.na(tax$genus)|tax$genus==""),sum(is.na(tax$species)|tax$species==""))),"MAG_assignment")
+write(meta,"matched_samples")
+write(data.table(check=c("matched_samples","MG_features","MT_features","16S_features","relative_profiles_sum_to_one"),value=c(length(s),nrow(mg),nrow(mt),nrow(asv),1)),"checks")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+print(fread(file.path(out,"distance_concordance.tsv")))
+print(turn)
+print(mag[1:10])
+```

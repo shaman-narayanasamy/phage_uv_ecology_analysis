@@ -1,0 +1,107 @@
+---
+title: "Cycle resampling and null simulation of MAG abundance associations"
+format: html
+editor: source
+---
+
+Fixed 14 expression-selected MAGs and three released-material outcomes. No new
+candidate selection. Two-sided null tests with BH across 42 pairs separately for
+common-slope and Backflush-specific models; BH across all 84 also supplied.
+Cycle pairs resampling preserves all four observations and original cycle labels.
+Enumerate all 27 ordered draws with replacement, not 27 independent experiments.
+Only seven distinct usable cycle-count patterns remain after excluding one-cycle
+draws. Treat resulting quantiles as conditional stability ranges, NOT calibrated CIs.
+Cycle exchangeability is doubtful along a temporal trajectory. Between-cycle and
+within-membrane serial dependence is not resolved by this exercise.
+
+Parametric null: fixed design, Gaussian independent equal-variance errors, reduced
+model with tested coefficient zero. For Backflush-specific test retain the Initial
+abundance slope. 49,999 simulations, plus-one two-sided studentized p-values.
+This tests the same null as OLS under the same error assumptions, not an independent
+validation. Phenotype digitisation and post-selection uncertainty are not simulated.
+Reference: https://stat.ethz.ch/R-manual/R-devel/RHOME/library/boot/html/tsboot.html
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-file.path(root,"biofilm_MAG_abundance_models_2026-09-14-v1/tables/model_observations.tsv")
+sha<-function(p)digest::digest(file=p,algo="sha256")
+before<-sha(src);z<-fread(src)
+for(d in c("tables","figures","source"))dir.create(file.path(out,d),recursive=TRUE)
+draws<-as.matrix(expand.grid(a=1:3,b=1:3,c=1:3))
+stopifnot(nrow(draws)==27)
+set.seed(20260914);B<-49999L
+# Reuse standard noise across tests; multiplicity correction does not assume independence.
+noise<-matrix(rnorm(12*B),12,B)
+res<-list();boots<-list();deletes<-list()
+formula_for<-function(model)if(model=="common")y~phase+cycle+condition+log2_MAG_abundance else y~cycle+condition+phase*log2_MAG_abundance
+for(model in c("common","backflush"))for(m in sort(unique(z$MAG_ID)))for(o in sort(unique(z$outcome))){
+ d<-copy(z[MAG_ID==m & outcome==o]);setorder(d,sample_title)
+ d[,`:=`(phase=relevel(factor(phase),"backflush"),cycle=factor(cycle),condition=factor(condition))]
+ f<-lm(formula_for(model),data=d);X<-model.matrix(f);j<-match("log2_MAG_abundance",colnames(X))
+ stopifnot(f$rank==ncol(X));df<-df.residual(f)
+ v<-solve(crossprod(X));w<-v%*%t(X)
+ beta<-unname(coef(f)[j]);tobs<-beta/sqrt(v[j,j]*sum(resid(f)^2)/df)
+ X0<-X[,-j,drop=FALSE];null<-lm.fit(X0,d$y)
+ sigma0<-sqrt(sum(null$residuals^2)/(12-null$rank))
+ Y<-null$fitted.values+sigma0*noise
+ co<-w%*%Y;er<-Y-X%*%co
+ ts<-co[j,]/sqrt(v[j,j]*colSums(er^2)/df)
+ exceed<-sum(abs(ts)>=abs(tobs));p_mc<-(1+exceed)/(B+1)
+ p_exact<-2*pt(-abs(tobs),df)
+ # Independent refits validate simulation vectorization.
+ for(k in 1:3){ff<-lm.fit(X,Y[,k]);tt<-ff$coefficients[j]/sqrt(v[j,j]*sum(ff$residuals^2)/df);stopifnot(abs(tt-ts[k])<1e-8)}
+ mcse<-sqrt(p_exact*(1-p_exact)/B)
+ stopifnot(abs(p_mc-p_exact)<6*mcse+1/(B+1))
+ bt<-rbindlist(lapply(seq_len(27),function(i){
+  selected<-draws[i,];ncy<-length(unique(selected))
+  if(ncy==1)return(data.table(draw=i,n_cycles=ncy,status="one_cycle_excluded",beta=NA_real_,kappa=NA_real_))
+  dd<-droplevels(rbindlist(lapply(selected,function(cy)d[as.character(cycle)==as.character(cy)])))
+  ff<-lm(formula_for(model),data=dd);xx<-model.matrix(ff)
+  good<-ff$rank==ncol(xx) && is.finite(coef(ff)["log2_MAG_abundance"])
+  data.table(draw=i,n_cycles=ncy,status=if(good)"usable" else "rank_failure",beta=if(good)unname(coef(ff)["log2_MAG_abundance"]) else NA_real_,kappa=kappa(xx))
+ }))
+ bt[,`:=`(model=model,MAG_ID=m,outcome=o)]
+ # Draws with all three cycles must recover the original slope exactly.
+ stopifnot(max(abs(bt[n_cycles==3,beta]-beta))<1e-8)
+ boots[[paste(model,m,o)]]<-bt
+ di<-rbindlist(lapply(1:3,function(cy){
+  dd<-droplevels(d[as.character(cycle)!=as.character(cy)])
+  ff<-lm(formula_for(model),data=dd)
+  data.table(omitted_cycle=cy,beta=unname(coef(ff)["log2_MAG_abundance"]),df=df.residual(ff))
+ }))
+ di[,`:=`(model=model,MAG_ID=m,outcome=o)];deletes[[paste(model,m,o)]]<-di
+ bb<-bt[status=="usable",beta];change<-100*(10^(-bb)-1)
+ res[[paste(model,m,o)]]<-data.table(model=model,MAG_ID=m,genus=d$genus[1],outcome=o,
+  beta=beta,t=tobs,df=df,p_OLS=p_exact,p_null=p_mc,MC_se=mcse,simulations=B,
+  usable_draws=length(bb),excluded_draws=27-length(bb),
+  increased_release_draws=sum(bb<0),increased_release_fraction=mean(bb<0),
+  release50_median=median(change),release50_q025=quantile(change,.025,names=FALSE),release50_q975=quantile(change,.975,names=FALSE),
+  leave_cycle_increased_release=sum(di$beta<0),max_boot_kappa=max(bt$kappa,na.rm=TRUE))
+}
+a<-rbindlist(res);a[,FDR_null:=p.adjust(p_null,"BH"),by=model];a[,FDR_null_all84:=p.adjust(p_null,"BH")]
+stopifnot(nrow(a)==84,all(a$usable_draws==24),all(a$excluded_draws==3))
+fwrite(a,file.path(out,"tables/resampling_summary.tsv"),sep="\t")
+fwrite(rbindlist(boots),file.path(out,"tables/all_cycle_draw_fits.tsv"),sep="\t")
+fwrite(rbindlist(deletes),file.path(out,"tables/leave_cycle_out.tsv"),sep="\t")
+fwrite(as.data.table(draws),file.path(out,"tables/cycle_draws.tsv"),sep="\t")
+p<-ggplot(a[model=="backflush"],aes(outcome,paste(genus,MAG_ID,sep=" / "),fill=increased_release_fraction))+
+ geom_tile()+geom_text(aes(label=paste0(increased_release_draws,"/",usable_draws)),size=3)+
+ scale_fill_gradient(low="white",high="#3182bd",limits=c(0,1))+theme_minimal(base_size=10)+
+ labs(x=NULL,y=NULL,fill="Fraction",title="Backflush: resamples predicting increased release under MAG suppression",
+ subtitle="24 usable ordered draws; 3 single-cycle draws excluded. Stability, not significance.",
+ caption="Only 7 distinct usable cycle-count patterns. Three cycles from the same membranes; no biological replication added.")
+ggsave(file.path(out,"figures/cycle_sign_stability.png"),p,width=12,height=8,dpi=160,device=ragg::agg_png)
+stopifnot(identical(before,sha(src)))
+nb<-Sys.getenv("PHAGE_UV_NOTEBOOK_PATH");file.copy(nb,file.path(out,"source",basename(nb)))
+fwrite(data.table(path=c(src,nb),sha256=vapply(c(src,nb),sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS 84 models; all 27 draws per model; 24 usable and 3 excluded each.",
+ "PASS complete-three-cycle slope identity; independent simulation refits; Monte Carlo versus analytic t within 6 MC SE.",
+ "49,999 Gaussian null draws per model. Two-sided BH42 separately; BH84 sensitivity also supplied.",
+ "Bootstrap proportions are not p-values or posterior probabilities. Quantiles conditional on usable draws are not calibrated confidence intervals.",
+ "Cycle exchangeability and Gaussian independence are imposed assumptions, not established by this analysis."),file.path(out,"CHECKS.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

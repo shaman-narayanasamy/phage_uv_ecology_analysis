@@ -1,0 +1,22 @@
+---
+tmp_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/tmp"
+output_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/viromics"
+data_table: "/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_viromics_contigs.tsv"
+
+genomad:
+  db: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/viromics_pipeline/genomad"
+  threads: 24
+
+virsorter2:
+  db: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/viromics_pipeline/virsorter2"
+  threads: 24
+  prep_for_dramv: false
+
+viralm:
+  script: "/mnt/aiongpfs/users/snarayanasamy/repositories/viromics_pipeline/scripts/viralm_tmpcache.py"
+  db: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/viromics_pipeline/viralm/model"
+  length: 1000
+  threshold: 0.5
+  threads: 24
+
+deepmicroclass_input: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569/binning"

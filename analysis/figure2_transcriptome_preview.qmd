@@ -1,0 +1,182 @@
+---
+title: "Figure 2: transcriptome author-review preview"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Display-only revision using frozen MDS coordinates and existing full-universe
+edgeR results. No model fitting, expression filtering or ordination is rerun.
+Run individual chunks inline, or from the code repository:
+
+```sh
+bash scripts/run_qmd.sh analysis/figure2_transcriptome_preview.qmd NEW_OUTPUT_DIRECTORY
+```
+
+An existing output directory is never overwritten. All 361,907 tested genes
+enter the main panel; rasterization limits PDF size without dropping genes.
+The comparison PNG uses the old evenly indexed 20,000-gene grey subset with
+identical axes, point sizes and opacity to isolate the effect of subsampling.
+
+```{r}
+#| label: input-contract
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(ggrepel)
+  library(patchwork)
+})
+args <- commandArgs(trailingOnly = TRUE)
+stopifnot(length(args) == 1L)
+out <- args[[1L]]
+stopifnot(!dir.exists(out))
+root <- normalizePath(getwd())
+source(file.path(root, "R/figure_style.R"))
+data_root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+sources <- c(
+  de = file.path(data_root, "derived/full_transcriptome_de/tables/de_condition_adjusted.tsv"),
+  mds = file.path(data_root, "derived/manuscript_figures_publication_2026-09-09-v2/tables/mds_coordinates.tsv"),
+  summary = file.path(data_root, "derived/manuscript_figures_publication_2026-09-09-v2/tables/figure_summary.tsv"),
+  metadata = file.path(root, "metadata/sample_metadata.tsv"),
+  style = file.path(root, "R/figure_style.R"),
+  notebook = normalizePath(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH", "analysis/figure2_transcriptome_preview.qmd"))
+)
+stopifnot(all(file.exists(sources)))
+sha <- function(p) digest::digest(file = p, algo = "sha256")
+input_hashes <- vapply(sources, sha, character(1))
+de <- fread(sources[["de"]], select = c("feature_id", "logFC", "logCPM", "FDR"))
+mds <- fread(sources[["mds"]])
+meta <- fread(sources[["metadata"]])
+summary <- fread(sources[["summary"]])
+stopifnot(nrow(de) == 361907L, !anyDuplicated(de$feature_id),
+          all(is.finite(de$logFC)), all(is.finite(de$logCPM)),
+          all(is.finite(de$FDR)), all(de$FDR >= 0 & de$FDR <= 1),
+          nrow(mds) == 12L, !anyDuplicated(mds$sample_title),
+          setequal(mds$sample_title, meta$sample_title))
+for (field in c("condition", "phase", "cycle")) {
+  stopifnot(identical(as.character(mds[[field]]),
+    as.character(meta[[field]][match(mds$sample_title, meta$sample_title)])))
+}
+mds[, condition := factor(condition, levels = c("control", "treatment"))]
+mds[, phase := factor(phase, levels = c("initial", "backflush"))]
+de[, display_class := fifelse(FDR >= .05, "Not significant",
+                      fifelse(logFC > 0, "Upregulated", "Downregulated"))]
+de[, display_class := factor(display_class,
+  levels = c("Not significant", "Downregulated", "Upregulated"))]
+counts <- de[, .(genes = .N, genes_abs_log2FC_ge_1 = sum(abs(logFC) >= 1)), by = display_class]
+stopifnot(counts[display_class == "Upregulated", genes] == 3697L,
+          counts[display_class == "Downregulated", genes] == 4006L,
+          counts[display_class == "Upregulated", genes_abs_log2FC_ge_1] == 3694L,
+          counts[display_class == "Downregulated", genes_abs_log2FC_ge_1] == 4005L,
+          summary[metric == "retained_features", value] == nrow(de))
+for (subdir in c("figures", "tables", "source")) dir.create(file.path(out, subdir), recursive = TRUE)
+fwrite(data.table(input = names(sources), path = sources, sha256 = input_hashes),
+       file.path(out, "input_sha256.tsv"), sep = "\t")
+stopifnot(file.copy(sources[["mds"]], file.path(out, "tables/mds_coordinates.tsv")))
+fwrite(de, file.path(out, "tables/plotted_genes.tsv"), sep = "\t")
+fwrite(counts, file.path(out, "tables/gene_counts.tsv"), sep = "\t")
+```
+
+```{r}
+#| label: figure-layout
+base_theme <- theme_classic(base_size = 8, base_family = "Helvetica") +
+  theme(axis.text = element_text(colour = "#222222", size = 7),
+        axis.title = element_text(size = 8),
+        legend.text = element_text(size = 7), legend.title = element_text(size = 7.5),
+        legend.position = "bottom", legend.box = "vertical",
+        legend.key.height = grid::unit(3.5, "mm"),
+        legend.margin = margin(1, 0, 0, 0),
+        plot.tag = element_text(size = 12), plot.margin = margin(6, 6, 6, 6))
+p_a <- ggplot(mds, aes(MDS1, MDS2, colour = condition, shape = phase)) +
+  geom_point(size = 2.7) +
+  geom_text_repel(aes(label = cycle_label), colour = "#222222", size = 2.5,
+                  seed = 79569, box.padding = .35, point.padding = .25,
+                  min.segment.length = 0, show.legend = FALSE) +
+  scale_colour_manual(values = phage_uv_condition_colours[c("control", "treatment")],
+                      labels = c("Control", "Phage-UV"), name = "Membrane") +
+  scale_shape_manual(values = phage_uv_phase_shapes,
+                     labels = c("Initial", "Backflush"), name = "Phase") +
+  guides(colour = guide_legend(order = 1), shape = guide_legend(order = 2)) +
+  labs(x = "Leading logFC dimension 1", y = "Leading logFC dimension 2", tag = "A") + base_theme
+
+colours <- c("Not significant" = "#909090",
+             "Downregulated" = phage_uv_condition_colours[["control"]],
+             "Upregulated" = phage_uv_condition_colours[["treatment"]])
+display_labels <- c("Not significant (354,204)", "Downregulated (4,006)", "Upregulated (3,697)")
+background <- de[display_class == "Not significant"]
+supported <- de[display_class != "Not significant"]
+idx <- unique(round(seq(1, nrow(background), length.out = 20000L)))
+fwrite(background[idx, .(feature_id)], file.path(out, "tables/old_background_subset.tsv"), sep = "\t")
+make_b <- function(bg, key = TRUE) {
+  ggplot() +
+    ggrastr::rasterise(geom_point(data = bg, aes(logCPM, logFC, colour = display_class),
+                                shape = 16, size = .25, alpha = .02), dpi = 600, dev = "ragg") +
+    ggrastr::rasterise(geom_point(data = supported, aes(logCPM, logFC, colour = display_class),
+                                shape = 16, size = .4, alpha = .65), dpi = 600, dev = "ragg") +
+    geom_hline(yintercept = 0, colour = "#555555", linewidth = .25) +
+    geom_hline(yintercept = c(-1, 1), colour = "#777777", linewidth = .25, linetype = "dotted") +
+    scale_colour_manual(values = colours, breaks = names(colours), labels = display_labels,
+      name = "Phage-UV relative to control\nSignificance threshold: BH FDR < 0.05", drop = FALSE) +
+    scale_x_continuous(limits = range(de$logCPM), expand = expansion(mult = .03)) +
+    scale_y_continuous(limits = range(de$logFC), expand = expansion(mult = .04)) +
+    labs(x = expression("Average expression (log"[2]*" CPM)"),
+         y = expression("Phage-UV / control (log"[2]*" fold-change)"), tag = "B") +
+    base_theme +
+    guides(colour = guide_legend(ncol = 1, title.position = "top", title.hjust = .5,
+                                 override.aes = list(size = 2, alpha = 1))) +
+    theme(legend.position = if (key) "bottom" else "none")
+}
+p_b <- make_b(background)
+figure <- (p_a | p_b) + plot_layout(widths = c(1, 1.45))
+# An audit compares the original subset with all non-significant genes under
+# identical rendering; it is not a second manuscript figure.
+comparison <- (make_b(background[idx], FALSE) + labs(tag = NULL, title = "20,000 non-significant genes")) |
+              (make_b(background, FALSE) + labs(tag = NULL, title = "All 354,204 non-significant genes"))
+pdf_device <- function(filename, width, height, ...) {
+  if (isTRUE(capabilities("aqua"))) {
+    grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+  } else grDevices::pdf(file = filename, width = width, height = height, ...)
+}
+ggsave(file.path(out, "figures/figure2-transcriptome-preview.pdf"), figure,
+       width = 200, height = 118, units = "mm", device = pdf_device, bg = "white")
+ggsave(file.path(out, "figures/figure2-transcriptome-preview.png"), figure,
+       width = 200, height = 118, units = "mm", dpi = 300, device = ragg::agg_png, bg = "white")
+ggsave(file.path(out, "figures/background-sampling-audit.png"), comparison,
+       width = 240, height = 105, units = "mm", dpi = 200, device = ragg::agg_png, bg = "white")
+```
+
+```{r}
+#| label: verification-and-provenance
+# Check actual ggplot input layers, not just the source table totals.
+stopifnot(nrow(p_b$layers[[1]]$data) + nrow(p_b$layers[[2]]$data) == nrow(de),
+          setequal(c(p_b$layers[[1]]$data$feature_id, p_b$layers[[2]]$data$feature_id), de$feature_id),
+          nrow(p_b$layers[[1]]$data) == 354204L,
+          identical(p_a$data$MDS1, mds$MDS1), identical(p_a$data$MDS2, mds$MDS2),
+          identical(unname(vapply(sources, sha, character(1))), unname(input_hashes)),
+          sha(file.path(out, "tables/mds_coordinates.tsv")) == input_hashes[["mds"]])
+reloaded <- fread(file.path(out, "tables/plotted_genes.tsv"))
+stopifnot(identical(reloaded$feature_id, de$feature_id),
+          isTRUE(all.equal(reloaded$logFC, de$logFC)),
+          isTRUE(all.equal(reloaded$logCPM, de$logCPM)),
+          isTRUE(all.equal(reloaded$FDR, de$FDR)))
+caption <- paste(
+  "Figure 2. Global metatranscriptome profiles.",
+  "(A) Multidimensional scaling of the filtered, TMM-normalised expression matrix for 12 physical samples, using leading log-fold-change distances. Colours distinguish control and Phage-UV membranes, shapes distinguish initial and backflush samples, and numbers indicate cleaning cycle. The previously calculated coordinates are unchanged.",
+  "(B) Average expression (log2 counts per million, CPM) and Phage-UV/control log2 fold-change from the edgeR model adjusted for phase and cycle. All 361,907 tested genes are plotted, without subsampling. Grey denotes BH FDR >= 0.05; violet and green denote significantly upregulated and downregulated genes, respectively, in Phage-UV relative to control (BH FDR < 0.05). The dotted lines at -1 and +1 indicate twofold decreases and increases. Colour is defined by FDR, not by a fold-change threshold. Genes with insufficient expression to enter the model are not plotted. Point layers are rasterized at 600 dpi; text and axes remain vector in the PDF.",
+  "The legend counts use FDR alone: 3,697 upregulated and 4,006 downregulated genes. Applying the additional absolute log2 fold-change >= 1 criterion retains 3,694 and 4,005, respectively; these result counts should be reconciled with Results when the preview is adopted. Gene-level results are available in Supplementary Table S3. Condition and membrane identity are confounded; these are differences between the observed membranes.", sep = "\n\n")
+caption <- gsub(">=", "\u2265", caption, fixed = TRUE)
+writeLines(caption, file.path(out, "FIGURE_LEGEND_DRAFT.txt"))
+writeLines(c("PASS: 361907 unique tested genes plotted exactly once in panel B",
+             "PASS: all FDR and effect-size directional counts match frozen results",
+             "PASS: frozen 12-sample MDS coordinates and metadata preserved",
+             "PASS: plotted values match existing DE table; no fitting or re-filtering",
+             "PASS: input SHA256 unchanged after rendering",
+             "Visual inspection must be recorded separately."), file.path(out, "CHECKS.txt"))
+writeLines(capture.output(sessionInfo()), file.path(out, "sessionInfo.txt"))
+stopifnot(file.copy(sources[["notebook"]], file.path(out, "source/figure2_transcriptome_preview.qmd")))
+payload <- list.files(out, recursive = TRUE, full.names = TRUE)
+fwrite(data.table(path = substring(payload, nchar(out) + 2L), sha256 = vapply(payload, sha, character(1))),
+       file.path(out, "output_sha256.tsv"), sep = "\t")
+message("Figure 2 preview and display audit complete: ", out)
+```

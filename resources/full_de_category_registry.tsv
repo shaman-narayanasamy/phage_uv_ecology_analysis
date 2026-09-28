@@ -1,0 +1,9 @@
+family	category	tier	label	provenance	interpretation_boundary
+predefined_uv_stress	photoreactivation	1	Photoreactivation	resources/uv_resistance_signatures.tsv	UV-lesion repair potential; transcription is not direct evidence of DNA damage
+predefined_uv_stress	nucleotide_excision_repair	1	Nucleotide-excision repair	resources/uv_resistance_signatures.tsv	Repair-associated transcription; not direct evidence of UV-caused lesions
+predefined_uv_stress	recombination_repair	2	Recombination repair	resources/uv_resistance_signatures.tsv	General recombination and repair context
+predefined_uv_stress	SOS_response	2	SOS response	resources/uv_resistance_signatures.tsv	SOS-associated transcription; must not be relabelled as DNA damage
+predefined_uv_stress	base_excision_oxidative_repair	3	Base-excision/oxidative repair	resources/uv_resistance_signatures.tsv	Supportive repair context only
+predefined_uv_stress	oxidative_stress	3	Oxidative stress	resources/uv_resistance_signatures.tsv	General oxidative-stress context only
+predefined_uv_stress	redox_stress	3	Redox stress	resources/uv_resistance_signatures.tsv	General redox-homeostasis context only
+predefined_uv_stress	general_stress	3	General stress	resources/uv_resistance_signatures.tsv	General stress context only

@@ -1,0 +1,190 @@
+---
+title: "Native MAG heat tree with individual quality annotations"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Figure 1 review only. Add one terminal leaf for each of the 348 MAGs to the
+verified 698-node taxonomy. Existing taxonomic clade abundances stay unchanged;
+each MAG leaf uses its own equal-sample mean mapped-read fraction. Direct
+assignments move from taxonomic nodes to MAG leaves, preventing double counting.
+Native metacoder draws the taxonomy and MAG branches. Two additional tiles
+per MAG display completeness (nearest the leaf) then contamination.
+
+```sh
+PHAGE_UV_METACODER_LIB=/Users/shaman.narayanasamy/.local/share/R/phage-uv-metacoder-0.3.9 \
+  bash scripts/run_qmd.sh analysis/mag_heat_tree_quality_leaves.qmd NEW_OUTPUT_DIRECTORY
+python3 tests/test_mag_heat_tree_quality_leaves.py NEW_OUTPUT_DIRECTORY
+```
+
+```{r}
+#| label: native-mag-quality-leaves
+lib <- Sys.getenv("PHAGE_UV_METACODER_LIB")
+if(nzchar(lib)) .libPaths(c(lib,.libPaths()))
+suppressPackageStartupMessages({library(data.table); library(metacoder); library(ggplot2); library(ggnewscale)})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)==1L,"Supply a new output directory")
+output <- normalizePath(args[[1]],mustWork=FALSE)
+check(!file.exists(output),"Output exists; use a new version")
+repo <- normalizePath(getwd())
+data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"))
+native <- file.path(data,"derived/native_metacoder_heat_trees_2026-09-13-v4")
+mag_source <- file.path(data,"derived/mag_global_abundance_tree_2026-09-13-v2")
+paths <- c(nodes=file.path(native,"tables/mag_plotted_nodes.tsv"),
+  assignments=file.path(mag_source,"tables/deepest_assignments.tsv"),
+  quality=file.path(data,"binning/dereplication/data_tables/Widb.csv"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+input_hashes <- vapply(paths,hash,character(1))
+for(spec in list(c(native,"tables/mag_plotted_nodes.tsv"),c(mag_source,"tables/deepest_assignments.tsv"))) {
+  m <- fread(file.path(spec[[1]],"output_sha256.tsv")); rel <- spec[[2]]
+  check(identical(hash(file.path(spec[[1]],rel)),m[path==rel,sha256]),"Verified source changed")
+}
+taxa <- fread(paths[["nodes"]])
+assigned <- fread(paths[["assignments"]])
+qc <- fread(paths[["quality"]])
+qc[,MAG_ID:=sub("[.]fasta$","",genome)]
+check(nrow(qc)==348L && !anyDuplicated(qc$MAG_ID),"Expected 348 unique quality records")
+check(nrow(assigned)==348L && !anyDuplicated(assigned$MAG_ID) &&
+  setequal(assigned$MAG_ID,qc$MAG_ID),"MAG-quality join mismatch")
+check(all(is.finite(qc$completeness)&qc$completeness>=75&qc$completeness<=100),"Completeness outside fixed 75-100% scale")
+check(all(is.finite(qc$contamination)&qc$contamination>=0&qc$contamination<=25),"Contamination outside fixed 0-25% scale")
+mags <- merge(assigned,qc[,.(MAG_ID,completeness,contamination)],by="MAG_ID",sort=TRUE)
+mags[,node_id:=sprintf("mag%03d",seq_len(.N))]
+mags[,`:=`(parent=assigned_node,phylum=taxa$phylum[match(assigned_node,taxa$node_id)],
+  colour=taxa$colour[match(assigned_node,taxa$node_id)])]
+check(!anyNA(mags$colour),"Unknown parent node")
+nodes <- taxa[,.(node_id,parent,rank,taxon,phylum,clade_abundance,clade_mags,
+  direct_abundance=0,direct_mags=0L,colour,plot_label)]
+leaves <- mags[,.(node_id,parent,rank="MAG",taxon=MAG_ID,phylum,
+  clade_abundance=mean_abundance,clade_mags=1L,direct_abundance=mean_abundance,
+  direct_mags=1L,colour,plot_label="")]
+nodes <- rbind(nodes,leaves)
+check(nrow(nodes)==1046L && !anyDuplicated(nodes$node_id),"Expected 1046 unique nodes")
+check(abs(sum(nodes$direct_abundance)-1)<1e-12 && sum(nodes$direct_mags)==348L,"Direct assignment conservation failed")
+for(i in seq_len(nrow(nodes))) {
+  id <- nodes$node_id[[i]]
+  check(abs(nodes$clade_abundance[[i]]-nodes$direct_abundance[[i]]-
+    sum(nodes[parent==id,clade_abundance]))<1e-12,"Clade conservation failed")
+}
+set.seed(913)
+grDevices::pdf(NULL,width=14,height=12)
+p <- metacoder::heat_tree(taxon_id=nodes$node_id,supertaxon_id=nodes$parent,
+  node_label=nodes$plot_label,node_size=100*nodes$clade_abundance,edge_size=100*nodes$clade_abundance,
+  node_color=nodes$colour,edge_color=nodes$colour,
+  node_size_trans="area",edge_size_trans="area",node_size_interval=c(0,100),edge_size_interval=c(0,100),
+  node_size_range=c(0,.045),edge_size_range=c(0,.018),
+  node_label_size=1,node_label_size_range=c(.013,.013),node_label_color="#252525",
+  node_label_max=1000,repel_labels=TRUE,repel_force=2,repel_iter=3000,
+  layout="davidson-harel",initial_layout="reingold-tilford",
+  # igraph's default log2(n) fine-iteration count is fractional above 1024
+  # nodes; its current C interface requires an integer.
+  fineiter=as.integer(ceiling(log2(nrow(nodes)))),
+  make_node_legend=TRUE,make_edge_legend=FALSE,node_legend_title=NA,
+  node_size_axis_label="Mean relative abundance (%)",node_color_axis_label=NA,
+  title=NULL,background_color="#FFFFFF",margin_size=c(.06,.06,.06,.06),verbose=TRUE)
+grDevices::dev.off()
+geometry <- as.data.table(p$layers[[1]]$data)
+centres <- geometry[grepl("_node$",group),.(x=(min(x)+max(x))/2,y=(min(y)+max(y))/2,
+  radius=(max(x)-min(x))/2),by=group]
+centres[,node_id:=sub("_node$","",group)]
+check(setequal(centres$node_id,nodes$node_id),"Renderer lost nodes")
+mags <- merge(mags,centres[,.(node_id,x,y,radius)],by="node_id",sort=FALSE)
+mags[,`:=`(parent_x=centres$x[match(parent,centres$node_id)],parent_y=centres$y[match(parent,centres$node_id)])]
+mags[,distance:=sqrt((x-parent_x)^2+(y-parent_y)^2)]
+check(all(mags$distance>0),"Zero-length terminal branch")
+mags[,`:=`(ux=(x-parent_x)/distance,uy=(y-parent_y)/distance)]
+# Tiles run along the terminal branch direction, with completeness nearest
+# the leaf. Resolve tile-pair collisions by moving only the callout outward.
+side <- .005
+gap <- .0015
+occupied <- list(); pairs <- list(); polygons <- list()
+for(i in seq_len(nrow(mags))) {
+  m <- mags[i]
+  make_pair <- function(extra) {
+    offset <- m$radius+.004+side/2+extra
+    rbind(data.table(metric="completeness",value=m$completeness,cx=m$x+m$ux*offset,cy=m$y+m$uy*offset),
+      data.table(metric="contamination",value=m$contamination,cx=m$x+m$ux*(offset+side+gap),cy=m$y+m$uy*(offset+side+gap)))
+  }
+  for(extra in seq(0,.2,by=.004)) {
+    pair <- make_pair(extra)
+    box <- c(min(pair$cx)-side*.72,max(pair$cx)+side*.72,min(pair$cy)-side*.72,max(pair$cy)+side*.72)
+    collision <- any(vapply(occupied,function(b) box[1]<b[2]&&box[2]>b[1]&&box[3]<b[4]&&box[4]>b[3],logical(1)))
+    if(!collision) break
+  }
+  check(!collision,"Cannot place distinct tile pair")
+  occupied[[length(occupied)+1L]] <- box
+  pair[,`:=`(node_id=m$node_id,MAG_ID=m$MAG_ID,leaf_x=m$x,leaf_y=m$y,offset=extra)]
+  pairs[[i]] <- pair
+  # Square corners are rotated with the terminal branch.
+  for(j in 1:2) {
+    corners <- data.table(a=c(-1,1,1,-1),b=c(-1,-1,1,1))*side/2
+    polygons[[length(polygons)+1L]] <- data.table(node_id=m$node_id,MAG_ID=m$MAG_ID,
+      metric=pair$metric[j],value=pair$value[j],corner=1:4,
+      x=pair$cx[j]+corners$a*m$ux-corners$b*m$uy,
+      y=pair$cy[j]+corners$a*m$uy+corners$b*m$ux)
+  }
+}
+tiles <- rbindlist(pairs); polygons <- rbindlist(polygons)
+label_layer <- which(vapply(p$layers,function(x)inherits(x$geom,"GeomFitText"),logical(1)))
+native_labels <- p$layers[[label_layer]]
+halo <- lapply(seq(0,2*pi,length.out=9)[-9],function(angle) {
+  shifted <- native_labels$data
+  shifted$xmin <- shifted$xmin+.0008*cos(angle); shifted$xmax <- shifted$xmax+.0008*cos(angle)
+  shifted$ymin <- shifted$ymin+.0008*sin(angle); shifted$ymax <- shifted$ymax+.0008*sin(angle)
+  do.call(ggfittext::geom_fit_text,c(list(data=shifted,mapping=native_labels$mapping,
+    inherit.aes=FALSE,colour="white"),native_labels$geom_params))
+})
+p$layers <- c(p$layers[-label_layer],halo,list(native_labels))
+p <- p+
+  geom_segment(data=tiles[metric=="completeness"],aes(x=leaf_x,y=leaf_y,xend=cx,yend=cy),
+    inherit.aes=FALSE,colour="#888888",linewidth=.15)+
+  geom_polygon(data=polygons[metric=="completeness"],aes(x=x,y=y,group=node_id,fill=value),inherit.aes=FALSE,colour=NA)+
+  scale_fill_gradient(low="#F7FBFF",high="#08519C",limits=c(75,100),name="1  Completeness (%)",
+    guide=guide_colourbar(order=1,direction="horizontal",barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  guides(fill=guide_colourbar(order=1,direction="horizontal",title.position="top",
+    barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  ggnewscale::new_scale_fill()+
+  geom_polygon(data=polygons[metric=="contamination"],aes(x=x,y=y,group=node_id,fill=value),inherit.aes=FALSE,colour=NA)+
+  scale_fill_gradient(low="#FFF5F0",high="#A50F15",limits=c(0,25),name="2  Contamination (%)",
+    guide=guide_colourbar(order=2,direction="horizontal",barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  guides(fill=guide_colourbar(order=2,direction="horizontal",title.position="top",
+    barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  theme(legend.position="bottom",legend.box="horizontal",legend.title=element_text(size=10),legend.text=element_text(size=9))
+old_limits <- p$coordinates$limits
+# The installed ggnewscale leaves explicit guide availability at "fill";
+# update it to the renamed completeness aesthetic for ggplot2 4.x.
+p$guides$guides[["fill_ggnewscale_1"]]$available_aes <- "fill_ggnewscale_1"
+p <- p+coord_equal(xlim=range(c(old_limits$x,polygons$x)),ylim=range(c(old_limits$y,polygons$y)),clip="off")
+dir.create(file.path(output,"figures"),recursive=TRUE)
+dir.create(file.path(output,"tables")); dir.create(file.path(output,"source"))
+fwrite(nodes,file.path(output,"tables/tree_nodes.tsv"),sep="\t")
+fwrite(mags,file.path(output,"tables/mag_leaves.tsv"),sep="\t")
+fwrite(tiles,file.path(output,"tables/quality_tiles.tsv"),sep="\t")
+fwrite(polygons,file.path(output,"tables/quality_tile_polygons.tsv"),sep="\t")
+fwrite(geometry,file.path(output,"tables/native_tree_polygons.tsv"),sep="\t")
+saveRDS(p,file.path(output,"source/native_mag_quality_tree.rds"))
+ggsave(file.path(output,"figures/mag_heat_tree_quality_leaves.pdf"),p,
+  device=grDevices::pdf,useDingbats=FALSE,width=14,height=12,units="in")
+check(identical(input_hashes,vapply(paths,hash,character(1))),"Input changed during execution")
+for(kind in names(paths)) file.copy(paths[[kind]],file.path(output,"source",basename(paths[[kind]])))
+file.copy(file.path(repo,"analysis/mag_heat_tree_quality_leaves.qmd"),file.path(output,"source/mag_heat_tree_quality_leaves.qmd"))
+fwrite(data.table(input=names(paths),path=unname(paths),sha256=input_hashes),file.path(output,"input_sha256.tsv"),sep="\t")
+writeLines(c("Author-review candidate; manuscript and viral figure unchanged.",
+  "Native metacoder tree: 698 taxonomic nodes + 348 individual MAG leaves. Clade areas and MAG proportions use the verified 12-sample equal-weight means.",
+  "Two tiles per MAG: completeness nearest the leaf, contamination second. Grey connector identifies the corresponding MAG leaf. Tile positions may move outward to avoid tile-pair overlaps.",
+  "Completeness 75-100% (blue); contamination 0-25% (red): same scales as the earlier MAG annotation rings. No clipping, filtering, or taxon-level averaging of MAG quality.",
+  "Only quality annotations added. No expression annotations or MAG-name labels; exact MAG-to-leaf correspondence is in tables/mag_leaves.tsv.",
+  "Direct assignments transferred to terminal MAG leaves; parent clade abundances remain inclusive and must not be added to descendant values.",
+  "Topology denotes taxonomy, not sequence divergence. This is MAG-mapped read composition, not whole-community or absolute abundance.",
+  capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+files <- list.files(output,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(output)+2L),sha256=vapply(files,hash,character(1))),file.path(output,"output_sha256.tsv"),sep="\t")
+cat(nrow(nodes),"nodes;",nrow(mags),"MAG leaves;",nrow(tiles),"quality tiles;",sum(tiles$offset>0)/2,"offset pairs\n")
+```

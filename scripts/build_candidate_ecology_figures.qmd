@@ -1,0 +1,372 @@
+---
+title: "Build Candidate Ecology Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for `scripts/build_candidate_ecology_figures.qmd`.
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including positional arguments, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_candidate_ecology_figures.qmd [arguments...]
+```
+
+Automatic execution during rendering is disabled because these workflows may
+write project outputs. Rendering still validates the notebook structure and
+displays the complete source.
+
+```{r}
+#| label: build-candidate-ecology-figures
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(scales)
+})
+
+args <- commandArgs(trailingOnly = TRUE)
+data_root <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_DATA_ROOT")
+out_root <- if (length(args) >= 2L) args[[2L]] else file.path(data_root, "derived", "manuscript_candidates")
+
+if (!nzchar(data_root) || !dir.exists(data_root)) {
+  stop("Provide the PRJEB79569 data root as the first argument or PHAGE_UV_DATA_ROOT.")
+}
+
+script_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+if (!nzchar(script_path)) {
+  script_arg <- grep("^--file=", commandArgs(), value = TRUE)
+  if (length(script_arg)) script_path <- sub("^--file=", "", script_arg[[1L]])
+}
+if (!nzchar(script_path)) {
+  candidates <- c(
+    file.path(getwd(), "scripts", "build_candidate_ecology_figures.qmd"),
+    file.path(getwd(), "build_candidate_ecology_figures.qmd")
+  )
+  script_path <- candidates[file.exists(candidates)][[1L]]
+}
+script_path <- normalizePath(script_path)
+repo_root <- dirname(dirname(script_path))
+source(file.path(repo_root, "R", "figure_style.R"))
+
+tables_dir <- file.path(out_root, "tables")
+figures_dir <- file.path(out_root, "figures")
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+save_candidate <- function(name, plot, width, height) {
+  ggsave(
+    file.path(figures_dir, paste0(name, ".pdf")),
+    plot,
+    width = width,
+    height = height,
+    units = "in",
+    device = grDevices::pdf,
+    useDingbats = FALSE
+  )
+  ggsave(
+    file.path(figures_dir, paste0(name, ".png")),
+    plot,
+    width = width,
+    height = height,
+    units = "in",
+    dpi = 300,
+    bg = "white"
+  )
+}
+
+taxonomy_path <- file.path(data_root, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt")
+taxonomy <- fread(taxonomy_path, check.names = FALSE)
+setnames(taxonomy, "# bin", "MAG_ID")
+taxonomy[, MAG_ID := sub("\\.fasta$", "", MAG_ID)]
+
+rank_names <- c(
+  d = "domain",
+  p = "phylum",
+  c = "class",
+  o = "order",
+  f = "family",
+  g = "genus",
+  s = "species"
+)
+
+extract_rank <- function(lineage, prefix) {
+  vapply(strsplit(lineage, ";", fixed = TRUE), function(parts) {
+    hit <- parts[startsWith(parts, paste0(prefix, "__"))]
+    if (!length(hit)) return(NA_character_)
+    value <- sub(paste0("^", prefix, "__"), "", hit[[1L]])
+    value <- sub("\\*$", "", value)
+    if (!nzchar(value)) NA_character_ else value
+  }, character(1))
+}
+
+for (rank in names(rank_names)) {
+  taxonomy[, (rank_names[[rank]]) := extract_rank(lineage, rank)]
+}
+taxonomy[is.na(phylum), phylum := "Unclassified"]
+taxonomy[, phylum_display := fifelse(
+  phylum %chin% names(phage_uv_phylum_colours),
+  phylum,
+  "Other"
+)]
+
+fwrite(
+  taxonomy[, c("MAG_ID", unname(rank_names), "phylum_display"), with = FALSE],
+  file.path(tables_dir, "mag_taxonomy_crosswalk.tsv"),
+  sep = "\t"
+)
+
+uv_summary <- fread(file.path(data_root, "community_uv_response", "uv_signature_mag_summary.tsv"))
+host_links <- fread(file.path(data_root, "host_phage_linking", "full", "summary_data", "host_phage_links.tsv"))
+host_edges <- unique(host_links[, .(MAG_ID, phage_id_or_vOTU_id)])
+priority <- fread(file.path(
+  data_root,
+  "community_uv_response",
+  "variant_analysis",
+  "instrain",
+  "priority_mag_inputs",
+  "priority_mags.tsv"
+))
+instrain <- fread(file.path(
+  data_root,
+  "community_uv_response",
+  "variant_analysis",
+  "instrain_priority_20",
+  "tables",
+  "priority20_rmag_snv_divergence.tsv"
+))
+
+set_members <- rbindlist(list(
+  data.table(set = "All classified MAGs", MAG_ID = taxonomy$MAG_ID),
+  data.table(set = "UV-signature positive", MAG_ID = unique(uv_summary$MAG_ID)),
+  data.table(set = "Host linked", MAG_ID = unique(host_edges$MAG_ID)),
+  data.table(set = "Priority set", MAG_ID = unique(priority$MAG_ID)),
+  data.table(set = "inStrain analyzable", MAG_ID = unique(instrain$MAG_ID))
+))
+set_members <- taxonomy[set_members, on = "MAG_ID"]
+set_members[, set := factor(
+  set,
+  levels = c(
+    "All classified MAGs",
+    "UV-signature positive",
+    "Host linked",
+    "Priority set",
+    "inStrain analyzable"
+  )
+)]
+
+set_composition <- set_members[, .(n_mags = uniqueN(MAG_ID)), by = .(set, phylum_display)]
+set_composition[, proportion := n_mags / sum(n_mags), by = set]
+set_composition[, set_n := sum(n_mags), by = set]
+fwrite(set_composition, file.path(tables_dir, "mag_set_phylum_composition.tsv"), sep = "\t")
+
+tax_order <- set_composition[set == "All classified MAGs"][order(-n_mags)]$phylum_display
+tax_order <- unique(c(tax_order, "Other"))
+set_composition[, phylum_display := factor(phylum_display, levels = rev(tax_order))]
+
+p_funnel <- ggplot(set_composition, aes(x = set, y = proportion, fill = phylum_display)) +
+  geom_col(width = 0.72, colour = "white", linewidth = 0.15) +
+  geom_text(
+    data = unique(set_composition[, .(set, set_n)]),
+    aes(x = set, y = 1.025, label = paste0("n = ", set_n)),
+    inherit.aes = FALSE,
+    size = 2.6,
+    vjust = 0
+  ) +
+  scale_fill_manual(values = phage_uv_phylum_colours, drop = FALSE) +
+  scale_y_continuous(labels = percent_format(accuracy = 1), expand = expansion(mult = c(0, 0.09))) +
+  labs(x = NULL, y = "MAGs", fill = "Phylum") +
+  coord_cartesian(clip = "off") +
+  theme_phage_uv() +
+  theme(
+    axis.text.x = element_text(angle = 25, hjust = 1),
+    legend.position = "right"
+  )
+save_candidate("mag-selection-taxonomic-context", p_funnel, 8.1, 4.8)
+
+host_degree <- host_edges[, .(n_linked_votus = uniqueN(phage_id_or_vOTU_id)), by = MAG_ID]
+host_degree <- taxonomy[host_degree, on = "MAG_ID"]
+host_degree[, phylum_display := fifelse(
+  phylum %chin% names(phage_uv_phylum_colours),
+  phylum,
+  "Other"
+)]
+host_degree <- host_degree[order(-n_linked_votus, MAG_ID)]
+fwrite(host_degree, file.path(tables_dir, "deduplicated_host_degree.tsv"), sep = "\t")
+
+host_top <- host_degree[seq_len(min(30L, .N))]
+host_top[, label := fifelse(
+  !is.na(genus) & genus != "",
+  paste0(genus, " | ", MAG_ID),
+  paste0(phylum, " | ", MAG_ID)
+)]
+host_top[, label := factor(label, levels = rev(label))]
+
+p_host <- ggplot(host_top, aes(x = n_linked_votus, y = label, colour = phylum_display)) +
+  geom_segment(aes(x = 0, xend = n_linked_votus, yend = label), colour = "#D0D0D0", linewidth = 0.35) +
+  geom_point(size = 2.4) +
+  scale_colour_manual(values = phage_uv_phylum_colours, drop = FALSE) +
+  scale_x_continuous(breaks = pretty_breaks()) +
+  labs(x = "Unique linked vOTUs", y = NULL, colour = "Host phylum") +
+  theme_phage_uv() +
+  theme(panel.grid.major.x = element_line(colour = "#E6E6E6", linewidth = 0.25))
+save_candidate("host-phage-link-degree", p_host, 8.2, 7.3)
+
+instrain <- taxonomy[instrain, on = "MAG_ID"]
+instrain[, phylum_display := fifelse(
+  phylum %chin% names(phage_uv_phylum_colours),
+  phylum,
+  "Other"
+)]
+instrain[, comparison_axis := factor(
+  comparison_axis,
+  levels = c("condition", "cycle", "phase"),
+  labels = c("Control versus phage-UV", "Across cycles", "Initial versus backflush")
+)]
+mag_order <- instrain[, .(max_distance = max(mean_snv_distance, na.rm = TRUE)), by = MAG_ID][
+  order(max_distance)
+]$MAG_ID
+instrain[, MAG_ID := factor(MAG_ID, levels = mag_order)]
+axis_colours <- c(
+  "Control versus phage-UV" = phage_uv_condition_colours[["treatment"]],
+  "Across cycles" = "#4C78A8",
+  "Initial versus backflush" = "#8C8C8C"
+)
+
+p_snv <- ggplot(
+  instrain,
+  aes(x = mean_snv_distance, y = MAG_ID, colour = comparison_axis, shape = comparison_axis)
+) +
+  geom_point(size = 2.1, alpha = 0.88, position = position_jitter(height = 0.08, width = 0)) +
+  scale_colour_manual(values = axis_colours) +
+  scale_shape_manual(values = c(16, 17, 1)) +
+  scale_x_log10(labels = label_number(big.mark = ",")) +
+  labs(
+    x = "Mean SNV distance (log scale)",
+    y = NULL,
+    colour = "Comparison",
+    shape = "Comparison"
+  ) +
+  theme_phage_uv() +
+  theme(panel.grid.major.x = element_line(colour = "#E6E6E6", linewidth = 0.25))
+save_candidate("instrain-snv-comparison-context", p_snv, 8.2, 5.8)
+
+uv_by_mag <- unique(uv_summary[, .(
+  MAG_ID,
+  signature_tier,
+  signature_category,
+  n_unique_signature_symbols
+)])
+uv_by_mag <- taxonomy[uv_by_mag, on = "MAG_ID"]
+phylum_sizes <- taxonomy[, .(n_phylum_mags = uniqueN(MAG_ID)), by = phylum]
+shown_phyla <- phylum_sizes[order(-n_phylum_mags)][seq_len(min(15L, .N))]$phylum
+shown_phyla <- unique(c(
+  shown_phyla,
+  "Eremiobacterota",
+  "JACPWU01"
+))
+uv_shown <- uv_by_mag[phylum %chin% shown_phyla]
+uv_prevalence <- uv_shown[, .(
+  n_category_mags = uniqueN(MAG_ID),
+  median_symbols = as.numeric(median(n_unique_signature_symbols, na.rm = TRUE))
+), by = .(phylum, signature_tier, signature_category)]
+uv_prevalence <- phylum_sizes[uv_prevalence, on = "phylum"]
+uv_prevalence[, prevalence := n_category_mags / n_phylum_mags]
+uv_prevalence[, phylum := factor(
+  phylum,
+  levels = rev(phylum_sizes[phylum %chin% shown_phyla][order(n_phylum_mags)]$phylum)
+)]
+category_order <- c(
+  "nucleotide_excision_repair",
+  "photoreactivation",
+  "recombination_repair",
+  "SOS_response",
+  "oxidative_stress",
+  "redox_stress",
+  "base_excision_oxidative_repair",
+  "general_stress"
+)
+uv_prevalence[, signature_category := factor(signature_category, levels = category_order)]
+fwrite(uv_prevalence, file.path(tables_dir, "uv_signature_phylum_prevalence.tsv"), sep = "\t")
+
+p_uv <- ggplot(
+  uv_prevalence,
+  aes(
+    x = signature_category,
+    y = phylum,
+    size = prevalence,
+    fill = signature_category
+  )
+) +
+  geom_point(shape = 21, colour = "#333333", stroke = 0.2) +
+  scale_fill_manual(values = phage_uv_signature_colours, drop = FALSE) +
+  scale_size_area(max_size = 8, limits = c(0, 1), labels = percent_format()) +
+  labs(x = NULL, y = NULL, size = "MAG prevalence", fill = "UV-response category") +
+  theme_phage_uv() +
+  theme(
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    panel.grid = element_line(colour = "#EEEEEE", linewidth = 0.25),
+    legend.position = "right"
+  )
+save_candidate("uv-signature-potential-by-phylum", p_uv, 9.2, 6.2)
+
+manifest <- data.table(
+  artifact = c(
+    "mag-selection-taxonomic-context",
+    "host-phage-link-degree",
+    "instrain-snv-comparison-context",
+    "uv-signature-potential-by-phylum",
+    "uv-transcription-paired-condition",
+    "uv-transcription-treatment-effect",
+    "sos-transcription-marker-effects",
+    "community-rna-dna-temporal-response",
+    "sos-mag-continuous-response-heatmap",
+    "population-genomics-pairwise-landscape",
+    "full-de-condition-landscape",
+    "full-de-functional-category-enrichment",
+    "full-de-mag-condition-coherence",
+    "full-de-recurrent-gene-cell-effects"
+  ),
+  status = c(
+    "candidate_unallocated",
+    "deferred",
+    "retired_wrong_inference",
+    "candidate_unallocated",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "quarantined_quick_check",
+    "candidate_unallocated",
+    "candidate_unallocated",
+    "candidate_unallocated",
+    "candidate_unallocated",
+    "candidate_unallocated"
+  ),
+  note = c(
+    "Taxonomic composition across the analysis selection funnel",
+    "Deduplicated host-vOTU degree for the 30 most connected MAGs",
+    "SNV-distance context across condition, cycle, and phase comparisons",
+    "Prevalence of UV-response potential across recurrent MAG phyla",
+    "Preselected UV-response CPM quick check; prohibited from manuscript or supplement",
+    "Preselected UV-response effect quick check; prohibited from manuscript or supplement",
+    "Preselected SOS-marker quick check; prohibited from manuscript or supplement",
+    "Preselected DNA-repair/SOS RNA:DNA quick check; prohibited from manuscript or supplement",
+    "Preselected SOS-module MAG quick check; prohibited from manuscript or supplement",
+    "Descriptive pairwise population-genomic heterogeneity for coverage-qualified MAGs; no damage or mutagenesis inference",
+    "Complete-universe adjusted condition landscape; condition is confounded with membrane identity",
+    "Post-model competitive tests for eight frozen functional categories",
+    "Post-model organism-resolved directional coherence across 340 eligible MAGs",
+    "Descriptive six-cell recurrence for complete-universe tested features"
+  )
+)
+fwrite(manifest, file.path(out_root, "candidate_figure_manifest.tsv"), sep = "\t")
+
+message("Wrote unallocated candidate figures to: ", figures_dir)
+
+```

@@ -1,0 +1,66 @@
+---
+title: "Figure 1D: outward-facing taxon and viral labels"
+format: html
+editor: source
+---
+
+Author-review detail of panel D. All 80 hosts, 85 viral sequences and 86
+host-virus associations are retained. No abundance, inference or colour changes.
+This larger detail is reviewed before allocation in the complete figure.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figure1_shared_taxonomy_2026-09-14-v3"
+paths<-file.path(root,"tables",c("MAG_colour_alignment.tsv","circular_network_nodes.tsv","plotted_network_edges.tsv","viral_node_quality.tsv"))
+hash<-function(x)digest::digest(file=x,algo="sha256")
+before<-vapply(paths,hash,character(1))
+al<-fread(paths[1]);nd<-fread(paths[2]);edges<-fread(paths[3]);q<-fread(paths[4])
+hp<-nd[type=="MAG"];vp<-nd[type=="Viral contig"]
+hp[,colour:=al$colour[match(id,al$MAG_ID)]]
+hp[,taxonomy:=al$deepest[match(id,al$MAG_ID)]]
+hp[,short_id:=sub("_MAGScoT_cleanbin_0*","/",id)]
+# Retain full deepest reported taxon; unresolved markers are preserved.
+hp[,radial_label:=paste(sub("^.__","",taxonomy),short_id,sep=" | ")]
+vp[,radial_label:=sub("_coassembly_megahit_.*_contig_k141_","/",id)]
+vp[,radial_label:=sub("^([^_]+)_metagenomics_penguin_.*_contig_([0-9]+)$","\\1/MG/\\2",radial_label)]
+vp[,radial_label:=sub("^([^_]+)_metatranscriptomics_penguin_.*_contig_([0-9]+)$","\\1/MT/\\2",radial_label)]
+stopifnot(!anyDuplicated(vp$radial_label))
+vp[,completeness:=q$completeness[match(id,q$phage_id)]]
+vp[,realm:=edges$realm_display[match(id,edges$phage_id)]]
+radial<-function(d){d<-copy(d);d[,angle:=atan2(y,x)*180/pi];d[,hjust:=ifelse(x<0,1,0)];d[x<0,angle:=angle+180];d[,`:=`(tx=1.055*x,ty=1.055*y)];d}
+hl<-radial(hp);vl<-radial(vp)
+e<-merge(edges,hp[,.(MAG_ID=id,x,y)],by="MAG_ID")
+e<-merge(e,vp[,.(phage_id=id,xend=x,yend=y)],by="phage_id")
+curves<-rbindlist(lapply(seq_len(nrow(e)),function(i){t<-seq(0,1,length.out=45);r<-e[i];data.table(edge=i,
+ x=(1-t)^2*r$x+2*(1-t)*t*.18*(r$x+r$xend)/2+t^2*r$xend,
+ y=(1-t)^2*r$y+2*(1-t)*t*.18*(r$y+r$yend)/2+t^2*r$yend,response=r$response_state,hits=r$n_hits)}))
+p<-ggplot()+
+ geom_path(data=curves,aes(x,y,group=edge,colour=response,linewidth=hits),alpha=.55)+
+ scale_colour_manual(name="Host response in treatment",values=c("Control higher"="#8FCB8A","Not supported"="#B0B7BD","Phage-UV higher"="#7E57C2"),breaks=c("Control higher","Phage-UV higher","Not supported"),labels=c("Down","Up","Unsupported"))+
+ scale_linewidth_continuous(name="Reported links",trans="log1p",range=c(.1,.6),breaks=c(1,10,88))+
+ geom_segment(data=hl,aes(x,y,xend=tx,yend=ty),colour="#777777",linewidth=.12)+
+ geom_segment(data=vl,aes(x,y,xend=tx,yend=ty),colour="#999999",linewidth=.1)+
+ geom_point(data=hp,aes(x,y),shape=21,size=1.8,stroke=.2,fill=hp$colour)+
+ geom_point(data=vp,aes(x,y,fill=completeness,shape=realm),size=1.8,stroke=.2)+
+ scale_shape_manual(name="Viral realm",values=c(Duplodnaviria=23,Unclassified=25))+
+ scale_fill_gradientn(name="Viral completeness (%)",colours=c("#FFF4C7","#E8B46D","#B57133","#593214"),limits=c(0,100),trans="sqrt",na.value="#D5D9DD",breaks=c(0,25,100))+
+ geom_text(data=hl,aes(tx,ty,label=radial_label,angle=angle,hjust=hjust),size=7/ggplot2::.pt,colour="#222222")+
+ geom_text(data=vl,aes(tx,ty,label=radial_label,angle=angle,hjust=hjust),size=6/ggplot2::.pt,colour="#444444")+
+ annotate("text",x=-.88,y=1.65,label="Microbial hosts",fontface="bold",size=10/ggplot2::.pt)+
+ annotate("text",x=.95,y=1.65,label="Linked viral sequences",fontface="bold",size=10/ggplot2::.pt)+
+ coord_equal(xlim=c(-1.85,1.85),ylim=c(-1.6,1.75),clip="off")+
+ theme_void(base_size=8)+theme(legend.position="bottom",legend.box="vertical",legend.title=element_text(size=8),legend.text=element_text(size=7),plot.margin=margin(6,6,6,6))+
+ guides(colour=guide_legend(order=1,override.aes=list(alpha=1,linewidth=.6)),linewidth=guide_legend(order=2),shape=guide_legend(order=3),fill=guide_colourbar(order=4,barwidth=unit(32,"mm"),barheight=unit(2,"mm")))+
+ labs(caption="Host circles: shared taxonomic colours. Viral ID prefixes MG/MT: metagenomic/metatranscriptomic assembly. Grey fill: completeness unavailable.")
+stopifnot(nrow(hp)==80,nrow(vp)==85,nrow(e)==86,!anyNA(hp$taxonomy),!anyNA(hp$colour),!anyDuplicated(hl$id),!anyDuplicated(vl$id))
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+saveRDS(p,file.path(out,"source/network_plot.rds"))
+ggsave(file.path(out,"figures/figure1D-radial-labels.pdf"),p,width=300,height=310,units="mm",device="pdf",useDingbats=FALSE)
+fwrite(rbindlist(list(hl,vl),fill=TRUE),file.path(out,"tables/radial_node_labels.tsv"),sep="\t")
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+fwrite(data.table(path=paths,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/figure1_network_radial_labels.qmd"))
+writeLines("Standalone Figure 1D author-review detail; not yet incorporated in the assembled figure or live Doc. All 165 node labels displayed; data and taxonomic colours unchanged. Upload remains pending explicit approval.",file.path(out,"REVIEW_STATUS.txt"))
+cat("PASS: 80 MAGs, 85 viral nodes, 86 associations; all labels present and source hashes unchanged.\n")
+```

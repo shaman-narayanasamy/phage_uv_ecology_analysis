@@ -1,0 +1,4 @@
+sample_title	amplicon_run_accession	read_direction	local_filename	download_url	md5	bytes
+earlier_uplusb40_1	ERR4181942	SE	earlier_uplusb40_1_SE.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR418/002/ERR4181942/ERR4181942.fastq.gz	32029f312dbb6445f1b38aab23bcec90	89542090
+earlier_uplusb40_2	ERR4181943	SE	earlier_uplusb40_2_SE.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR418/003/ERR4181943/ERR4181943.fastq.gz	8f74ffb1f583321af154cebbb8b5cf25	60503724
+earlier_uplusb40_3	ERR4181944	SE	earlier_uplusb40_3_SE.fastq.gz	https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR418/004/ERR4181944/ERR4181944.fastq.gz	d72437fffd33374931fddf4b003d25bb	15008458

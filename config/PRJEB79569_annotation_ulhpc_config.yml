@@ -1,0 +1,16 @@
+---
+tmp_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/tmp"
+output_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569"
+genome_table: "/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_annotation_genomes.tsv"
+
+bakta:
+  db_path: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/bakta/db"
+  custom_dbs: {}
+
+catbat:
+  threads: 24
+  command: "CAT_pack"
+  db_path:
+    gtdb: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/cat/gtdb/db"
+  tx_path:
+    gtdb: "/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/cat/gtdb/tax"

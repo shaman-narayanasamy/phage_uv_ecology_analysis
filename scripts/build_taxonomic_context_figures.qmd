@@ -1,0 +1,732 @@
+---
+title: "Build Taxonomic Context Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook rebuilds the two taxonomy-tree structures used in the original
+poster with current, manuscript-eligible inputs. The MAG figure uses the complete
+post-model MAG interpretation rather than the retired subset-first expression
+analysis and adds a metagenomic family-level community profile. The viral panel
+uses an explicit current-catalogue filter and makes no treatment or host-phage
+inference.
+
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, including the optional output directory, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_taxonomic_context_figures.qmd [output-directory]
+bash scripts/run_qmd.sh scripts/build_taxonomic_context_figures.qmd NEW_OUTPUT --publication-size
+```
+
+Automatic execution during rendering is disabled. Builds require a new output
+directory, preserving prior figures, tables and registries.
+
+```{r}
+#| label: build-taxonomic-context-figures
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ape)
+  library(ggplot2)
+  library(ggtree)
+  library(ggnewscale)
+  library(patchwork)
+  library(scales)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  root <- normalizePath(getwd(), mustWork = TRUE)
+  if (!file.exists(file.path(root, "R", "figure_style.R"))) {
+    abort("Run this notebook from the phage_uv_ecology_analysis repository root")
+  }
+  root
+}
+
+promote_file <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  incoming <- paste0(destination, ".incoming-", Sys.getpid())
+  if (!file.copy(source, incoming, overwrite = TRUE, copy.mode = TRUE)) {
+    abort("Failed to stage %s for promotion", basename(destination))
+  }
+  if (!file.rename(incoming, destination)) {
+    unlink(incoming)
+    abort("Failed to promote %s", basename(destination))
+  }
+}
+
+newick_label <- function(x) {
+  x <- gsub("[^A-Za-z0-9_.-]+", "_", as.character(x))
+  x <- gsub("^_+|_+$", "", x)
+  ifelse(is.na(x) | x == "", "unknown", x)
+}
+
+taxonomy_newick <- function(x, id_col, rank_cols, root_label) {
+  children <- new.env(parent = emptyenv())
+
+  add_child <- function(parent, child) {
+    current <- if (exists(parent, envir = children, inherits = FALSE)) {
+      get(parent, envir = children, inherits = FALSE)
+    } else {
+      character()
+    }
+    if (!(child %chin% current)) {
+      assign(parent, sort(c(current, child)), envir = children)
+    }
+  }
+
+  root_key <- newick_label(root_label)
+  for (i in seq_len(nrow(x))) {
+    parent <- root_key
+    lineage <- unlist(x[i, ..rank_cols], use.names = FALSE)
+    lineage <- lineage[!is.na(lineage) & nzchar(lineage)]
+    for (taxon in lineage) {
+      child <- paste(parent, newick_label(taxon), sep = "|")
+      add_child(parent, child)
+      parent <- child
+    }
+    add_child(parent, newick_label(x[[id_col]][[i]]))
+  }
+
+  to_newick <- function(node) {
+    kids <- if (exists(node, envir = children, inherits = FALSE)) {
+      get(node, envir = children, inherits = FALSE)
+    } else {
+      character()
+    }
+    label <- newick_label(sub(".*[|]", "", node))
+    if (!length(kids)) return(label)
+    paste0("(", paste(vapply(kids, to_newick, character(1)), collapse = ","), ")", label)
+  }
+
+  paste0(to_newick(root_key), ";")
+}
+
+extract_prefixed_rank <- function(lineage, prefix) {
+  vapply(strsplit(as.character(lineage), ";", fixed = TRUE), function(parts) {
+    hit <- parts[startsWith(parts, prefix)]
+    if (!length(hit)) return(NA_character_)
+    sub(paste0("^", prefix), "", hit[[1L]])
+  }, character(1))
+}
+
+deepest_taxon <- function(x, columns) {
+  answer <- rep(NA_character_, nrow(x))
+  for (column in columns) {
+    take <- is.na(answer) | !nzchar(answer)
+    values <- as.character(x[[column]])
+    answer[take & !is.na(values) & nzchar(values)] <- values[take & !is.na(values) & nzchar(values)]
+  }
+  answer
+}
+
+write_checksums <- function(output_dir, staging) {
+  checksum_path <- file.path(output_dir, "output_checksums.md5.tsv")
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[file.info(files)$isdir %in% FALSE & basename(files) != "output_checksums.md5.tsv"]
+  files <- sort(files)
+  checksum_table <- data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  )
+  checksum_stage <- file.path(staging, "output_checksums.md5.tsv")
+  fwrite(checksum_table, checksum_stage, sep = "\t")
+  promote_file(checksum_stage, checksum_path)
+}
+
+build_taxonomic_context <- function(root, output_dir, publication = FALSE) {
+  if (dir.exists(output_dir)) abort("Refusing to overwrite an existing output directory: %s", output_dir)
+  project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+  paths <- list(
+    quality = file.path(project_data, "binning", "dereplication", "data_tables", "Widb.csv"),
+    taxonomy = file.path(project_data, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
+    coherence = file.path(project_data, "derived", "full_de_interpretation", "tables", "mag_coherence.tsv"),
+    family_profile = file.path(project_data, "derived", "taxonomic_resolution_exploration", "tables", "family_top25_community_profile.tsv"),
+    family_colours = file.path(project_data, "derived", "taxonomic_resolution_exploration", "tables", "family_microshades_colour_key.tsv"),
+    sample_metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+    checkv = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "checkv", "quality_summary.tsv"),
+    cenote = file.path(project_data, "viromics", "annotation", "PRJEB79569_vOTUs", "vclust_catalogue", "cenotetaker3", "output", "output_virus_summary.tsv"),
+    clusters = file.path(project_data, "viromics", "votu_clustering", "cluster_summary.tsv"),
+    registry = file.path(project_data, "derived", "manuscript_figure_candidates", "candidate_figure_registry.tsv")
+  )
+  missing <- names(paths)[!file.exists(unlist(paths))]
+  if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+  source(file.path(root, "R", "figure_style.R"))
+
+  staging <- file.path(dirname(output_dir), sprintf(".taxonomic-context-staging-%s", Sys.getpid()))
+  dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(staging, "trees"), recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+  quality <- fread(paths$quality)
+  quality[, MAG_ID := sub("[.]fasta$", "", genome)]
+  if (nrow(quality) != 348L || uniqueN(quality$MAG_ID) != 348L) {
+    abort("Expected 348 unique MAG quality records")
+  }
+
+  taxonomy <- fread(paths$taxonomy)
+  setnames(taxonomy, "# bin", "MAG_ID")
+  taxonomy[, MAG_ID := sub("[.]fasta$", "", MAG_ID)]
+  rank_prefixes <- c(
+    domain = "d__", phylum = "p__", class = "c__", order = "o__",
+    family = "f__", genus = "g__", species = "s__"
+  )
+  for (rank in names(rank_prefixes)) {
+    taxonomy[, (rank) := extract_prefixed_rank(lineage, rank_prefixes[[rank]])]
+  }
+  if (nrow(taxonomy) != 348L || uniqueN(taxonomy$MAG_ID) != 348L) {
+    abort("Expected 348 unique MAG taxonomy records")
+  }
+
+  coherence <- fread(paths$coherence)[coefficient == "condition_adjusted"]
+  if (nrow(coherence) != 340L || sum(coherence$FDR < 0.05) != 175L) {
+    abort("Adjusted-condition MAG interpretation is not the verified 340-MAG, 175-supported result")
+  }
+
+  mag <- merge(
+    quality[, .(
+      MAG_ID, completeness, contamination, strain_heterogeneity, size, N50,
+      completeness_metric, contamination_metric
+    )],
+    taxonomy[, c("MAG_ID", names(rank_prefixes)), with = FALSE],
+    by = "MAG_ID",
+    all = TRUE
+  )
+  mag <- merge(
+    mag,
+    coherence[, .(
+      MAG_ID, eligible, Direction, FDR, median_logFC,
+      recurrent_treatment_higher_genes, recurrent_control_higher_genes,
+      n_tested_genes
+    )],
+    by = "MAG_ID",
+    all.x = TRUE
+  )
+  mag[is.na(eligible), eligible := FALSE]
+  mag[, de_state := fcase(
+    !is.na(FDR) & FDR < 0.05 & Direction == "Up", "Phage-UV higher",
+    !is.na(FDR) & FDR < 0.05 & Direction == "Down", "Control higher",
+    !is.na(FDR), "Not supported",
+    default = "Not modeled"
+  )]
+  mag[, recurrence_balance := fifelse(
+    !is.na(n_tested_genes) & n_tested_genes > 0,
+    (recurrent_treatment_higher_genes - recurrent_control_higher_genes) / n_tested_genes,
+    NA_real_
+  )]
+  mag[, deepest_taxon := deepest_taxon(.SD, c("species", "genus", "family", "order", "class", "phylum", "domain"))]
+  mag[, phylum_display := fifelse(
+    is.na(phylum) | !nzchar(phylum), "Unclassified",
+    fifelse(phylum %chin% names(phage_uv_phylum_colours), phylum, "Other")
+  )]
+  setorder(mag, domain, phylum, class, order, family, genus, species, MAG_ID, na.last = TRUE)
+
+  mag_newick <- taxonomy_newick(
+    mag,
+    id_col = "MAG_ID",
+    rank_cols = names(rank_prefixes),
+    root_label = "Cellular_organisms"
+  )
+  mag_tree_path <- file.path(staging, "trees", "mag_taxonomic_context.nwk")
+  writeLines(mag_newick, mag_tree_path)
+  mag_tree <- read.tree(text = mag_newick)
+  if (Ntip(mag_tree) != 348L || !setequal(mag_tree$tip.label, mag$MAG_ID)) {
+    abort("MAG taxonomy tree does not contain the expected 348 tips")
+  }
+
+  mag_tip <- data.frame(label = mag$MAG_ID, as.data.frame(mag), check.names = FALSE)
+  p_mag <- ggtree(mag_tree, layout = "circular", branch.length = "none", linewidth = 0.18, colour = "#B7B7B7")
+  positions <- as.data.table(p_mag$data[p_mag$data$isTip, c("label", "x", "y")])
+  setnames(positions, "label", "MAG_ID")
+  positions <- merge(positions, mag, by = "MAG_ID", all.x = TRUE, sort = FALSE)
+  radius <- max(p_mag$data$x, na.rm = TRUE)
+  ring_x <- radius + c(0.30, 0.62, 0.94, 1.26)
+  recurrence_limit <- max(abs(quantile(positions$recurrence_balance, c(0.02, 0.98), na.rm = TRUE)))
+  recurrence_limit <- max(recurrence_limit, 0.05)
+
+  de_colours <- c(
+    "Control higher" = phage_uv_condition_colours[["control"]],
+    "Phage-UV higher" = phage_uv_condition_colours[["phage_uv"]],
+    "Not supported" = "#D8D8D8",
+    "Not modeled" = "#FFFFFF"
+  )
+  phylum_levels <- intersect(names(phage_uv_phylum_colours), unique(positions$phylum_display))
+  p_mag <- p_mag +
+    geom_point(
+      data = positions,
+      aes(x = x, y = y, colour = factor(phylum_display, levels = phylum_levels)),
+      size = 0.85,
+      alpha = 0.95,
+      inherit.aes = FALSE
+    ) +
+    scale_colour_manual(
+      values = phage_uv_phylum_colours,
+      drop = TRUE,
+      name = "Phylum",
+      guide = guide_legend(order = 1)
+    ) +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[1L]], y = y, fill = completeness),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#F7FBFF",
+      high = "#08519C",
+      limits = c(75, 100),
+      name = "Completeness (%)",
+      guide = guide_colourbar(order = 2)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[2L]], y = y, fill = contamination),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_gradient(
+      low = "#FFF5F0",
+      high = "#A50F15",
+      limits = c(0, 25),
+      name = "Contamination (%)",
+      guide = guide_colourbar(order = 3)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[3L]], y = y, fill = de_state),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_manual(
+      values = de_colours,
+      name = "Adjusted membrane\ncoherence",
+      guide = guide_legend(order = 4)
+    ) +
+    ggnewscale::new_scale_fill() +
+    geom_tile(
+      data = positions,
+      aes(x = ring_x[[4L]], y = y, fill = recurrence_balance),
+      width = 0.25,
+      height = 0.92,
+      colour = NA,
+      inherit.aes = FALSE
+    ) +
+    scale_fill_gradient2(
+      low = phage_uv_condition_colours[["control"]],
+      mid = "#F7F7F7",
+      high = phage_uv_condition_colours[["phage_uv"]],
+      midpoint = 0,
+      limits = c(-recurrence_limit, recurrence_limit),
+      oob = scales::squish,
+      name = "Recurrent-gene\nbalance",
+      guide = guide_colourbar(order = 5)
+    ) +
+    xlim(0, ring_x[[4L]] + 1.25) +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "right",
+      legend.box = "vertical",
+      legend.key.height = grid::unit(0.36, "cm"),
+      legend.text = element_text(size = 6.4),
+      legend.title = element_text(size = 7.1),
+      plot.margin = margin(12, 18, 12, 12)
+    )
+
+  # Use the same frozen top-25 composition and hierarchy-aware palette as
+  # Figure 1. Do not reconstruct a competing top-N or recolour named families.
+  family_profile <- fread(paths$family_profile)
+  family_key <- fread(paths$family_colours)
+  if (sum(family_key$category_type == "top25 named") != 25L ||
+      anyDuplicated(family_key$display_category)) abort("Invalid Figure 1 family colour registry")
+  setnames(family_profile, "display_category", "family_display")
+  family_levels <- family_key$display_category
+  family_colours <- setNames(family_key$colour, family_levels)
+  family_legend <- family_key[category_type == "top25 named" | display_category == "Other phyla"]
+  family_legend[, legend_label := fifelse(display_category == "Other phyla", "Other phyla",
+                                         paste(phylum, display_category, sep = " | "))]
+  if (uniqueN(family_profile$sample_title) != 12L ||
+      any(abs(family_profile[, sum(relative_abundance), by = sample_title]$V1 - 1) > 1e-8) ||
+      any(!family_profile$family_display %chin% family_levels)) abort("Invalid Figure 1 family profile")
+  family_profile[, family_display := factor(family_display, levels = rev(family_levels))]
+  family_profile[, condition_label := factor(condition_label, levels = c("Control", "Phage-UV"))]
+  family_profile[, sample_label := factor(sample_label, levels = c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B"))]
+
+  p_family <- ggplot(
+    family_profile,
+    aes(x = sample_label, y = relative_abundance, fill = family_display)
+  ) +
+    geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+    facet_grid(condition_label ~ ., scales = "fixed") +
+    scale_fill_manual(
+      values = family_colours,
+      breaks = family_legend$display_category,
+      labels = family_legend$display_category,
+      drop = FALSE,
+      name = "Family"
+    ) +
+    scale_y_continuous(
+      labels = label_percent(accuracy = 1),
+      breaks = seq(0, 1, by = 0.25),
+      expand = expansion(mult = c(0, 0.01))
+    ) +
+    labs(x = "Cycle-phase sample", y = "Relative abundance among MAG-mapped reads") +
+    theme_phage_uv(base_size = 8) +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+      legend.position = "right",
+      legend.text = element_text(size = 6.2),
+      legend.title = element_text(size = 7),
+      panel.spacing = grid::unit(0.7, "lines")
+    )
+
+  if (publication) {
+    # Preserve the taxonomy, ring order, frozen profile and colour registry.
+    # Reflow only the display at its final 180 mm width.
+    p_mag <- p_mag +
+      guides(colour = guide_legend(order = 1, ncol = 2, override.aes = list(size = 1.3))) +
+      theme(legend.text = element_text(size = 6.5),
+            legend.title = element_text(size = 7),
+            legend.key.height = grid::unit(2.5, "mm"),
+            legend.key.width = grid::unit(3, "mm"),
+            legend.spacing.y = grid::unit(1, "mm"),
+            legend.margin = margin(0, 0, 0, 0),
+            plot.margin = margin(3, 3, 3, 3))
+    # Each ggnewscale colour scale retains its own guide object.
+    for (i in seq_along(p_mag$scales$scales)) {
+      scale <- p_mag$scales$scales[[i]]
+      if (inherits(scale$guide, "GuideColourbar")) {
+        scale$guide$params$display <- "rectangles"
+        scale$guide$params$nbin <- 100L
+        scale$guide$params$theme <- theme(legend.key.height = grid::unit(14, "mm"),
+                                          legend.key.width = grid::unit(3, "mm"))
+        p_mag$scales$scales[[i]] <- scale
+      }
+    }
+    p_family <- p_family +
+      labs(y = "Relative abundance\namong MAG-mapped reads") +
+      guides(fill = guide_legend(ncol = 1)) +
+      theme(axis.text = element_text(size = 7),
+            axis.text.x = element_text(size = 7, angle = 0, hjust = .5, vjust = .5),
+            axis.title = element_text(size = 8), strip.text = element_text(size = 7),
+            legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+            legend.key.height = grid::unit(2.7, "mm"),
+            legend.key.width = grid::unit(3, "mm"),
+            legend.margin = margin(0, 0, 0, 0),
+            plot.margin = margin(3, 3, 3, 3))
+  }
+
+  p_mag_combined <- p_mag / p_family +
+    plot_layout(heights = c(1.55, 1)) +
+    plot_annotation(tag_levels = "A") &
+    theme(plot.tag = element_text(face = "plain", size = 11))
+
+  mag_figure_path <- file.path(staging, "figures", "mag-taxonomic-context.pdf")
+  publication_device <- function(filename, width, height, ...) {
+    if (isTRUE(capabilities("aqua"))) {
+      grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+    } else grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+  if (publication) {
+    # Isolate panels so the family legend cannot compress the circular tree.
+    p_mag_combined <- wrap_elements(full = p_mag) / wrap_elements(full = p_family) +
+      plot_layout(heights = c(1.45, 1)) + plot_annotation(tag_levels = "A") &
+      theme(plot.tag = element_text(size = 10, face = "plain"),
+            plot.margin = margin(3, 3, 3, 3))
+    ggsave(mag_figure_path, p_mag_combined, width = 180, height = 250,
+           units = "mm", device = publication_device)
+  } else {
+    ggsave(mag_figure_path, p_mag_combined, width = 11.7, height = 10.8, device = grDevices::pdf)
+  }
+
+  mag_summary <- mag[, .(
+    MAGs = .N,
+    supported_MAGs = sum(FDR < 0.05, na.rm = TRUE),
+    phage_uv_higher_MAGs = sum(FDR < 0.05 & Direction == "Up", na.rm = TRUE),
+    control_higher_MAGs = sum(FDR < 0.05 & Direction == "Down", na.rm = TRUE),
+    median_completeness = median(completeness, na.rm = TRUE),
+    median_contamination = median(contamination, na.rm = TRUE)
+  ), by = .(phylum_display)][order(-MAGs, phylum_display)]
+  fwrite(mag, file.path(staging, "tables", "mag_taxonomic_context.tsv"), sep = "\t")
+  fwrite(mag_summary, file.path(staging, "tables", "mag_taxonomic_context_summary.tsv"), sep = "\t")
+  fwrite(
+    family_profile[, .(
+      sample_title, condition, phase, cycle, sample_label,
+      family_display, relative_abundance
+    )],
+    file.path(staging, "tables", "mag_family_community_profile.tsv"),
+    sep = "\t"
+  )
+  fwrite(
+    data.table(family_display = family_levels, colour = unname(family_colours)),
+    file.path(staging, "tables", "mag_family_colour_key.tsv"),
+    sep = "\t"
+  )
+  fwrite(
+    data.table(
+      panel = c("A", "A", "A", "A", "A", "B"),
+      element = c(
+        "phylum tip point", "completeness", "contamination",
+        "adjusted membrane coherence", "recurrent-gene balance",
+        "family-level metagenomic community profile; control above phage-UV with aligned cycle-phase positions"
+      ),
+      radial_order = c(0L, 1L, 2L, 3L, 4L, NA_integer_)
+    ),
+    file.path(staging, "tables", "mag_taxonomic_context_layout.tsv"),
+    sep = "\t"
+  )
+
+  checkv <- fread(paths$checkv, select = c(
+    "contig_id", "contig_length", "gene_count", "viral_genes", "host_genes",
+    "checkv_quality", "miuvig_quality", "completeness", "contamination"
+  ))
+  cenote <- fread(paths$cenote, select = c(
+    "input_name", "organism", "virus_seq_length", "virion_hallmark_count",
+    "rep_hallmark_count", "RDRP_hallmark_count", "taxonomy_hierarchy"
+  ))
+  setnames(cenote, "input_name", "contig_id")
+  clusters <- fread(paths$clusters, select = c("representative", "n_members", "sources"))
+
+  votu <- merge(cenote, checkv, by = "contig_id", all.x = TRUE)
+  votu <- merge(votu, clusters, by.x = "contig_id", by.y = "representative", all.x = TRUE)
+  setorder(votu, contig_id, -virus_seq_length, taxonomy_hierarchy, na.last = TRUE)
+  votu <- votu[, .SD[1L], by = contig_id]
+  votu[, n_members := fifelse(is.na(n_members), 1L, n_members)]
+  votu[, has_taxonomy := !is.na(taxonomy_hierarchy) & nzchar(taxonomy_hierarchy)]
+  votu[, passes_current_filter :=
+    miuvig_quality == "High-quality" & viral_genes > 0 & has_taxonomy]
+  votu_filtered <- votu[passes_current_filter == TRUE]
+  if (nrow(votu_filtered) != 607L || uniqueN(votu_filtered$contig_id) != 607L) {
+    abort("Expected 607 unique vOTUs under the declared current-catalogue filter")
+  }
+
+  viral_ranks <- c("domain", "realm", "kingdom", "phylum", "class", "order", "family", "subfamily", "genus", "species")
+  viral_prefixes <- c(
+    kingdom = "k_", phylum = "p_", class = "c_", order = "o_",
+    family = "f_", subfamily = "sf_", genus = "g_", species = "s_"
+  )
+  votu_filtered[, domain := vapply(strsplit(taxonomy_hierarchy, ";", fixed = TRUE), function(parts) {
+    if (!length(parts)) return(NA_character_)
+    sub("^-_", "", parts[[1L]])
+  }, character(1))]
+  votu_filtered[, realm := vapply(strsplit(taxonomy_hierarchy, ";", fixed = TRUE), function(parts) {
+    hit <- parts[startsWith(parts, "-_")]
+    if (length(hit) < 2L) return("Unclassified")
+    sub("^-_", "", hit[[2L]])
+  }, character(1))]
+  for (rank in names(viral_prefixes)) {
+    votu_filtered[, (rank) := extract_prefixed_rank(taxonomy_hierarchy, viral_prefixes[[rank]])]
+  }
+  votu_filtered[is.na(domain) | !nzchar(domain), domain := "Unclassified"]
+  votu_filtered[is.na(realm) | !nzchar(realm), realm := "Unclassified"]
+
+  votu_groups <- votu_filtered[, .(
+    n_votus = .N,
+    n_cluster_members = sum(n_members, na.rm = TRUE),
+    median_length = median(contig_length, na.rm = TRUE),
+    median_completeness = median(completeness, na.rm = TRUE)
+  ), by = c("taxonomy_hierarchy", viral_ranks)][order(-n_votus, taxonomy_hierarchy)]
+  votu_groups[, vOTU_group := sprintf("vOTU_group_%03d", seq_len(.N))]
+  votu_groups[, deepest_taxon := deepest_taxon(.SD, rev(viral_ranks))]
+  votu_groups[, display_label := sprintf("%s (n=%s)", deepest_taxon, n_votus)]
+  votu_groups[, realm_display := fifelse(
+    realm %chin% names(phage_uv_viral_realm_colours),
+    realm,
+    "Unclassified"
+  )]
+
+  votu_newick <- taxonomy_newick(
+    votu_groups,
+    id_col = "vOTU_group",
+    rank_cols = viral_ranks,
+    root_label = "Viruses"
+  )
+  votu_tree_path <- file.path(staging, "trees", "votu_taxonomic_context.nwk")
+  writeLines(votu_newick, votu_tree_path)
+  votu_tree <- read.tree(text = votu_newick)
+  if (Ntip(votu_tree) != nrow(votu_groups)) {
+    abort("vOTU taxonomy tree tip count does not match the grouped catalogue")
+  }
+
+  label_ids <- head(votu_groups[order(-n_votus, display_label)]$vOTU_group, 18L)
+  votu_tip <- data.frame(label = votu_groups$vOTU_group, as.data.frame(votu_groups), check.names = FALSE)
+  votu_tip$tree_label <- ifelse(votu_tip$vOTU_group %in% label_ids, votu_tip$display_label, "")
+
+  p_votu_tree <- ggtree(votu_tree, layout = "daylight", branch.length = "none", linewidth = 0.25, colour = "#8A8A8A") %<+% votu_tip +
+    geom_tippoint(aes(size = n_votus, colour = realm_display), alpha = 0.92) +
+    geom_tiplab(aes(label = tree_label), size = 2.05, offset = 0.15, linesize = 0.15) +
+    scale_colour_manual(values = phage_uv_viral_realm_colours, name = "Realm") +
+    scale_size_continuous(range = c(1.6, 7.5), name = "vOTUs") +
+    labs(tag = "A") +
+    coord_cartesian(clip = "off") +
+    theme_void(base_size = 8) +
+    theme(
+      legend.position = "bottom",
+      plot.tag = element_text(face = "bold", size = 11),
+      plot.margin = margin(55, 75, 65, 75)
+    )
+
+  votu_filtered[, realm_display := fifelse(
+    realm %chin% names(phage_uv_viral_realm_colours),
+    realm,
+    "Unclassified"
+  )]
+  realm_summary <- votu_filtered[, .(
+    n_votus = .N,
+    n_cluster_members = sum(n_members, na.rm = TRUE),
+    taxonomy_groups = uniqueN(taxonomy_hierarchy)
+  ), by = .(realm_display)][order(n_votus)]
+  p_realm <- ggplot(realm_summary, aes(
+    x = n_votus,
+    y = reorder(realm_display, n_votus),
+    fill = realm_display
+  )) +
+    geom_col(width = 0.68, colour = "grey20", linewidth = 0.18) +
+    geom_text(aes(label = n_votus), hjust = -0.18, size = 2.8) +
+    scale_fill_manual(values = phage_uv_viral_realm_colours, guide = "none") +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.16))) +
+    labs(x = "High-quality vOTUs", y = NULL, tag = "B") +
+    theme_phage_uv(base_size = 8.2) +
+    theme(
+      axis.line.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      plot.tag = element_text(face = "bold", size = 11)
+    )
+
+  p_votu <- p_votu_tree | p_realm + plot_layout(widths = c(2.15, 0.85))
+  votu_figure_path <- file.path(staging, "figures", "votu-taxonomic-context.pdf")
+  if (publication) {
+    # The same 45-tip taxonomy and same 18 selected labels, with horizontal
+    # repelled text. No taxa are merged, relabelled or removed for readability.
+    tree_data <- as.data.table(p_votu_tree$data)
+    labelled <- tree_data[isTip & !is.na(tree_label) & nzchar(tree_label)]
+    p_votu_tree <- ggtree(votu_tree, layout = "daylight", branch.length = "none",
+                          linewidth = .25, colour = "#8A8A8A") %<+% votu_tip +
+      geom_tippoint(aes(size = n_votus, colour = realm_display), alpha = .92) +
+      ggrepel::geom_label_repel(data = labelled, aes(x = x, y = y, label = tree_label),
+        inherit.aes = FALSE, colour = "#222222", size = 7 / .pt,
+        seed = 79569, max.overlaps = Inf, max.iter = 20000,
+        fill = "white", label.size = 0, label.padding = .12,
+        box.padding = .35, point.padding = 1, min.segment.length = 0,
+        segment.colour = "#AAAAAA", segment.size = .2) +
+      scale_colour_manual(values = phage_uv_viral_realm_colours, name = "Realm") +
+      scale_size_continuous(range = c(1.4, 5), breaks = c(10, 100, 400), name = "vOTUs") +
+      scale_x_continuous(expand = expansion(mult = .16)) +
+      scale_y_continuous(expand = expansion(mult = .08)) +
+      guides(colour = guide_legend(order = 1, nrow = 1, override.aes = list(size = 2)),
+             size = guide_legend(order = 2, nrow = 1)) +
+      theme_void(base_size = 8) +
+      theme(legend.position = "bottom", legend.box = "vertical",
+        legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+        legend.key.width = grid::unit(4, "mm"),
+        legend.key.height = grid::unit(5, "mm"),
+        legend.margin = margin(0, 0, 0, 0), plot.margin = margin(5, 8, 3, 8))
+    p_realm <- p_realm + labs(tag = NULL) +
+      theme(axis.text = element_text(size = 7), axis.title = element_text(size = 8),
+            plot.margin = margin(3, 12, 3, 3))
+    p_votu <- wrap_elements(full = p_votu_tree) / wrap_elements(full = p_realm) +
+      plot_layout(heights = c(2.3, 1)) + plot_annotation(tag_levels = "A") &
+      theme(plot.tag = element_text(size = 10, face = "plain"),
+            plot.margin = margin(3, 3, 3, 3))
+    ggsave(votu_figure_path, p_votu, width = 180, height = 230,
+           units = "mm", device = publication_device)
+    fwrite(labelled[, .(label, tree_label, x, y)],
+           file.path(staging, "tables", "votu_publication_label_positions.tsv"), sep = "\t")
+  } else {
+    ggsave(votu_figure_path, p_votu, width = 14, height = 9, device = grDevices::pdf)
+  }
+
+  filter_summary <- data.table(
+    criterion = c(
+      "catalogue_rows", "miuvig_high_quality", "high_quality_with_taxonomy",
+      "high_quality_with_taxonomy_and_viral_genes", "taxonomy_groups"
+    ),
+    value = c(
+      nrow(votu),
+      votu[miuvig_quality == "High-quality", .N],
+      votu[miuvig_quality == "High-quality" & has_taxonomy == TRUE, .N],
+      nrow(votu_filtered),
+      nrow(votu_groups)
+    )
+  )
+  fwrite(votu_groups, file.path(staging, "tables", "votu_taxonomic_context_groups.tsv"), sep = "\t")
+  fwrite(realm_summary, file.path(staging, "tables", "votu_taxonomic_context_realm_summary.tsv"), sep = "\t")
+  fwrite(filter_summary, file.path(staging, "tables", "votu_taxonomic_context_filter_summary.tsv"), sep = "\t")
+
+  figure_paths <- c(mag_figure_path, votu_figure_path)
+  if (any(!file.exists(figure_paths)) || any(file.info(figure_paths)$size == 0L)) {
+    abort("One or more taxonomic-context PDFs were not rendered")
+  }
+
+  generated <- list.files(staging, recursive = TRUE, full.names = TRUE)
+  generated <- generated[file.info(generated)$isdir %in% FALSE]
+  generated <- generated[!basename(generated) %chin% c("candidate_figure_registry.tsv", "output_checksums.md5.tsv")]
+  for (source_path in generated) {
+    relative <- sub(paste0("^", normalizePath(staging), "/?"), "", normalizePath(source_path))
+    promote_file(source_path, file.path(output_dir, relative))
+  }
+
+  registry <- fread(paths$registry)[artifact %chin% c("mag-taxonomic-context.pdf", "votu-taxonomic-context.pdf")]
+  additions <- data.table(
+    artifact = c("mag-taxonomic-context.pdf", "votu-taxonomic-context.pdf"),
+    status = c(
+      "allocated_supplementary_figure_S6",
+      "allocated_supplementary_figure_S7"
+    ),
+    panels = c(
+      "348-MAG taxonomic dendrogram with completeness and contamination first; adjusted membrane coherence; recurrent-gene balance; family-level metagenomic community profile",
+      "current high-quality vOTU taxonomy cladogram; realm-level catalogue composition"
+    ),
+    boundary = c(
+      "Taxonomy-derived, not a sequence phylogeny; complete-universe post-model MAG results; membrane identity remains confounded with condition",
+      "Taxonomy-derived, not a sequence phylogeny; current descriptive catalogue only; no treatment or host-phage inference"
+    )
+  )
+  registry <- rbindlist(list(registry[!artifact %chin% additions$artifact], additions), use.names = TRUE)
+  registry_stage <- file.path(staging, "candidate_figure_registry.tsv")
+  fwrite(registry, registry_stage, sep = "\t")
+  promote_file(registry_stage, file.path(output_dir, "candidate_figure_registry.tsv"))
+  fwrite(data.table(input = names(paths), path = unlist(paths), md5 = unname(tools::md5sum(unlist(paths)))),
+         file.path(output_dir, "tables", "input_provenance.tsv"), sep = "\t")
+  if (publication) {
+    source_path <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+    if (!nzchar(source_path) || !file.exists(source_path)) abort("Notebook provenance path unavailable")
+    promote_file(source_path, file.path(output_dir, "source", basename(source_path)))
+    fwrite(data.table(metric = c("models_refitted", "source_notebook", "source_notebook_md5",
+                                "mag_width_mm", "mag_height_mm", "votu_width_mm", "votu_height_mm"),
+                     value = c("false", source_path, unname(tools::md5sum(source_path)),
+                               "180", "250", "180", "230")),
+           file.path(output_dir, "tables", "publication_layout_metadata.tsv"), sep = "\t")
+  }
+  write_checksums(output_dir, staging)
+
+  cat(sprintf("Created two supplementary taxonomic-context figures in %s\n", output_dir))
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+root <- repo_root()
+output_dir <- if (length(args)) args[[1L]] else file.path(
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569",
+  "derived",
+  "taxonomic_context_revision_2026-09-09"
+)
+build_taxonomic_context(root, output_dir, publication = "--publication-size" %in% args)
+
+```

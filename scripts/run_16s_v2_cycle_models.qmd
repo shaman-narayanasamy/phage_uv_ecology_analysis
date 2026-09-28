@@ -1,0 +1,470 @@
+---
+title: "16S v2: current-experiment cycle models"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/run_16s_v2_cycle_models.qmd`. It answers the 2026-09-13 request in
+`notes/handoff-2026-09-13-susana-16s-cycle-models.md`: on the accepted
+12-sample current-experiment ASV table, distinguish a persistent difference
+between the two observed membranes (the adjusted main condition term) from a
+condition difference that changes across cleaning cycles (the joint
+condition-by-cycle interaction).
+
+Binding boundaries carried into every output:
+
+- One membrane per condition. Condition equals membrane identity; the six
+  observations per condition are repeated temporal observations of one system,
+  not biological replicates. No formula below supplies replication and no
+  random membrane intercept is separately identifiable alongside condition.
+  The residual-dependence assumption of every fit is therefore that the
+  phase-by-cycle observations within a membrane are conditionally independent
+  given the fixed effects. That assumption is stated, not tested.
+- Counts are unrarefied cDNA-derived 16S ASV counts from the 150,000-pair
+  subsampled v1 run (279/200, `pool = FALSE`). Nothing here is a full-depth
+  rerun. Models are applied to counts, never to percentages.
+- Statistical evidence (model tables) is kept separate from descriptive
+  plotting values (CLR trajectories). Sensitivity analyses are labelled.
+
+```sh
+source config/16s_v2_paths.sh
+bash scripts/run_qmd.sh scripts/run_16s_v2_cycle_models.qmd [input_dir] [output_dir] [sample_metadata]
+```
+
+`input_dir` holds the read-only copy of the accepted v1 return
+(`16s_asv_counts_unrarefied.tsv`, `16s_asv_taxonomy_silva138.2.tsv`,
+`16s_sample_data.tsv`). Automatic execution during rendering is disabled
+because this workflow writes project outputs.
+
+```{r}
+#| label: run-16s-v2-cycle-models
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+v2_inputs <- Sys.getenv("PHAGE_UV_16S_V2_INPUTS")
+input_dir <- if (length(args) >= 1L) args[[1L]] else if (nzchar(v2_inputs)) file.path(v2_inputs, "v1_return_2026-09-03") else ""
+output_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_V2_CYCLE_MODEL_DIR")
+metadata_path <- if (length(args) >= 3L) args[[3L]] else "metadata/sample_metadata.tsv"
+if (!nzchar(input_dir) || !nzchar(output_dir)) {
+  abort("Provide input_dir and output_dir, or source config/16s_v2_paths.sh first.")
+}
+for (pkg in c("DESeq2", "edgeR", "ggplot2")) {
+  if (!requireNamespace(pkg, quietly = TRUE)) abort("Package %s is required.", pkg)
+}
+# Isolation guard: refuse to write into any protected v1 location.
+protected <- c("derived/16s_analysis", "derived/16s_manuscript_integration",
+               "phage_uv_treatment/PRJEB79569", "OneDrive-nium.io")
+for (p in protected) if (grepl(p, output_dir, fixed = TRUE)) abort("output_dir resolves into protected location %s", p)
+set.seed(20260901L)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+notebook <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH", unset = "")
+repo_root <- if (nzchar(notebook)) dirname(dirname(notebook)) else getwd()
+source(file.path(repo_root, "R", "figure_style.R"))
+
+read_tsv <- function(path) {
+  if (!file.exists(path)) abort("Missing input %s", path)
+  read.delim(path, sep = "\t", header = TRUE, quote = "", comment.char = "",
+             check.names = FALSE, stringsAsFactors = FALSE)
+}
+write_tsv <- function(x, name) {
+  write.table(x, file.path(output_dir, name), sep = "\t", quote = FALSE,
+              row.names = FALSE, na = "")
+}
+md5 <- function(path) unname(tools::md5sum(path))
+
+# ------------------------------------------------------------------- inputs
+input_files <- c(
+  counts = file.path(input_dir, "16s_asv_counts_unrarefied.tsv"),
+  taxonomy = file.path(input_dir, "16s_asv_taxonomy_silva138.2.tsv"),
+  sample_data = file.path(input_dir, "16s_sample_data.tsv"),
+  dada2_parameters = file.path(input_dir, "16s_dada2_parameters.tsv"),
+  sample_metadata = metadata_path
+)
+counts_wide <- read_tsv(input_files[["counts"]])
+taxonomy <- read_tsv(input_files[["taxonomy"]])
+sample_data <- read_tsv(input_files[["sample_data"]])
+metadata <- read_tsv(input_files[["sample_metadata"]])
+dada2_parameters <- read_tsv(input_files[["dada2_parameters"]])
+
+counts <- as.matrix(counts_wide[, -1L, drop = FALSE])
+rownames(counts) <- counts_wide[[1L]]
+storage.mode(counts) <- "integer"
+if (any(is.na(counts)) || any(counts < 0L)) abort("Counts must be non-negative integers.")
+
+# The repository sample contract is metadata/sample_metadata.tsv. The return's
+# sample data must agree with it on every design column before any model runs.
+key_cols <- c("sample_title", "condition", "phase", "cycle", "amplicon_run_accession")
+metadata <- metadata[order(metadata$condition, metadata$cycle, metadata$phase), ]
+if (!setequal(metadata$sample_title, colnames(counts))) abort("Count columns and sample metadata disagree.")
+if (!setequal(metadata$sample_title, sample_data$sample_title)) abort("Return sample data and sample metadata disagree.")
+compare <- merge(metadata[, key_cols], sample_data[, key_cols], by = "sample_title", suffixes = c("_metadata", "_return"))
+for (k in setdiff(key_cols, "sample_title")) {
+  if (!identical(as.character(compare[[paste0(k, "_metadata")]]), as.character(compare[[paste0(k, "_return")]]))) {
+    abort("Column %s differs between the return sample data and metadata/sample_metadata.tsv", k)
+  }
+}
+counts <- counts[, metadata$sample_title, drop = FALSE]
+if (nrow(metadata) != 12L) abort("Expected 12 physical samples, found %d", nrow(metadata))
+cells <- table(metadata$condition, metadata$phase, metadata$cycle)
+if (any(cells != 1L)) abort("Expected exactly one sample per condition x phase x cycle cell.")
+
+# Explicit coding, exactly as requested in the 2026-09-13 handoff.
+metadata$condition <- factor(metadata$condition, levels = c("control", "treatment"))
+metadata$phase <- factor(metadata$phase, levels = c("initial", "backflush"))
+metadata$cycle <- factor(as.character(metadata$cycle), levels = c("1", "2", "3"))
+rownames(metadata) <- metadata$sample_title
+
+formulas <- list(
+  main = ~ phase + cycle + condition,
+  full = ~ phase + cycle * condition,
+  reduced = ~ phase + cycle + condition
+)
+designs <- lapply(formulas, function(f) model.matrix(f, data = metadata))
+design_audit <- do.call(rbind, lapply(names(designs), function(nm) {
+  X <- designs[[nm]]
+  data.frame(model = nm, formula = deparse(formulas[[nm]]), n_samples = nrow(X),
+             n_coefficients = ncol(X), rank = qr(X)$rank, residual_df = nrow(X) - qr(X)$rank,
+             coefficients = paste(colnames(X), collapse = ";"), stringsAsFactors = FALSE)
+}))
+if (any(design_audit$rank != design_audit$n_coefficients)) abort("A design matrix is rank deficient.")
+write_tsv(design_audit, "16s_v2_design_audit.tsv")
+for (nm in names(designs)) {
+  X <- designs[[nm]]
+  write_tsv(data.frame(sample_title = rownames(X), X, check.names = FALSE), sprintf("16s_v2_design_matrix_%s.tsv", nm))
+}
+write_tsv(data.frame(sample_order = seq_len(nrow(metadata)),
+                     metadata[, c("sample_title", "condition", "phase", "cycle", "amplicon_run_accession")]),
+          "16s_v2_sample_order.tsv")
+
+# ---------------------------------------------------------------- features
+# Two ranks are tested. ASV is the native feature. Family is the highest rank at
+# which more than half of ASVs (1,445 of 2,700) carry a SILVA assignment; genus
+# is unassigned for 72% of ASVs and is not a defensible aggregation rank here.
+# ASVs unassigned at family are NOT merged into one fictitious taxon: each stays
+# its own feature, labelled by its ASV id, so the family table mixes true family
+# sums with singleton unassigned ASVs. The feature-to-taxonomy map records this.
+taxonomy <- taxonomy[match(rownames(counts), taxonomy$asv_id), ]
+rank_cols <- c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+family_key <- ifelse(is.na(taxonomy$Family) | taxonomy$Family == "",
+                     paste0("unassigned_at_family|", taxonomy$asv_id), taxonomy$Family)
+family_counts <- rowsum(counts, group = family_key)
+storage.mode(family_counts) <- "integer"
+
+feature_sets <- list(asv = counts, family = family_counts)
+feature_map <- rbind(
+  data.frame(rank = "asv", feature_id = taxonomy$asv_id, member_asvs = taxonomy$asv_id,
+             n_member_asvs = 1L, taxonomy[, rank_cols], stringsAsFactors = FALSE),
+  do.call(rbind, lapply(split(taxonomy, family_key), function(t) {
+    fam_unassigned <- is.na(t$Family[[1L]]) || t$Family[[1L]] == ""
+    lineage <- if (fam_unassigned) {
+      t[1L, rank_cols]
+    } else {
+      # Lineage above family: report a value only where every member agrees.
+      as.data.frame(lapply(rank_cols, function(r) {
+        v <- unique(t[[r]][!is.na(t[[r]]) & t[[r]] != ""])
+        if (r %in% c("Genus", "Species")) "" else if (length(v) == 1L) v else if (length(v) > 1L) "ambiguous" else ""
+      }), stringsAsFactors = FALSE, col.names = rank_cols)
+    }
+    data.frame(rank = "family", feature_id = family_key[match(t$asv_id[[1L]], taxonomy$asv_id)],
+               member_asvs = paste(t$asv_id, collapse = ";"), n_member_asvs = nrow(t),
+               lineage, stringsAsFactors = FALSE)
+  }))
+)
+rownames(feature_map) <- NULL
+write_tsv(feature_map, "16s_v2_feature_taxonomy_map.tsv")
+
+# Declared count/prevalence filter, identical for both ranks and identical to
+# the manuscript stream's MAG/vOTU DESeq2 filter: at least 10 counts in at
+# least 3 of the 12 samples. No feature is preselected by prior significance.
+min_count <- 10L
+min_samples <- 3L
+filter_report <- do.call(rbind, lapply(names(feature_sets), function(rk) {
+  m <- feature_sets[[rk]]
+  keep <- rowSums(m >= min_count) >= min_samples
+  data.frame(rank = rk, features_before = nrow(m), features_after = sum(keep),
+             reads_before = sum(m), reads_after = sum(m[keep, , drop = FALSE]),
+             fraction_reads_retained = round(sum(m[keep, , drop = FALSE]) / sum(m), 4),
+             filter = sprintf("rowSums(counts >= %d) >= %d", min_count, min_samples),
+             stringsAsFactors = FALSE)
+}))
+write_tsv(filter_report, "16s_v2_filter_report.tsv")
+filtered_sets <- lapply(feature_sets, function(m) m[rowSums(m >= min_count) >= min_samples, , drop = FALSE])
+
+# ------------------------------------------------------------------ DESeq2
+# Normalisation: DESeq2 median-of-ratios with sfType = "poscounts". The default
+# estimator needs every feature to be non-zero in every sample, which no sparse
+# amplicon table satisfies; poscounts uses the geometric mean over positive
+# counts instead. Dispersion: parametric trend, falling back to local if the
+# parametric fit fails (recorded). Outliers: Cook's replacement is impossible
+# (DESeq2 requires seven replicates per cell) and Cook's flagging requires three
+# replicates per cell, which the full design (two observations per
+# condition x cycle cell) does not provide; p-values are therefore never set
+# to NA by Cook's distance in the full model. Independent filtering is DESeq2's
+# default and is recorded in the metadata of every results object.
+library(DESeq2)
+suppressPackageStartupMessages(library(edgeR))
+
+fit_deseq <- function(m, formula) {
+  dds <- DESeqDataSetFromMatrix(countData = m, colData = metadata, design = formula)
+  dds <- estimateSizeFactors(dds, type = "poscounts")
+  fit_type <- "parametric"
+  dds <- tryCatch(estimateDispersions(dds, fitType = "parametric", quiet = TRUE),
+                  error = function(e) { fit_type <<- "local"; estimateDispersions(dds, fitType = "local", quiet = TRUE) })
+  list(dds = dds, fit_type = fit_type)
+}
+
+results_table <- function(res, rank, model, test, coefficient) {
+  df <- as.data.frame(res)
+  data.frame(rank = rank, model = model, test = test, coefficient = coefficient,
+             feature_id = rownames(df), df, check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+deseq_results <- list()
+deseq_diagnostics <- list()
+dds_objects <- list()
+for (rk in names(filtered_sets)) {
+  m <- filtered_sets[[rk]]
+
+  # Main: adjusted common condition difference (Wald on the condition coefficient).
+  main <- fit_deseq(m, formulas$main)
+  dds_main <- nbinomWaldTest(main$dds)
+  res_main <- results(dds_main, name = "condition_treatment_vs_control", alpha = 0.05)
+  deseq_results[[paste(rk, "main")]] <- results_table(res_main, rk, "main", "wald", "condition_treatment_vs_control")
+
+  # Full versus reduced: joint 2-df LRT for the two condition-by-cycle terms.
+  # The log2FoldChange column that DESeq2 attaches to an LRT result is the last
+  # coefficient of the full model (cycle3.conditiontreatment); it is NOT the
+  # interaction effect and is removed from the LRT table to prevent that reading.
+  full <- fit_deseq(m, formulas$full)
+  dds_lrt <- nbinomLRT(full$dds, full = designs$full, reduced = designs$reduced)
+  res_lrt <- results(dds_lrt, alpha = 0.05)
+  lrt_table <- results_table(res_lrt, rk, "full_vs_reduced", "lrt_2df", "cycle2:conditiontreatment;cycle3:conditiontreatment")
+  lrt_table$log2FoldChange <- NULL
+  lrt_table$lfcSE <- NULL
+  deseq_results[[paste(rk, "lrt")]] <- lrt_table
+
+  # Named coefficients from the full model, each a Wald test, each labelled.
+  # These are the cycle-1 condition contrast and the two changes in that
+  # contrast at cycles 2 and 3; they are not omnibus trajectory tests.
+  dds_full_wald <- nbinomWaldTest(full$dds)
+  for (coef_name in c("condition_treatment_vs_control", "cycle2.conditiontreatment", "cycle3.conditiontreatment")) {
+    label <- switch(coef_name,
+      condition_treatment_vs_control = "condition_at_cycle1",
+      cycle2.conditiontreatment = "interaction_cycle2_vs_cycle1",
+      cycle3.conditiontreatment = "interaction_cycle3_vs_cycle1")
+    res_c <- results(dds_full_wald, name = coef_name, alpha = 0.05)
+    deseq_results[[paste(rk, label)]] <- results_table(res_c, rk, "full", "wald_coefficient", label)
+  }
+
+  dds_objects[[rk]] <- list(main = dds_main, lrt = dds_lrt, full_wald = dds_full_wald)
+  for (fit_name in c("main", "lrt", "full_wald")) {
+    d <- dds_objects[[rk]][[fit_name]]
+    mc <- mcols(d)
+    deseq_diagnostics[[paste(rk, fit_name)]] <- data.frame(
+      rank = rk, fit = fit_name,
+      formula = deparse(design(d)),
+      dispersion_fit_type = if (fit_name == "main") main$fit_type else full$fit_type,
+      size_factor_type = "poscounts",
+      size_factor_min = round(min(sizeFactors(d)), 4), size_factor_max = round(max(sizeFactors(d)), 4),
+      n_features = nrow(d),
+      n_not_converged = if ("betaConv" %in% colnames(mc)) sum(!mc$betaConv, na.rm = TRUE) else NA_integer_,
+      n_dispersion_outliers = if ("dispOutlier" %in% colnames(mc)) sum(mc$dispOutlier, na.rm = TRUE) else sum(mcols(if (fit_name == "main") main$dds else full$dds)$dispOutlier, na.rm = TRUE),
+      median_dispersion = round(median(dispersions(d), na.rm = TRUE), 4),
+      max_cooks = if (!is.null(assays(d)[["cooks"]])) round(max(assays(d)[["cooks"]], na.rm = TRUE), 2) else NA_real_,
+      cooks_outlier_filtering = "not applied: fewer than 3 replicates per cell in the full design; DESeq2 does not flag",
+      stringsAsFactors = FALSE)
+  }
+}
+# Keep a single column set so the tables bind: add empty effect columns to the LRT rows.
+deseq_all <- do.call(rbind, lapply(deseq_results, function(x) {
+  for (col in c("log2FoldChange", "lfcSE")) if (!col %in% colnames(x)) x[[col]] <- NA_real_
+  x[, c("rank", "model", "test", "coefficient", "feature_id", "baseMean", "log2FoldChange", "lfcSE", "stat", "pvalue", "padj")]
+}))
+rownames(deseq_all) <- NULL
+# BH families: DESeq2's padj is already BH within each (rank, model, coefficient)
+# results call, i.e. within each declared feature family. Record the family
+# size explicitly so a reader can audit it.
+family_sizes <- aggregate(feature_id ~ rank + model + coefficient, deseq_all, length)
+names(family_sizes)[4L] <- "bh_family_size_tested"
+deseq_all <- merge(deseq_all, family_sizes, by = c("rank", "model", "coefficient"), sort = FALSE)
+deseq_all$supported_fdr05 <- !is.na(deseq_all$padj) & deseq_all$padj < 0.05
+# Zero handling is not a filter: a feature absent from both phases of a
+# condition x cycle cell is legitimately tested, but an interaction driven by
+# an all-zero cell rests on a log-scale contrast against zero. The count of
+# such cells (out of six) travels with every result row so readers can see it.
+zero_cells <- do.call(rbind, lapply(names(filtered_sets), function(rk) {
+  m <- filtered_sets[[rk]]
+  cell <- paste(metadata$condition, metadata$cycle)
+  cell_sums <- t(rowsum(t(m), group = cell))
+  data.frame(rank = rk, feature_id = rownames(m),
+             n_all_zero_condition_cycle_cells = rowSums(cell_sums == 0L),
+             stringsAsFactors = FALSE)
+}))
+deseq_all <- merge(deseq_all, zero_cells, by = c("rank", "feature_id"), sort = FALSE)
+deseq_all <- merge(deseq_all, feature_map[, c("rank", "feature_id", rank_cols)], by = c("rank", "feature_id"), sort = FALSE)
+deseq_all <- deseq_all[order(deseq_all$rank, deseq_all$model, deseq_all$coefficient, deseq_all$padj, deseq_all$pvalue, na.last = TRUE), ]
+write_tsv(deseq_all, "16s_v2_deseq2_results_all_features.tsv")
+write_tsv(do.call(rbind, deseq_diagnostics), "16s_v2_deseq2_diagnostics.tsv")
+
+# ----------------------------------------------------- edgeR QL sensitivity
+# SENSITIVITY ANALYSIS. The transcriptome layer used edgeR quasi-likelihood
+# models with the same two formulas; running them here shows whether the 16S
+# conclusion depends on the DESeq2 machinery. TMMwsp normalisation is used
+# because plain TMM is unstable on zero-heavy amplicon tables.
+edger_results <- list()
+edger_diagnostics <- list()
+for (rk in names(filtered_sets)) {
+  y <- DGEList(filtered_sets[[rk]], samples = metadata)
+  y <- calcNormFactors(y, method = "TMMwsp")
+  y_main <- estimateDisp(y, designs$main, robust = TRUE)
+  fit_main <- glmQLFit(y_main, designs$main, robust = TRUE)
+  qlf_main <- glmQLFTest(fit_main, coef = "conditiontreatment")
+  y_full <- estimateDisp(y, designs$full, robust = TRUE)
+  fit_full <- glmQLFit(y_full, designs$full, robust = TRUE)
+  interaction_cols <- grep(":", colnames(designs$full), fixed = TRUE, value = TRUE)
+  qlf_int <- glmQLFTest(fit_full, coef = interaction_cols)
+  as_table <- function(qlf, model, test, coefficient) {
+    tt <- topTags(qlf, n = Inf, sort.by = "none")$table
+    df <- data.frame(rank = rk, model = model, test = test, coefficient = coefficient,
+                     feature_id = rownames(tt), tt, check.names = FALSE, stringsAsFactors = FALSE)
+    df$supported_fdr05 <- !is.na(df$FDR) & df$FDR < 0.05
+    df
+  }
+  main_tab <- as_table(qlf_main, "main", "edgeR_QL_F", "conditiontreatment")
+  int_tab <- as_table(qlf_int, "full", "edgeR_QL_F_2df", paste(interaction_cols, collapse = ";"))
+  # The joint test's per-coefficient logFC columns are descriptive, not the test statistic.
+  edger_results[[rk]] <- rbind(
+    main_tab[, c("rank", "model", "test", "coefficient", "feature_id", "logFC", "logCPM", "F", "PValue", "FDR", "supported_fdr05")],
+    within(int_tab, { logFC <- NA_real_ })[, c("rank", "model", "test", "coefficient", "feature_id", "logFC", "logCPM", "F", "PValue", "FDR", "supported_fdr05")]
+  )
+  edger_diagnostics[[rk]] <- data.frame(
+    rank = rk, normalisation = "TMMwsp", n_features = nrow(y),
+    common_dispersion_main = round(y_main$common.dispersion, 4),
+    common_dispersion_full = round(y_full$common.dispersion, 4),
+    prior_df_main = round(median(fit_main$df.prior), 2), prior_df_full = round(median(fit_full$df.prior), 2),
+    residual_df_main = design_audit$residual_df[design_audit$model == "main"],
+    residual_df_full = design_audit$residual_df[design_audit$model == "full"],
+    stringsAsFactors = FALSE)
+}
+edger_all <- do.call(rbind, edger_results)
+edger_all <- merge(edger_all, zero_cells, by = c("rank", "feature_id"), sort = FALSE)
+edger_all <- merge(edger_all, feature_map[, c("rank", "feature_id", rank_cols)], by = c("rank", "feature_id"), sort = FALSE)
+rownames(edger_all) <- NULL
+write_tsv(edger_all, "16s_v2_sensitivity_edger_ql_results_all_features.tsv")
+write_tsv(do.call(rbind, edger_diagnostics), "16s_v2_sensitivity_edger_ql_diagnostics.tsv")
+
+# ------------------------------------------------ descriptive CLR trajectories
+# Plotting values, not evidence. CLR on the full (unfiltered) table per rank
+# with a pseudocount of 0.5 on every feature, then the treatment - control
+# difference within each cycle x phase cell for the tested features.
+clr_of <- function(m) {
+  lg <- log2(m + 0.5)
+  sweep(lg, 2L, colMeans(lg), "-")
+}
+trajectories <- do.call(rbind, lapply(names(feature_sets), function(rk) {
+  clr <- clr_of(feature_sets[[rk]])[rownames(filtered_sets[[rk]]), , drop = FALSE]
+  long <- data.frame(
+    rank = rk,
+    feature_id = rep(rownames(clr), times = ncol(clr)),
+    sample_title = rep(colnames(clr), each = nrow(clr)),
+    clr = as.vector(clr), stringsAsFactors = FALSE)
+  long <- cbind(long, metadata[long$sample_title, c("condition", "phase", "cycle")])
+  rownames(long) <- NULL
+  long
+}))
+write_tsv(trajectories, "16s_v2_clr_trajectories_long.tsv")
+clr_differences <- do.call(rbind, lapply(split(trajectories, trajectories[, c("rank", "feature_id", "cycle", "phase")], drop = TRUE), function(d) {
+  data.frame(rank = d$rank[[1L]], feature_id = d$feature_id[[1L]], cycle = d$cycle[[1L]], phase = d$phase[[1L]],
+             clr_treatment_minus_control = d$clr[d$condition == "treatment"] - d$clr[d$condition == "control"],
+             stringsAsFactors = FALSE)
+}))
+rownames(clr_differences) <- NULL
+write_tsv(clr_differences, "16s_v2_clr_condition_differences_by_cell.tsv")
+
+# ------------------------------------------------------------------- summary
+lrt_rows <- deseq_all[deseq_all$model == "full_vs_reduced", ]
+main_rows <- deseq_all[deseq_all$model == "main", ]
+classify <- function(rk) {
+  m <- main_rows[main_rows$rank == rk, ]
+  l <- lrt_rows[lrt_rows$rank == rk, ]
+  both <- merge(m[, c("feature_id", "padj")], l[, c("feature_id", "padj")], by = "feature_id", suffixes = c("_main", "_lrt"))
+  data.frame(
+    rank = rk,
+    features_tested = nrow(both),
+    condition_associated_fdr05 = sum(both$padj_main < 0.05, na.rm = TRUE),
+    trajectory_associated_fdr05 = sum(both$padj_lrt < 0.05, na.rm = TRUE),
+    both_fdr05 = sum(both$padj_main < 0.05 & both$padj_lrt < 0.05, na.rm = TRUE),
+    edger_condition_fdr05 = sum(edger_all$supported_fdr05[edger_all$rank == rk & edger_all$model == "main"]),
+    edger_interaction_fdr05 = sum(edger_all$supported_fdr05[edger_all$rank == rk & edger_all$model == "full"]),
+    stringsAsFactors = FALSE)
+}
+summary_table <- do.call(rbind, lapply(names(filtered_sets), classify))
+write_tsv(summary_table, "16s_v2_cycle_model_summary.tsv")
+
+# ------------------------------------------------------ candidate trajectories
+# Unnumbered candidate figures: the features with the smallest LRT p-values and
+# the smallest main-test p-values, at each rank, as CLR against cycle. Colour is
+# condition (membrane), shape is phase; one line per membrane and phase.
+library(ggplot2)
+plot_features <- function(rk, ids, title, file) {
+  d <- trajectories[trajectories$rank == rk & trajectories$feature_id %in% ids, ]
+  d$feature_id <- factor(d$feature_id, levels = ids)
+  d$condition_label <- phage_uv_normalise_condition(as.character(d$condition))
+  p <- ggplot(d, aes(x = cycle, y = clr, colour = condition_label, shape = phase,
+                     group = interaction(condition_label, phase), linetype = phase)) +
+    geom_line() + geom_point(size = 2) +
+    facet_wrap(~ feature_id, scales = "free_y", ncol = 3) +
+    scale_colour_manual(values = phage_uv_condition_colours, name = "Membrane") +
+    scale_shape_manual(values = phage_uv_phase_shapes, name = "Phase") +
+    scale_linetype_manual(values = c(initial = "solid", backflush = "22"), name = "Phase") +
+    labs(x = "Cleaning cycle", y = "CLR abundance (log2, pseudocount 0.5)", title = title,
+         caption = "Descriptive plotting values. One membrane per condition; not replicated treatment effects.") +
+    theme_phage_uv()
+  n_rows <- ceiling(length(ids) / 3)
+  grDevices::pdf(file.path(output_dir, file), width = 7.2, height = 1.2 + 1.9 * n_rows, useDingbats = FALSE)
+  print(p)
+  grDevices::dev.off()
+}
+figure_registry <- list()
+for (rk in names(filtered_sets)) {
+  top_lrt <- head(lrt_rows$feature_id[lrt_rows$rank == rk][order(lrt_rows$pvalue[lrt_rows$rank == rk])], 9L)
+  top_main <- head(main_rows$feature_id[main_rows$rank == rk][order(main_rows$pvalue[main_rows$rank == rk])], 9L)
+  f1 <- sprintf("16s-v2-trajectories-%s-top-interaction.pdf", rk)
+  f2 <- sprintf("16s-v2-trajectories-%s-top-condition.pdf", rk)
+  plot_features(rk, top_lrt, sprintf("%s features with smallest condition x cycle LRT p (unadjusted ranking)", rk), f1)
+  plot_features(rk, top_main, sprintf("%s features with smallest adjusted condition p (unadjusted ranking)", rk), f2)
+  figure_registry[[rk]] <- data.frame(
+    file = c(f1, f2), rank = rk, ranking = c("deseq2 lrt_2df pvalue", "deseq2 main wald pvalue"),
+    features = c(paste(top_lrt, collapse = ";"), paste(top_main, collapse = ";")),
+    status = "unnumbered candidate; selection by p-value ranking, not by FDR support",
+    stringsAsFactors = FALSE)
+}
+write_tsv(do.call(rbind, figure_registry), "16s_v2_candidate_figure_registry.tsv")
+
+# ---------------------------------------------------------------- provenance
+pkg_versions <- data.frame(
+  component = c("R", "DESeq2", "edgeR", "ggplot2"),
+  version = c(paste(R.version$major, R.version$minor, sep = "."),
+              as.character(packageVersion("DESeq2")), as.character(packageVersion("edgeR")),
+              as.character(packageVersion("ggplot2"))),
+  stringsAsFactors = FALSE)
+write_tsv(pkg_versions, "16s_v2_cycle_model_software_provenance.tsv")
+write_tsv(rbind(
+  data.frame(role = "input", file = input_files, md5 = vapply(input_files, md5, ""), stringsAsFactors = FALSE),
+  data.frame(role = "processing_parameter", file = paste0("v1:", dada2_parameters$parameter), md5 = dada2_parameters$value, stringsAsFactors = FALSE)
+), "16s_v2_cycle_model_input_checksums.tsv")
+outputs <- setdiff(list.files(output_dir), "16s_v2_cycle_model_output_checksums.tsv")
+write_tsv(data.frame(file = outputs, bytes = file.size(file.path(output_dir, outputs)),
+                     md5 = vapply(file.path(output_dir, outputs), md5, ""), stringsAsFactors = FALSE),
+          "16s_v2_cycle_model_output_checksums.tsv")
+print(design_audit[, c("model", "formula", "rank", "residual_df")])
+print(filter_report[, c("rank", "features_before", "features_after", "fraction_reads_retained")])
+print(summary_table)
+```

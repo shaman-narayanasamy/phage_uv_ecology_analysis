@@ -1,0 +1,130 @@
+---
+title: "Check 16S Analysis Environment"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for `scripts/check_16s_environment.qmd`.
+It verifies that every dependency of the delegated 16S workstream is installed,
+records exact versions, and fails loudly rather than letting a later step
+silently fall back to a different implementation.
+
+```sh
+bash scripts/run_qmd.sh scripts/check_16s_environment.qmd [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: check-16s-environment
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+output_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv(
+  "PHAGE_UV_16S_DERIVED",
+  unset = file.path("derived", "16s_analysis")
+)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+required_packages <- c(
+  dada2 = "denoising, chimera removal, taxonomy assignment",
+  Biostrings = "representative sequence handling and FASTA export",
+  ShortRead = "raw read inspection and quality profiling",
+  phyloseq = "integrated count, taxonomy, and sample-data object",
+  vegan = "alpha diversity, dissimilarity, ordination, PERMANOVA",
+  ggplot2 = "figure construction under the repository visual grammar"
+)
+optional_packages <- c(
+  ALDEx2 = "optional exploratory compositional differential abundance",
+  DECIPHER = "optional alignment for a phylogenetic tree",
+  phangorn = "optional phylogenetic tree construction",
+  ape = "optional tree import into phyloseq"
+)
+
+package_row <- function(pkg, purpose, requirement) {
+  installed <- requireNamespace(pkg, quietly = TRUE)
+  data.frame(
+    component = pkg,
+    kind = "r_package",
+    requirement = requirement,
+    purpose = purpose,
+    available = installed,
+    version = if (installed) as.character(utils::packageVersion(pkg)) else NA_character_,
+    stringsAsFactors = FALSE
+  )
+}
+
+rows <- do.call(rbind, c(
+  Map(package_row, names(required_packages), required_packages, "required"),
+  Map(package_row, names(optional_packages), optional_packages, "optional")
+))
+
+external_row <- function(command, purpose, requirement, version_args = "--version") {
+  path <- unname(Sys.which(command))
+  available <- nzchar(path)
+  version <- NA_character_
+  if (available) {
+    version <- tryCatch(
+      paste(system2(command, version_args, stdout = TRUE, stderr = TRUE), collapse = " "),
+      error = function(e) NA_character_
+    )
+  }
+  data.frame(
+    component = command,
+    kind = "external_tool",
+    requirement = requirement,
+    purpose = purpose,
+    available = available,
+    version = version,
+    stringsAsFactors = FALSE
+  )
+}
+
+rows <- rbind(
+  rows,
+  external_row("cutadapt", "anchored degenerate primer removal", "required"),
+  external_row("quarto", "notebook structure rendering", "optional"),
+  data.frame(
+    component = "R",
+    kind = "runtime",
+    requirement = "required",
+    purpose = "analysis runtime",
+    available = TRUE,
+    version = paste(R.version$major, R.version$minor, sep = "."),
+    stringsAsFactors = FALSE
+  )
+)
+
+rows$version <- gsub("[\t\r\n]+", " ", rows$version)
+rownames(rows) <- NULL
+
+provenance_path <- file.path(output_dir, "16s_software_provenance.tsv")
+write.table(rows, provenance_path, sep = "\t", quote = FALSE, row.names = FALSE)
+
+print(rows[, c("component", "requirement", "available", "version")])
+cat(sprintf("\nWrote %s\n", provenance_path))
+
+missing_required <- rows$component[rows$requirement == "required" & !rows$available]
+if (length(missing_required)) {
+  abort(
+    "Missing required components: %s. Install them before running any later step.",
+    paste(missing_required, collapse = ", ")
+  )
+}
+
+missing_optional <- rows$component[rows$requirement == "optional" & !rows$available]
+if (length(missing_optional)) {
+  cat(sprintf(
+    "Optional components not installed (their steps will be skipped): %s\n",
+    paste(missing_optional, collapse = ", ")
+  ))
+}
+cat("Environment check passed.\n")
+```

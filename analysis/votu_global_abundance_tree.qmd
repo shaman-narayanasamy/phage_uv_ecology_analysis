@@ -1,0 +1,189 @@
+---
+title: "Global abundance-weighted vOTU taxonomy tree"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Author-review candidate only. One global tree, not one tree per sample.
+Each of the 12 samples contributes equally: normalise the reads mapped to all
+634 high-quality, viral-gene-positive representative vOTUs within each sample,
+then average those proportions. Taxonomy and counts are from the independently
+raw-input-verified v4 rank review. No low-abundance taxa or unknowns are removed.
+
+Node area and branch width encode mean clade abundance; colour denotes realm.
+Clade abundance includes vOTUs assigned directly to the node plus descendants.
+Parent and child values are nested, not additive. Branch lengths are only layout.
+
+```sh
+bash scripts/run_qmd.sh analysis/votu_global_abundance_tree.qmd NEW_OUTPUT_DIRECTORY
+python3 tests/test_votu_global_tree.py NEW_OUTPUT_DIRECTORY
+```
+
+```{r}
+#| label: global-votu-tree
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ape)
+  library(ggtree)
+  library(ggplot2)
+  library(ggrepel)
+  library(scales)
+})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+repo <- normalizePath(getwd())
+source(file.path(repo,"R/figure_style.R"))
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)==1L,"Supply a new output directory")
+output <- normalizePath(args[[1]],mustWork=FALSE)
+check(!file.exists(output),"Output exists; choose a new version")
+data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"))
+review <- file.path(data,"derived/votu_taxonomic_resolution_review_2026-09-13-v4")
+input_paths <- c(taxonomy=file.path(review,"tables/catalogue_rank_assignments.tsv"),
+                 counts=file.path(review,"tables/votu_sample_counts.tsv"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+old_hashes <- fread(file.path(review,"output_sha256.tsv"))
+for(p in input_paths) {
+  rel <- substring(p,nchar(review)+2L)
+  check(identical(hash(p),old_hashes[path==rel,sha256]),"Input changed since verified rank review")
+}
+taxa <- fread(input_paths[["taxonomy"]],na.strings=c("","NA"))
+counts <- fread(input_paths[["counts"]])
+check(nrow(taxa)==634L && !anyDuplicated(taxa$contig_id),"Expected 634 unique vOTUs")
+check(uniqueN(counts$sample_title)==12L && nrow(counts)==634L*12L &&
+      !anyDuplicated(counts[,.(contig_id,sample_title)]),"Incomplete/duplicated sample grid")
+check(setequal(taxa$contig_id,counts$contig_id) && all(is.finite(counts$reads)&counts$reads>=0),"Invalid counts")
+totals <- counts[,.(total_reads=sum(reads)),by=sample_title]
+check(all(totals$total_reads>0),"Zero sample denominator")
+counts <- merge(counts,totals,by="sample_title")
+counts[, proportion:=reads/total_reads]
+weights <- counts[,.(mean_abundance=mean(proportion)),by=contig_id]
+check(abs(sum(weights$mean_abundance)-1)<1e-12,"Global weights do not sum to one")
+prefix <- c(realm="r_",kingdom="k_",phylum="p_",class="c_",order="o_",
+            family="f_",subfamily="sf_",genus="g_",species="s_")
+nodes <- data.table(node_id="n000",parent=NA_character_,rank="root",taxon="All vOTUs",
+                    display="All vOTUs",realm="root",depth=0L)
+node_lookup <- new.env(parent=emptyenv())
+assignments <- vector("list",nrow(taxa))
+for(i in seq_len(nrow(taxa))) {
+  parent <- "n000"; depth <- 0L
+  for(rank in names(prefix)) {
+    value <- taxa[[rank]][[i]]
+    if(is.na(value)||!nzchar(value)) next
+    key <- paste(parent,rank,value,sep="|")
+    if(!exists(key,envir=node_lookup,inherits=FALSE)) {
+      id <- sprintf("n%03d",nrow(nodes)); depth <- depth+1L
+      nodes <- rbind(nodes,data.table(node_id=id,parent=parent,rank=rank,taxon=value,
+        display=paste0(prefix[[rank]],value),realm=taxa$realm[[i]],depth=depth))
+      assign(key,id,envir=node_lookup)
+    }
+    parent <- get(key,envir=node_lookup,inherits=FALSE)
+    parent_key <- parent
+    depth <- nodes[node_id==parent_key,depth]
+  }
+  if(parent=="n000") parent <- "unknown"
+  assignments[[i]] <- data.table(contig_id=taxa$contig_id[[i]],assigned_node=parent)
+}
+nodes <- rbind(nodes,data.table(node_id="unknown",parent="n000",rank="unclassified",
+  taxon="Unclassified",display="Unclassified",realm="Unclassified",depth=1L))
+assigned <- rbindlist(assignments)
+assigned <- merge(assigned,weights,by="contig_id")
+direct <- assigned[,.(direct_abundance=sum(mean_abundance),direct_votus=.N),by=assigned_node]
+nodes <- merge(nodes,direct,by.x="node_id",by.y="assigned_node",all.x=TRUE,sort=FALSE)
+nodes[is.na(direct_abundance),`:=`(direct_abundance=0,direct_votus=0L)]
+nodes[, `:=`(clade_abundance=direct_abundance,clade_votus=direct_votus)]
+for(d in rev(sort(unique(nodes$depth)))) {
+  if(d==0L) next
+  for(id in nodes[depth==d,node_id]) {
+    parent_id <- nodes[node_id==id,parent]
+    value <- nodes[node_id==id,.(clade_abundance,clade_votus)]
+    nodes[node_id==parent_id,`:=`(clade_abundance=clade_abundance+value$clade_abundance,
+                                 clade_votus=clade_votus+value$clade_votus)]
+  }
+}
+check(nodes[node_id=="n000",clade_votus]==634L &&
+      abs(nodes[node_id=="n000",clade_abundance]-1)<1e-12,"Root does not conserve abundance")
+check(sum(nodes$direct_votus)==634L && abs(sum(nodes$direct_abundance)-1)<1e-12,
+      "Deepest assignments are not a partition")
+# A deterministic cladogram, with identifiers retained for every internal node.
+newick <- function(id) {
+  children <- nodes[parent==id][order(realm,-clade_abundance,display)]$node_id
+  if(!length(children)) return(id)
+  paste0("(",paste(vapply(children,newick,character(1)),collapse=","),")",id)
+}
+tree <- read.tree(text=paste0(newick("n000"),";"))
+set.seed(913)
+layout <- ggtree(tree,layout="daylight",branch.length="none")
+xy <- as.data.table(layout$data)[,.(node,label,parent,x,y,isTip)]
+check(setequal(xy$label,nodes$node_id),"Tree layout changed node identities")
+xy <- merge(xy,nodes,by.x="label",by.y="node_id",suffixes=c(".tree",".tax"))
+# Rotate the unrooted layout to use the landscape page efficiently.
+xy[, `:=`(x_rot=y,y_rot=-x)]
+xy[, `:=`(x=x_rot,y=y_rot)]
+edges <- merge(xy[parent.tree!=node,.(parent.tree,xend=x,yend=y,realm,clade_abundance)],
+               xy[,.(parent.tree=node,x,y)],by="parent.tree")
+# Graph geometry is only taxonomy context. Colour key stays consistent with prior figures.
+colours <- phage_uv_viral_realm_colours
+check(all(na.omit(nodes[rank!="root",realm]) %in% names(colours)),"Missing realm colour")
+xy[, realm:=fifelse(is.na(realm),"Unclassified",realm)]
+xy[, label_text:=display]
+# Label groups >=0.05% directly assigned abundance, plus realm roots and major classes.
+xy[, show_label:=direct_abundance>=0.0005 | rank=="realm" | (rank=="class" & clade_abundance>=.01)]
+xy[rank=="root",show_label:=FALSE]
+# formatC needs a scalar precision; construct labels explicitly for mixed magnitudes.
+xy[show_label==TRUE,label_text:=vapply(seq_len(.N),function(i) paste0(display[[i]],"\n",
+  formatC(100*clade_abundance[[i]],format="f",digits=if(clade_abundance[[i]]>=.01)1 else 2),"%"),character(1))]
+span_x <- diff(range(xy$x)); span_y <- diff(range(xy$y))
+p <- ggplot()+
+  geom_segment(data=edges,aes(x=x,y=y,xend=xend,yend=yend,colour=realm,
+                             linewidth=clade_abundance),alpha=.55,lineend="round")+
+  scale_linewidth_continuous(range=c(.25,2.8),transform="sqrt",guide="none")+
+  geom_point(data=xy[rank!="root"],aes(x=x,y=y),shape=21,fill="white",colour="#AAA9A4",size=1.1,stroke=.2)+
+  geom_point(data=xy[rank!="root"],aes(x=x,y=y,size=clade_abundance,fill=realm),shape=21,colour="white",stroke=.3)+
+  geom_point(data=xy[rank=="root"],aes(x=x,y=y),shape=21,fill="white",colour="#555555",size=2.7)+
+  geom_label_repel(data=xy[rank!="root"],aes(x=x,y=y,label=ifelse(show_label,label_text,"")),
+    seed=913,size=3.2,min.segment.length=0,segment.colour="#888888",segment.size=.22,
+    box.padding=.6,point.padding=.5,point.size=14,force=2,max.overlaps=Inf,
+    max.iter=100000,max.time=10,linewidth=0,label.padding=.18,fill="white",
+    colour="#252525",lineheight=.98)+
+  scale_size_area(max_size=14,breaks=c(.01,.1,.5,.8),labels=label_percent(accuracy=1),name="Mean relative abundance")+
+  scale_fill_manual(values=colours,name="Viral realm")+
+  scale_colour_manual(values=colours,guide="none")+
+  coord_equal(xlim=range(xy$x)+c(-.12,.12)*span_x,ylim=range(xy$y)+c(-.12,.12)*span_y,clip="off")+
+  theme_void(base_size=10)+theme(legend.position="bottom",legend.box="vertical",
+    legend.title=element_text(size=10),legend.text=element_text(size=9),
+    plot.margin=margin(10,12,10,12))+guides(fill=guide_legend(order=1,override.aes=list(size=4)),
+      size=guide_legend(order=2,override.aes=list(fill="#65798F")))
+dir.create(file.path(output,"figures"),recursive=TRUE)
+dir.create(file.path(output,"tables"))
+fwrite(nodes,file.path(output,"tables/tree_nodes.tsv"),sep="\t")
+fwrite(xy,file.path(output,"tables/tree_layout.tsv"),sep="\t")
+fwrite(edges,file.path(output,"tables/tree_edges.tsv"),sep="\t")
+fwrite(assigned,file.path(output,"tables/deepest_assignments.tsv"),sep="\t")
+fwrite(totals,file.path(output,"tables/sample_denominators.tsv"),sep="\t")
+write.tree(tree,file.path(output,"global_taxonomy.nwk"))
+ggsave(file.path(output,"figures/global_votu_abundance_tree.pdf"),p,
+       device=grDevices::pdf,useDingbats=FALSE,width=13,height=10,units="in")
+writeLines(c("Review only. Manuscript unchanged.",
+  "Global taxonomy tree of 634 high-quality, viral-gene-positive vOTUs; 12 equally weighted samples.",
+  "Area denotes mean relative mapped-read abundance within each taxonomic clade. Branch width uses a square-root abundance scale; colour denotes realm.",
+  "Small grey rings retain the positions of very low-abundance nodes. The central hollow node is the full catalogue, not an abundance-scaled observation.",
+  "Parent and descendant abundances are nested, not additive. Direct assignments ending at internal nodes remain in their clade abundance.",
+  "Labels: groups with >=0.05% directly assigned mean abundance, plus realm roots and classes with >=1% clade abundance. All nodes are retained in the tree and tables.",
+  "r_: realm; k_: kingdom; p_: phylum; c_: class; o_: order; f_: family; sf_: subfamily; g_: genus; s_: species.",
+  "Not an evolutionary-distance phylogeny, treatment comparison, or proof of phage-host interactions.",
+  capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+input_paths <- c(input_paths,code=file.path(repo,"analysis/votu_global_abundance_tree.qmd"),
+                 style=file.path(repo,"R/figure_style.R"))
+fwrite(data.table(input=names(input_paths),path=unname(input_paths),sha256=vapply(input_paths,hash,character(1))),
+       file.path(output,"input_sha256.tsv"),sep="\t")
+files <- list.files(output,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(output)+2L),sha256=vapply(files,hash,character(1))),
+       file.path(output,"output_sha256.tsv"),sep="\t")
+print(nodes[rank %in% c("root","realm","class","unclassified"),.(taxon,rank,clade_votus,clade_abundance,direct_abundance)])
+```

@@ -1,0 +1,79 @@
+---
+title: "Proof-of-concept candidate prioritisation with biofilm-burden proxies"
+format: html
+editor: source
+---
+
+Author-approved interpretation of cells, protein and polysaccharides as SEPARATE
+biofilm-burden proxies. No composite, no contact with original authors.
+Observation model: released material R = detachment fraction e * underlying
+component burden B. Therefore B1/B0 = (R1/R0)/(e1/e0). This is an imposed
+measurement model, not a fitted detachment mechanism. Each component has its own
+proxy; cell-equivalent, protein-associated and polysaccharide-associated burden
+are not summed into total biomass. Efficiency ratios0.5-1.5 are illustrative
+stress scenarios, not an estimated range; valid absolute fractions must satisfy
+0<e0<=1 and0<e1<=1. At nonunit efficiency and zero RNA suppression, changes
+describe the separately imposed efficiency scenario, not suppression alone.
+
+Use all14 candidates and all suppression levels from the frozen model.
+Coefficient uncertainty envelopes are propagated conditional on each fixed
+efficiency ratio. They are not joint uncertainty or intervention prediction
+intervals. Rank patterns are exploratory and do not establish phage infectivity.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+src<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/biofilm_MAG_suppression_2026-09-14-v1/tables/treatment_summary.tsv"
+sha<-function(p)digest::digest(file=p,algo="sha256")
+before<-sha(src);x<-fread(src)
+stopifnot(nrow(x)==14*3*11,all(x$change_pct> -100))
+rho<-c(.5,.75,1,1.25,1.5)
+d<-rbindlist(lapply(rho,function(e){
+ z<-copy(x);z[,efficiency_ratio:=e]
+ z[,burden_proxy_change_pct:=100*((1+change_pct/100)/e-1)]
+ for(n in c("nominal_low","nominal_high","HC3_low","HC3_high"))
+  set(z,j=paste0("burden_",n),value=100*((1+z[[n]]/100)/e-1))
+ z
+}))
+x[,break_even_efficiency_ratio:=1+change_pct/100]
+x[,max_efficiency_decrease_pct:=100*(1-break_even_efficiency_ratio)]
+# Positive means the central projected proxy decrease survives an efficiency
+# decrease smaller than this threshold. Negative means efficiency must increase.
+stopifnot(max(abs(d[efficiency_ratio==1,burden_proxy_change_pct]-x$change_pct))<1e-9,
+ all(d$burden_nominal_low<=d$burden_proxy_change_pct+1e-9),
+ all(d$burden_nominal_high>=d$burden_proxy_change_pct-1e-9))
+# Independent mass-balance test using a valid baseline efficiency0.4 for all rho.
+test<-copy(d);test[,R0:=.4*100]
+test[,R1:=R0*(1+change_pct/100)]
+test[,B1:=R1/(.4*efficiency_ratio)]
+stopifnot(max(abs((test$B1-100)-d$burden_proxy_change_pct))<1e-8)
+for(p in c("tables","figures","source"))dir.create(file.path(out,p),recursive=TRUE)
+fwrite(d,file.path(out,"tables/proxy_efficiency_scenarios.tsv"),sep="\t")
+fwrite(x,file.path(out,"tables/break_even_efficiency.tsv"),sep="\t")
+show<-d[abs(suppression-.5)<1e-8]
+show[,candidate:=paste(ifelse(is.na(genus)|genus=="","Unclassified",genus),sub("_MAGScoT_cleanbin_"," / ",MAG_ID),sep="\n")]
+show[,outcome_label:=factor(outcome,levels=c("log10_cells","protein_ug_cm2","polysaccharide_ug_cm2"),
+ labels=c("Cell-count proxy","Protein proxy","Polysaccharide proxy"))]
+show[,efficiency:=factor(efficiency_ratio,levels=rho,labels=c("50%","75%","100%","125%","150%"))]
+show[,fill_value:=pmax(-100,pmin(100,burden_proxy_change_pct))]
+g<-ggplot(show,aes(efficiency,candidate,fill=fill_value))+
+ geom_tile(colour="white",linewidth=.4)+
+ geom_text(aes(label=sprintf("%+.0f%%",burden_proxy_change_pct)),size=2.7)+
+ facet_wrap(~outcome_label,nrow=1)+
+ scale_fill_gradient2(low="#2166AC",mid="white",high="#B2182B",limits=c(-100,100),name="Proxy change (%)")+
+ theme_minimal(base_size=10)+theme(panel.grid=element_blank(),axis.text.y=element_text(size=8),legend.position="bottom")+
+ labs(x="Detachment efficiency relative to baseline (100% = unchanged)",y=NULL,
+  title="50% MAG transcription suppression: biofilm-burden proxy scenarios",
+  subtitle="Blue = projected decrease; red = projected increase. Cells, protein and polysaccharides remain separate.",
+  caption="Central model scenarios, not measured effects. Colour saturates at ±100%; labels retain values. Uncertainty in accompanying tables.")
+ggsave(file.path(out,"figures/candidate_efficiency_sensitivity.png"),g,width=15,height=10,dpi=180,device=ragg::agg_png)
+stopifnot(identical(before,sha(src)))
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/biofilm_burden_proxy_sensitivity.qmd"))
+fwrite(data.table(path=src,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+writeLines(c("PASS:2310 scenarios; identity at efficiency ratio1; independent mass-balance calculation; interval ordering; source hash unchanged.",
+ "Proof of concept: hypothetical effective RNA suppression, not phage dose.",
+ "Proxy response model imposed; efficiency range illustrative, not estimated.",
+ "All14candidates retained; no composite and no post hoc significance claim."),file.path(out,"CHECKS.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

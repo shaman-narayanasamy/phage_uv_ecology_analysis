@@ -1,0 +1,119 @@
+---
+title: "Figure-derived biofilm measurements and exploratory MAG overlays"
+format: html
+editor: source
+---
+
+Author authorised digitisation because original assay records are unavailable.
+Source is Myshkevych2025 Figure2,page5. Bar means only; no synthetic replicates.
+Pixel envelope is extraction uncertainty, NOT biological error/SD/CI. Source
+technical-replicate error bars are not used as biological replication.
+Published rounds2-4 are provisionally aligned to omics cycles1-3 by order.
+Backflush pooled-versus-third fraction remains unresolved: no inferential fit.
+Candidate MAGs have >=1 combined-list main up hit; score uses ALL tested
+combined-list genes in each MAG, not just up hits. Score is mean gene-centred
+log2CPM, not per-cell expression or absolute biofilm production.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(png);library(edgeR);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment"
+pdf<-file.path(root,"raw/1-s2.0-S2666821125000936-main.pdf")
+for(d in c("source","tables","figures"))dir.create(file.path(out,d),recursive=TRUE)
+prefix<-file.path(out,"source/paper_page5")
+stopifnot(system2("pdftoppm",c("-f","5","-l","5","-scale-to","2400","-png","-singlefile",shQuote(pdf),shQuote(prefix)))==0)
+im<-readPNG(paste0(prefix,".png"));H<-dim(im)[1];W<-dim(im)[2]
+# Coordinates manually calibrated against rendered page at1368x1824 display.
+# Each panel has a distinct axis; cell counts start at8, not0.
+cal<-data.table(panel=c("A","B","C","D","E","F"),
+ outcome=rep(c("log10_cells","protein_ug_cm2","polysaccharide_ug_cm2"),each=2),
+ phase=rep(c("initial","backflush"),3),
+ xmin=c(161,161,565,572,943,950),xmax=c(465,465,865,869,1245,1249),
+ ytop=c(434,730,430,724,428,714),ybase=c(605,903,608,902,606,902),
+ vmin=c(8,8,0,0,0,0),vmax=c(12,12,1400,7000,18,100))
+for(j in c("xmin","xmax"))set(cal,j=j,value=round(cal[[j]]*W/1368))
+for(j in c("ytop","ybase"))set(cal,j=j,value=round(cal[[j]]*H/1824))
+fwrite(cal,file.path(out,"tables/axis_calibration.tsv"),sep="\t")
+rows<-list()
+for(i in seq_len(nrow(cal))){
+ c<-cal[i];xs<-c$xmin:c$xmax;ys<-c$ytop:(c$ybase-2)
+ rr<-im[ys,xs,1];gg<-im[ys,xs,2];bb<-im[ys,xs,3]
+ blue<-bb>.45 & bb>rr*1.2 & bb>gg*1.08
+ orange<-rr>.7 & gg>.15 & gg<.7 & bb<.35 & rr>gg*1.3
+ for(cond in c("control","treatment")){
+  mask<-if(cond=="control")blue else orange
+  cols<-which(colSums(mask)>8)
+  grp<-split(cols,cumsum(c(TRUE,diff(cols)>1)))
+  grp<-grp[lengths(grp)>=6];stopifnot(length(grp)==3)
+  for(k in seq_along(grp)){
+   cc<-grp[[k]];cc<-cc[seq(ceiling(length(cc)*.25),floor(length(cc)*.75))]
+   tops<-vapply(cc,function(j)min(which(mask[,j])),numeric(1))
+   top<-median(ys[tops]);v<-c$vmin+(c$ybase-top)/(c$ybase-c$ytop)*(c$vmax-c$vmin)
+   # Envelope allows ±3px at bar and both axis calibration anchors.
+   variants<-expand.grid(top=top+c(-3,3),base=c$ybase+c(-3,3),axis=c$ytop+c(-3,3))
+   vv<-with(variants,c$vmin+(base-top)/(base-axis)*(c$vmax-c$vmin))
+   rows[[length(rows)+1L]]<-data.table(panel=c$panel,outcome=c$outcome,phase=c$phase,
+    condition=cond,published_round=k+1L,cycle=k,bar_x=median(xs[cc]),bar_top_y=top,
+    estimate=v,pixel_envelope_low=min(vv),pixel_envelope_high=max(vv),
+    provenance="digitised_published_bar_mean",alignment="provisional_order_based")
+  }
+ }
+}
+p<-rbindlist(rows);stopifnot(nrow(p)==36,!anyDuplicated(p[,.(outcome,condition,phase,cycle)]))
+fwrite(p,file.path(out,"tables/figure_derived_measurements.tsv"),sep="\t")
+```
+
+```{r}
+#| label: expression-and-overlays
+dr<-file.path(root,"PRJEB79569/derived")
+src<-c(membership=file.path(dr,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ counts=file.path(dr,"full_transcriptome_de/tables/collapsed_raw_count_matrix.tsv"),
+ libraries=file.path(dr,"full_transcriptome_de/tables/library_sizes_and_normalization.tsv"),paper=pdf)
+m<-fread(src['membership'])[set_id=="biofilm_combined"]
+candidate<-m[FDR<.05 & logFC>0,.(up_hits=.N),by=.(MAG_ID,genus)]
+stopifnot(!anyDuplicated(candidate$MAG_ID))
+genes<-m[MAG_ID %in% candidate$MAG_ID]
+libs<-fread(src['libraries']);samples<-libs$sample_title
+cnt<-fread(src['counts'],select=c("feature_id",samples))
+cnt<-cnt[match(genes$feature_id,feature_id)];stopifnot(identical(cnt$feature_id,genes$feature_id))
+lcpm<-cpm(as.matrix(cnt[,..samples]),lib.size=libs$effective_library_size,log=TRUE,prior.count=.5)
+centred<-lcpm-rowMeans(lcpm)
+scores<-as.data.table(centred);setnames(scores,samples);scores[,MAG_ID:=genes$MAG_ID]
+scores<-scores[,lapply(.SD,mean),by=MAG_ID,.SDcols=samples]
+scores<-melt(scores,id.vars="MAG_ID",variable.name="sample_title",value.name="expression_score")
+scores<-merge(scores,libs[,.(sample_title,condition,phase,cycle)],by="sample_title")
+scores<-merge(scores,candidate,by="MAG_ID")
+scores[,label:=paste(ifelse(is.na(genus)|genus=="","Unclassified genus",genus),MAG_ID,sep="\n")]
+joined<-merge(scores,p,by=c("condition","phase","cycle"),allow.cartesian=TRUE)
+stopifnot(nrow(joined)==nrow(candidate)*36)
+fwrite(candidate,file.path(out,"tables/candidate_MAGs.tsv"),sep="\t")
+fwrite(joined,file.path(out,"tables/expression_phenotype_overlay.tsv"),sep="\t")
+theme_set(theme_bw(base_size=10))
+colours<-c(control="#4472C4",treatment="#ED7D31")
+for(o in unique(p$outcome)){
+ d<-joined[outcome==o]
+ g<-ggplot(d,aes(expression_score,estimate,colour=condition,shape=phase))+
+  geom_point(size=2)+geom_text(aes(label=cycle),nudge_x=.025,nudge_y=0,size=2.3,vjust=-.8,show.legend=FALSE)+
+  facet_wrap(~label,ncol=4,scales="free_x")+scale_colour_manual(values=colours)+
+  labs(x="Mean gene-centred log2 CPM (all combined-list genes per MAG)",y=paste(o,"(figure-derived)"),
+   subtitle="Exploratory overlay; numbers are omics cycles1-3 (provisionally published rounds2-4)",
+   caption="Not fitted associations. No biological replicates reconstructed. RNA score is not per-cell expression.")+
+  theme(strip.text=element_text(size=7),legend.position="bottom")
+ ggsave(file.path(out,"figures",paste0(o,"_MAG_overlay.png")),g,width=14,height=11,dpi=160,device=ragg::agg_png)
+}
+g<-ggplot(p,aes(cycle,estimate,colour=condition,group=condition))+
+ geom_line()+geom_point(size=2)+facet_wrap(~outcome+phase,scales="free_y",ncol=2)+
+ scale_colour_manual(values=colours)+scale_x_continuous(breaks=1:3,labels=2:4)+
+ labs(x="Published cleaning round",y="Figure-derived bar mean (source units)",
+  caption="Cells on log10 scale; protein/polysaccharides in micrograms per square centimetre. No error bars reconstructed.")+
+ theme(legend.position="bottom")
+ggsave(file.path(out,"figures/reconstructed_phenotypes.png"),g,width=10,height=9,dpi=160,device=ragg::agg_png)
+sha<-function(p)digest::digest(file=p,algo="sha256")
+src<-c(src,notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(input=names(src),path=src,sha256=vapply(src,sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(src['notebook'],file.path(out,"source",basename(src['notebook'])))
+writeLines(c("36 published bar means;14 candidate MAGs; all combined-list genes used in each score.",
+ "Coordinate/axis calibration saved. Pixel envelopes are not sampling confidence intervals.",
+ "Provisional cycle alignment; backflush pooled/third ambiguity remains. No regressions fitted.",
+ "No cell counts interpreted as viability. No phenotype reduction/phage efficacy predicted."),file.path(out,"CHECKS.txt"))
+```

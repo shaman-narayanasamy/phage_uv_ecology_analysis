@@ -1,0 +1,59 @@
+__default__:
+  account: "michael.heneka"
+  qos: "normal"
+  partition: "batch"
+  nodes: 1
+  ntasks: 1
+  ncpus: 1
+  mem: "4G"
+  time: "02:00:00"
+  job-name: "{rule}"
+  stdout: "/scratch/users/snarayanasamy/phage_uv_treatment/slurm/%x-%j.out"
+
+stage_mg_read_1:
+  ncpus: 1
+  mem: "8G"
+  time: "08:00:00"
+
+stage_mg_read_2:
+  ncpus: 1
+  mem: "8G"
+  time: "08:00:00"
+
+stage_mt_read_1:
+  ncpus: 1
+  mem: "8G"
+  time: "08:00:00"
+
+stage_mt_read_2:
+  ncpus: 1
+  mem: "8G"
+  time: "08:00:00"
+
+fastp_trimming:
+  ncpus: 12
+  mem: "48G"
+  time: "24:00:00"
+
+sortmerna_prepare_sequences:
+  ncpus: 4
+  mem: "32G"
+  time: "12:00:00"
+
+sortmerna_index_database:
+  partition: "bigmem"
+  ncpus: 12
+  mem: "250G"
+  time: "48:00:00"
+
+sortmerna_rrna_paired:
+  partition: "bigmem"
+  ncpus: 24
+  mem: "500G"
+  time: "48:00:00"
+
+sortmerna_rrna_single:
+  partition: "bigmem"
+  ncpus: 12
+  mem: "150G"
+  time: "48:00:00"

@@ -1,0 +1,55 @@
+---
+title: "Catalogue-aligned vOTU refit: regression and eligibility checks"
+format: html
+---
+
+Run with `bash scripts/run_qmd.sh analysis/votu_catalogue_refit_comparison.qmd NEW_REFIT NEW_COMPARISON`.
+This comparison does not replace figures, manuscript text or archived models.
+
+```{r}
+library(data.table)
+args <- commandArgs(TRUE); stopifnot(length(args)==2L,!dir.exists(args[2]))
+new <- args[1]; out <- args[2]
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+old <- file.path(root,"community_cycle_models_2026-09-13-v1")
+read <- function(run,name) fread(file.path(run,"tables",paste0(name,".tsv")))
+elig <- read(new,"votu_eligibility")
+stopifnot(nrow(elig)==634L,sum(!elig$archived_eligible)==18L)
+nc <- read(new,"votu_counts"); oc <- read(old,"votu_counts")
+shared <- nc[match(oc$feature_id,feature_id)]
+stopifnot(isTRUE(all.equal(shared,oc,check.attributes=FALSE)))
+# Unchanged MAG data and results guard against accidental model drift.
+for(n in c("counts","main_wald","interaction_lrt","size_factors"))
+ stopifnot(isTRUE(all.equal(read(new,paste0("mag_",n)),read(old,paste0("mag_",n)),
+                           tolerance=1e-10,check.attributes=FALSE)))
+dir.create(out,recursive=TRUE)
+added <- merge(elig[archived_eligible==FALSE],read(new,"votu_filter"),by="feature_id")
+fwrite(added,file.path(out,"added_votu_filter.tsv"),sep="\t")
+summaries <- list()
+for(test in c("main_wald","interaction_lrt")){
+ a <- read(old,paste0("votu_",test)); b <- read(new,paste0("votu_",test))
+ x <- merge(a,b,by="feature_id",all=TRUE,suffixes=c("_old","_new"))
+ x[,`:=`(significant_old=!is.na(padj_old)&padj_old<.05,
+         significant_new=!is.na(padj_new)&padj_new<.05)]
+ x[,status:=fcase(significant_old & significant_new,"retained",
+                  significant_old,"lost",significant_new,"gained",default="neither")]
+ fwrite(x,file.path(out,paste0(test,"_comparison.tsv")),sep="\t")
+ summaries[[test]] <- x[,.(test=test,old_significant=sum(significant_old),
+ new_significant=sum(significant_new),retained=sum(status=="retained"),
+ lost=sum(status=="lost"),gained=sum(status=="gained"))]
+ print(x[status!="neither",.(feature_id,padj_old,padj_new,status)])
+}
+summary <- rbindlist(summaries)
+fwrite(summary,file.path(out,"summary.tsv"),sep="\t")
+sf <- merge(read(old,"votu_size_factors"),read(new,"votu_size_factors"),
+ by="sample_title",suffixes=c("_old","_new"))
+sf[,ratio_new_old:=size_factor_new/size_factor_old]
+fwrite(sf,file.path(out,"size_factor_comparison.tsv"),sep="\t")
+print(added[,.(added=.N,retained=sum(retained))]);print(summary)
+cat("PASS: all archived viral counts identical; all MAG counts/models/size factors unchanged.\n")
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"comparison_source.qmd"))
+writeLines(capture.output(sessionInfo()),file.path(out,"sessionInfo.txt"))
+files<-list.files(out,full.names=TRUE)
+fwrite(data.table(file=basename(files),sha256=vapply(files,function(p)digest::digest(file=p,algo="sha256"),character(1))),
+ file.path(out,"output_sha256.tsv"),sep="\t")
+```

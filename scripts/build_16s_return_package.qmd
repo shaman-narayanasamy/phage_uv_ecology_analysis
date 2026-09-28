@@ -1,0 +1,150 @@
+---
+title: "Assemble the 16S Return Package"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/build_16s_return_package.qmd`. It collects exactly what the
+manuscript stream asked for in `notes/handoff-2026-08-20-16s-collaborator.md`,
+records an MD5 for every returned file, and writes an integration-note
+skeleton that separates robust observations from fragile ones.
+
+```sh
+bash scripts/run_qmd.sh scripts/build_16s_return_package.qmd [derived_root] [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: build-16s-return-package
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+derived_root <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_DERIVED")
+output_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_RETURN_DIR")
+if (!nzchar(derived_root) || !nzchar(output_dir)) {
+  abort("Provide derived_root and output_dir, or source config/16s_analysis_paths.sh first.")
+}
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+wanted <- data.frame(
+  contract_item = c(
+    "software_and_database_provenance", "primer_removal_qc", "truncation_decision",
+    "read_retention_qc", "denoising_parameters", "asv_counts_unrarefied",
+    "asv_taxonomy_silva", "taxonomy_crosscheck_gtdb", "sample_metadata",
+    "representative_sequences", "phyloseq_object", "family_profile",
+    "alpha_diversity", "beta_ordination", "beta_permanova", "phase_structure_check",
+    "interpretation_guards", "exploratory_differential_abundance", "figure_registry"
+  ),
+  source_path = file.path(derived_root, c(
+    "16s_software_provenance.tsv",
+    "01_primer_removal/16s_primer_removal_report.tsv",
+    "02_quality_profiles/16s_truncation_planning.tsv",
+    "03_dada2/16s_read_retention.tsv",
+    "03_dada2/16s_dada2_parameters.tsv",
+    "05_phyloseq/16s_asv_counts_unrarefied.tsv",
+    "05_phyloseq/16s_asv_taxonomy_silva138.2.tsv",
+    "04_taxonomy/16s_taxonomy_concordance.tsv",
+    "05_phyloseq/16s_sample_data.tsv",
+    "05_phyloseq/16s_asv_representative_sequences.fasta",
+    "05_phyloseq/16s_phyloseq.rds",
+    "06_ecology/16s_family_profile_long.tsv",
+    "06_ecology/16s_alpha_diversity.tsv",
+    "06_ecology/16s_beta_ordination_coordinates.tsv",
+    "06_ecology/16s_beta_permanova.tsv",
+    "06_ecology/16s_phase_structure_check.tsv",
+    "06_ecology/16s_interpretation_guards.tsv",
+    "07_exploratory_differential_abundance/16s_exploratory_differential_abundance.tsv",
+    "08_figures/16s_figure_candidate_registry.tsv"
+  )),
+  requirement = c(rep("required", 17), "optional", "required"),
+  stringsAsFactors = FALSE
+)
+
+wanted$present <- file.exists(wanted$source_path)
+missing_required <- wanted[wanted$requirement == "required" & !wanted$present, ]
+
+figure_dir <- file.path(derived_root, "08_figures")
+figures <- list.files(figure_dir, pattern = "\\.pdf$", full.names = TRUE)
+
+copy_into <- function(paths) {
+  copied <- character(0)
+  for (path in paths) {
+    if (!file.exists(path)) next
+    target <- file.path(output_dir, basename(path))
+    file.copy(path, target, overwrite = TRUE)
+    copied <- c(copied, target)
+  }
+  copied
+}
+copied <- copy_into(c(wanted$source_path[wanted$present], figures))
+
+checksums <- tools::md5sum(copied)
+manifest <- data.frame(
+  file = basename(names(checksums)),
+  bytes = file.size(names(checksums)),
+  md5 = unname(checksums),
+  stringsAsFactors = FALSE
+)
+manifest <- manifest[order(manifest$file), ]
+write.table(manifest, file.path(output_dir, "16s_return_package_manifest.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+write.table(wanted, file.path(output_dir, "16s_return_package_contract.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+note_path <- file.path(output_dir, "16s_integration_note.md")
+if (!file.exists(note_path)) {
+  writeLines(c(
+    "# 16S integration note",
+    "",
+    sprintf("Prepared: %s", format(Sys.Date())),
+    "",
+    "## What the analysis did",
+    "",
+    "One paragraph: substrate, primer removal, denoising, taxonomy, and the",
+    "exact experimental boundary carried through every statement below.",
+    "",
+    "## Robust observations",
+    "",
+    "- Observations that hold under both Bray-Curtis and Aitchison views and do",
+    "  not depend on a single sample or a single parameter choice.",
+    "",
+    "## Fragile signals",
+    "",
+    "- Observations that change with depth, prevalence filtering, or the choice",
+    "  of dissimilarity. State what would settle them.",
+    "",
+    "## Analyses that must not enter the manuscript",
+    "",
+    "- Anything framed as a replicated causal treatment effect.",
+    "- Exploratory differential abundance quoted as a confirmatory result.",
+    "",
+    "## Suggested manuscript use",
+    "",
+    "- Whether the result is informative enough to occupy the conditional",
+    "  Figure 5 slot, or belongs in the supplement, or should not be used.",
+    "",
+    "## Open questions for the manuscript stream",
+    "",
+    "- ..."
+  ), note_path)
+}
+
+print(manifest)
+if (nrow(missing_required)) {
+  cat("\nMissing required contract items:\n")
+  print(missing_required[, c("contract_item", "source_path")])
+  abort("The return package is incomplete. Run the missing steps before returning it.")
+}
+cat(sprintf("\nReturn package assembled in %s\n", output_dir))
+cat("Complete 16s_integration_note.md by hand before returning. It is the part of the\n")
+cat("package that a table cannot generate.\n")
+```

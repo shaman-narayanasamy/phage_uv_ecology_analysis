@@ -1,0 +1,88 @@
+---
+title: "Figure 2 biofilm and SOS responses: print-size review"
+format: html
+editor: source
+---
+
+Uses only the active combined biofilm definition and existing full-transcriptome
+DE plus whole-contig concentration results. No refits or subset-first DE.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+paths<-c(genes=file.path(root,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ blocks=file.path(root,"mag_concentration_dependence_combined_2026-09-13-v1/tables/dependence_results.tsv"))
+hash<-function(p)digest::digest(file=p,algo="sha256");before<-vapply(paths,hash,character(1))
+d<-fread(paths['genes']);blocks<-fread(paths['blocks'])
+stopifnot(nrow(d[set_id=="biofilm_combined"])==3905,nrow(d[set_id=="SOS_response"])==523)
+stopifnot(!any(d$FDR==.05,na.rm=TRUE),!any(blocks$FDR_all_planned==.05,na.rm=TRUE))
+d[,direction:=fcase(FDR<=.05&logFC>0,"Up in treatment",FDR<=.05&logFC<0,"Down in treatment",default="Not supported")]
+d[,set_label:=factor(ifelse(set_id=="biofilm_combined","Biofilm (3,905 genes)","SOS (523 genes)"),levels=c("Biofilm (3,905 genes)","SOS (523 genes)"))]
+col<-c("Down in treatment"="#8FCB8A","Up in treatment"="#7E57C2","Not supported"="#C3C8CB")
+base<-theme_classic(base_size=7)+theme(axis.text=element_text(size=7),axis.title=element_text(size=7),
+ strip.text=element_text(size=7),strip.background=element_rect(fill="#F4F4F4",colour=NA),
+ plot.title=element_text(size=8),legend.position="none",plot.margin=margin(4,5,4,4))
+A<-ggplot(d[order(direction!="Not supported")],aes(logFC,-log10(pmax(FDR,1e-300)),colour=direction))+
+ geom_hline(yintercept=-log10(.05),linetype=2,colour="grey60",linewidth=.3)+geom_vline(xintercept=0,colour="grey80",linewidth=.3)+
+ geom_point(size=.65,alpha=.65)+scale_colour_manual(values=col)+facet_wrap(~set_label,nrow=1)+
+ labs(x="Treatment / control (log2 fold change)",y="-log10 full-transcriptome FDR (BH)")+base
+hits<-d[FDR<=.05]
+counts<-hits[,.(genes=.N),by=.(set_id,MAG_ID,genus,direction)]
+bio_up<-unique(hits[set_id=="biofilm_combined"&logFC>0,MAG_ID])
+stopifnot(length(bio_up)==14,nrow(hits[set_id=="biofilm_combined"])==179,nrow(hits[set_id=="SOS_response"])==14)
+counts[,label:=paste(ifelse(is.na(genus)|!nzchar(genus),"Unclassified",genus),sub("_MAGScoT_cleanbin_0*","/",MAG_ID))]
+counts[set_id=="biofilm_combined"&!MAG_ID%in%bio_up,label:=sprintf("Other MAGs (%d)",uniqueN(counts[set_id=="biofilm_combined"&!MAG_ID%in%bio_up,MAG_ID]))]
+display<-counts[,.(genes=sum(genes)),by=.(set_id,label,direction)]
+display[,signed_genes:=ifelse(direction=="Down in treatment",-genes,genes)]
+make_counts<-function(set,title) {
+ x<-copy(display[set_id==set]);if(set=="biofilm_combined")x<-x[direction=="Up in treatment"]
+ order<-x[,.(total=sum(genes)),by=label][order(total,label)]$label
+ x[,label:=factor(label,levels=order)]
+ ggplot(x,aes(signed_genes,label,fill=direction))+geom_vline(xintercept=0,colour="grey50",linewidth=.3)+
+ geom_col(width=.65)+scale_fill_manual(values=col)+
+ scale_x_continuous(labels=function(x)abs(x))+labs(title=title,x="Supported genes (count)",y=NULL)+base
+}
+B<-make_counts("biofilm_combined","Biofilm: 31 up in treatment / 14 MAGs")
+C<-make_counts("SOS_response","SOS: 13 up / 1 down in treatment")
+dep<-blocks[resolution=="contig"]
+dep[,set_label:=factor(ifelse(set_id=="biofilm_combined","Biofilm","SOS"),levels=c("Biofilm","SOS"))]
+dep[,ratio:=simpson/expected_simpson]
+dep[,endpoint_label:=factor(endpoint,levels=c("joint","down","up","condition"),labels=c("Cycle interaction","Down in treatment","Up in treatment","All treatment-\nassociated genes"))]
+dep[,label:=ifelse(is.finite(FDR_all_planned),sprintf("FDR (BH) = %.3g",FDR_all_planned),"Not estimable")]
+D<-ggplot(dep,aes(ratio,endpoint_label))+geom_vline(xintercept=1,linetype=2,colour="grey60",linewidth=.3)+
+ geom_segment(aes(x=1,xend=ratio,yend=endpoint_label),colour="grey60",linewidth=.4,na.rm=TRUE)+
+ geom_point(aes(shape=FDR_all_planned<=.05),size=2,na.rm=TRUE)+
+ scale_shape_manual(values=c(`TRUE`=16,`FALSE`=1),labels=c(`TRUE`="FDR (BH) ≤ 0.05",`FALSE`="FDR (BH) > 0.05"),name=NULL,na.translate=FALSE)+
+ geom_text(aes(x=4.3,label=label),hjust=0,size=7/ggplot2::.pt)+
+ scale_x_continuous(limits=c(.8,7.5),breaks=1:4)+facet_wrap(~set_label,nrow=1)+
+ labs(x=expression(C[obs]/(E[0]*"["*C*"]")),y=NULL)+base+theme(legend.position="bottom")
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+quartz(type="pdf",file=file.path(out,"figures/figure2-functional-print-proof.pdf"),width=180/25.4,height=240/25.4,family="Arial")
+grid.newpage();draw<-function(p,x,y,w,h)print(p,vp=viewport(x=x,y=y,width=w,height=h),newpage=FALSE)
+draw(A,.5,.845,.98,.27);draw(B,.28,.50,.55,.40);draw(C,.78,.50,.43,.40);draw(D,.5,.16,.98,.25)
+for(i in 1:4)grid.text(LETTERS[i],x=c(.01,.01,.56,.01)[i],y=c(.985,.705,.705,.295)[i],just="left",gp=gpar(fontsize=9,fontface="bold"))
+for(i in seq_along(col)) {
+ x<-c(.14,.40,.66)[i]
+ grid.circle(x=x,y=.017,r=unit(.7,"mm"),gp=gpar(col=NA,fill=col[i]))
+ grid.text(names(col)[i],x=x+.018,y=.017,just="left",gp=gpar(fontsize=7))
+}
+dev.off()
+fwrite(d,file.path(out,"tables/plotted_gene_statistics.tsv"),sep="\t")
+fwrite(counts,file.path(out,"tables/all_MAG_contributors.tsv"),sep="\t")
+fwrite(display,file.path(out,"tables/main_MAG_display.tsv"),sep="\t")
+fwrite(dep,file.path(out,"tables/whole_contig_concentration.tsv"),sep="\t")
+writeLines(c("Figure 2 candidate. Biofilm-associated and SOS transcriptional responses in MAG context.",
+ "Direction labels consistently describe treatment relative to control: up in treatment (purple), down in treatment (green). This wording change does not alter coefficients, selections or adjusted P values.",
+ "A: All 3905 combined-list biofilm genes and523SOS genes. Colours reflect original whole-transcriptome condition FDR (BH)≤ 0.05 and sign; no subset DE or new multiplicity adjustment. Dashed line FDR (BH)0.05.",
+ "B: All14MAGs with at least one upregulated biofilm hit are displayed individually (31genes). The148downregulated biofilm genes in22otherMAGs remain visible in A and enumerated in all_MAG_contributors.tsv; not pooled into a giant bar or discarded. Selection is direction-based for candidate context, not an implication that downregulation is unimportant.",
+ "C: All11MAGs carrying the14supported SOS genes,13up/1down. Bars count genes, not transcript amount or cells. Complete MAG-level contributors in tables/.",
+ "D: MAG-level concentration of contigs carrying differentially expressed biofilm-associated or SOS genes. Each contig was counted once per gene set and endpoint if it contained at least one supported gene. Concentration was quantified as C = sum_m (h_m/H)^2, where h_m is the number of supported contigs assigned to MAG m and H is their total. Points show C_obs/E_0[C], the observed concentration divided by its mean under 100,000 stratified random allocations preserving the number of supported contigs within strata defined by eligible-gene count and mean expression. The dashed line denotes random expectation (ratio = 1); larger values indicate greater concentration among MAGs. Endpoints comprise all treatment-associated genes, genes up or down in treatment, and genes with a condition-by-cycle interaction. Filled and open circles indicate FDR (BH) ≤ 0.05 and FDR (BH) > 0.05, respectively, across all 24 planned tests (two gene sets, four endpoints and three block scales). Endpoints with fewer than two supported contigs were not estimable. These tests assess allocation among MAGs rather than treatment-effect significance.",
+ "Combined biofilm membership is annotation-based screening, not validated function. SOS induction is not proof of UV resistance. Condition is confounded with membrane identity. No new statistical fits or manuscript edits.",
+ "S1 stays experimental design/workflow. Main-figure numbering provisional following community-response absorption into Figure1."),file.path(out,"FIGURE_LEGEND_DRAFT.txt"))
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/figure2_functional_print_proof.qmd"))
+stopifnot(identical(before,vapply(paths,hash,character(1))),sum(display[set_id=="biofilm_combined",genes])==179,sum(display[set_id=="SOS_response",genes])==14)
+fwrite(data.table(path=paths,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+files<-list.files(out,recursive=TRUE,full.names=TRUE);fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,hash,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+cat("PASS: active3905/523gene sets; all179/14hits retained; unchanged sources; no refits\n")
+```

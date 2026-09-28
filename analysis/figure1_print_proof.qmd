@@ -1,0 +1,188 @@
+---
+title: "Figure 1 actual-size print proof"
+format: html
+editor: source
+---
+
+Readability trial at 180 x 250 mm. No data or statistical changes. Frozen
+versions remain unchanged. All MAG tips, viral-tree nodes and network edges are
+retained; only text density changes. Full taxonomy key is an accompanying S3
+candidate. S1 stays experimental design/workflow and S2 the test overview.
+
+```{r}
+lib<-Sys.getenv("PHAGE_UV_METACODER_LIB");if(nzchar(lib)).libPaths(c(lib,.libPaths()))
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid);library(ggrepel);library(patchwork)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+frozen<-file.path(root,"figure1_shared_taxonomy_2026-09-14-v3")
+paths<-c(mag=file.path(root,"mag_heat_tree_circular_quality_2026-09-13-v3/source/native_mag_quality_tree.rds"),
+ viral=file.path(root,"native_metacoder_heat_trees_2026-09-13-v4/source/votu_native_heat_tree.rds"),
+ nodes=file.path(frozen,"tables/recoloured_tree_nodes.tsv"),key=file.path(frozen,"tables/shared_taxonomy_key.tsv"),
+ alignment=file.path(frozen,"tables/MAG_colour_alignment.tsv"),profile=file.path(frozen,"tables/deepest_taxonomy_profile.tsv"),
+ edges=file.path(frozen,"tables/plotted_network_edges.tsv"),network_nodes=file.path(frozen,"tables/circular_network_nodes.tsv"),
+ quality=file.path(frozen,"tables/viral_node_quality.tsv"),
+ trajectories=file.path(root,"figure1_expanded_2026-09-14-v2/tables/selected_trajectories.tsv"),
+ labels=file.path(root,"figure1_expanded_2026-09-14-v2/tables/trajectory_labels_and_colours.tsv"))
+hash<-function(p)digest::digest(file=p,algo="sha256");before<-vapply(paths,hash,character(1))
+mag<-readRDS(paths['mag']);viral<-readRDS(paths['viral']);nodes<-fread(paths['nodes']);key<-fread(paths['key'])
+alignment<-fread(paths['alignment']);d<-fread(paths['profile']);edges<-fread(paths['edges']);nd<-fread(paths['network_nodes']);q<-fread(paths['quality'])
+d[,sample_label:=factor(sample_label,levels=c("C1-I","C1-B","C2-I","C2-B","C3-I","C3-B"))]
+d[,condition_label:=factor(as.character(condition_label),levels=c("Control","Phage-UV"),labels=c("Control","Treatment"))]
+stopifnot(!anyNA(d$condition_label))
+d[,display_category:=factor(display_category,levels=rev(key$display_category))]
+stopifnot(!anyNA(d$sample_label),all(abs(d[,sum(relative_abundance),by=sample_title]$V1-1)<1e-10))
+z<-mag$layers[[1]]$data;m<-match(sub("_(edge|node)$","",as.character(z$group)),nodes$node_id)
+z$color[!is.na(m)]<-nodes$colour[m[!is.na(m)]];mag$layers[[1]]$data<-z;mag$layers[[1]]$aes_params[[1]]<-z$color
+clean_tree<-function(p,pattern) {
+ lab<-as.data.table(copy(p$layers[[10]]$data))
+ lab<-lab[group=="nodes" & grepl(pattern,label)]
+ lab[,`:=`(x=(xmin+xmax)/2,y=(ymin+ymax)/2)]
+ lab[,label:=sub("\\\\n.*$","",label)]
+ lab[,label:=sub(" sp[0-9]+[*]?","",label)]
+ # Retain one polygon layer plus the existing MAG QC layers. Native text
+ # layers are replaced with physical 7-point text.
+ retain<-which(!vapply(p$layers,function(l)is.data.frame(l$data)&&"label"%in%names(l$data),logical(1)))
+ p$layers<-p$layers[retain]
+ for(i in seq_along(p$layers)) {
+   dat<-p$layers[[i]]$data
+   if(is.data.frame(dat)&&"group"%in%names(dat)) {
+     keep<-!grepl("legend",dat$group)
+     for(k in names(p$layers[[i]]$aes_params))if(length(p$layers[[i]]$aes_params[[k]])==nrow(dat))p$layers[[i]]$aes_params[[k]]<-p$layers[[i]]$aes_params[[k]][keep]
+     p$layers[[i]]$data<-dat[keep,]
+   }
+ }
+ for(axis in c("x","y")){s<-p$scales$get_scales(axis);s$limits<-NULL}
+ p$coordinates$limits$x<-c(-.07,1.07);p$coordinates$limits$y<-c(-.07,1.07)
+ p<-p+geom_text_repel(data=lab,aes(x,y,label=label),inherit.aes=FALSE,size=7/ggplot2::.pt,
+   seed=42,min.segment.length=0,max.overlaps=Inf,box.padding=.25,colour="#222222")+
+   theme(legend.position="none",plot.margin=margin(2,2,2,2))
+ list(plot=p,labels=lab)
+}
+M<-clean_tree(mag,"^p_(Bacteroidota|Chloroflexota|Pseudomonadota)|^s_(CAJATL01|SHND01)")
+V<-clean_tree(viral,"^(Unclassified|c_Caudoviricetes|f_Ped)|^.*Riboviria")
+# Give taxonomic branches a visible outline without changing topology or node area.
+vz<-V$plot$layers[[1]]$data
+V$plot$layers[[1]]$aes_params$colour<-ifelse(grepl("_edge$",vz$group),vz$color,NA)
+V$plot$layers[[1]]$aes_params$linewidth<-.13
+base<-theme_classic(base_size=7)+theme(axis.text=element_text(size=7),axis.title=element_text(size=7),
+ plot.title=element_text(size=7),plot.subtitle=element_text(size=7),legend.position="none",plot.margin=margin(3,3,3,3))
+bars<-ggplot(d,aes(sample_label,relative_abundance,fill=display_category))+geom_col(width=.6)+
+ scale_fill_manual(values=setNames(key$colour,key$display_category))+
+ facet_grid(condition_label~.)+scale_y_continuous(labels=scales::label_percent(),breaks=c(0,.5,1),expand=c(0,0))+
+ labs(x="Cycle - phase",y="MAG-mapped reads (%)")+base+
+ theme(strip.text=element_text(size=7),strip.background=element_rect(fill="#F5F5F5",colour=NA),panel.spacing.y=unit(4,"mm"))
+hp<-nd[type=="MAG"];vp<-nd[type=="Viral contig"]
+hp[,colour:=alignment$colour[match(id,alignment$MAG_ID)]]
+e<-merge(edges,hp[,.(MAG_ID=id,x,y)],by="MAG_ID")
+e<-merge(e,vp[,.(phage_id=id,xend=x,yend=y)],by="phage_id")
+curves<-rbindlist(lapply(seq_len(nrow(e)),function(i){t<-seq(0,1,length.out=45);r<-e[i];data.table(edge=i,
+ x=(1-t)^2*r$x+2*(1-t)*t*.18*(r$x+r$xend)/2+t^2*r$xend,
+ y=(1-t)^2*r$y+2*(1-t)*t*.18*(r$y+r$yend)/2+t^2*r$yend,response=r$response_state,hits=r$n_hits)}))
+vp[,completeness:=q$completeness[match(id,q$phage_id)]]
+vp[,realm:=edges$realm_display[match(id,edges$phage_id)]]
+hp[,degree:=edges[, .N,by=MAG_ID]$N[match(id,edges[, .N,by=MAG_ID]$MAG_ID)]]
+labels<-hp[order(-degree,id)][1:3]
+labels[,label:=sub("_MAGScoT_cleanbin_0*","/",id)]
+network<-ggplot()+geom_path(data=curves,aes(x,y,group=edge,colour=response,linewidth=hits),alpha=.5)+
+ scale_colour_manual(values=c("Control higher"="#8FCB8A","Not supported"="#B0B7BD","Phage-UV higher"="#7E57C2"))+
+ scale_linewidth_continuous(trans="log1p",range=c(.1,.6))+
+ geom_point(data=hp,aes(x,y),shape=21,size=1.3,stroke=.15,fill=hp$colour)+
+ geom_point(data=vp,aes(x,y,fill=completeness,shape=realm),size=1.3,stroke=.15)+
+ scale_shape_manual(values=c(Duplodnaviria=23,Unclassified=25))+
+ scale_fill_gradientn(colours=c("#FFF4C7","#E8B46D","#B57133","#593214"),limits=c(0,100),trans="sqrt",na.value="#D5D9DD")+
+ geom_text_repel(data=labels,aes(x,y,label=label),size=7/ggplot2::.pt,seed=42,nudge_x=-.2,min.segment.length=0,max.overlaps=Inf)+
+ coord_equal(xlim=c(-1.3,1.2),ylim=c(-1.15,1.15),clip="off")+theme_void()+theme(legend.position="none",plot.margin=margin(3,3,3,3))
+traj<-fread(paths['trajectories']);tl<-fread(paths['labels'])
+radial_path<-Sys.getenv("PHAGE_UV_RADIAL_NETWORK_RDS")
+if(nzchar(radial_path)){
+ network<-readRDS(radial_path)+theme(legend.position="none")+labs(caption=NULL)
+ # Fit-test only: scale the complete 300mm-wide detail into the 86.4mm slot.
+ # The resulting host labels are about 2pt, intentionally exposing the limit.
+ for(i in seq_along(network$layers))for(k in c("size","linewidth","stroke"))
+   if(!is.null(network$layers[[i]]$aes_params[[k]]))network$layers[[i]]$aes_params[[k]]<-network$layers[[i]]$aes_params[[k]]*.288
+}
+traj[,condition:=factor(condition,levels=c("control","treatment"))];traj[,phase:=factor(phase,levels=c("initial","backflush"))]
+one<-function(id) {
+ a<-traj[feature_id==id];k<-tl[feature_id==id]
+ short<-if(k$community=="MAGs")sub("_MAGScoT_cleanbin_0*","/",id) else sub("_coassembly_megahit_.*_contig_k141_","/",id)
+ title<-if(k$community=="MAGs")paste(short,sub("^.__","",k$taxonomy),sep="\n") else short
+ ggplot(a,aes(cycle,normalized_count,colour=condition,shape=phase,linetype=phase,group=interaction(condition,phase)))+
+ geom_line(linewidth=.35)+geom_point(size=1.3)+
+ scale_colour_manual(values=c(control="#8FCB8A",treatment="#7E57C2"))+
+ scale_shape_manual(values=c(initial=16,backflush=17))+scale_linetype_manual(values=c(initial="solid",backflush="dashed"))+
+ scale_x_continuous(breaks=1:3)+scale_y_continuous(trans=scales::pseudo_log_trans(base=10),
+ breaks=range(a$normalized_count),labels=scales::label_number(accuracy=1,scale_cut=scales::cut_short_scale()))+
+ labs(title=title,x="Cycle",y=NULL)+base
+}
+E<-wrap_plots(lapply(tl[community=="MAGs",feature_id],one),ncol=1)
+F<-wrap_plots(lapply(tl[community=="vOTUs",feature_id],one),ncol=2)
+stopifnot(nrow(hp)==80,nrow(vp)==85,nrow(edges)==86,nrow(traj)==72,
+ all(hp$colour==alignment$bar_colour[match(hp$id,alignment$MAG_ID)]))
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+saveRDS(list(M=M$plot,V=V$plot,bars=bars,E=E,F=F,key=key,mag=mag),file.path(out,"source/review_panels.rds"))
+pdf(file.path(out,"figures/figure1-print-proof.pdf"),width=180/25.4,height=300/25.4,useDingbats=FALSE)
+grid.newpage()
+draw<-function(p,x,y,w,h)print(p,vp=viewport(x=x,y=y,width=w,height=h),newpage=FALSE)
+draw(M$plot,.275,.868,.55,.25);draw(V$plot,.775,.863,.44,.25)
+draw(bars,.25,.601,.48,.20);draw(network,.745,.61,.48,.205)
+ids<-c(tl[community=="MAGs",feature_id],tl[community=="vOTUs",feature_id])
+for(i in seq_along(ids))draw(one(ids[i]),c(.175,.505,.835)[(i-1)%%3+1],if(i<=3).38 else .263,.32,.105)
+for(i in 1:4)grid.text(LETTERS[i],x=c(.01,.56,.01,.51)[i],y=c(.99,.99,.707,.707)[i],just="left",gp=gpar(fontsize=9,fontface="bold"))
+for(i in 1:6)grid.text(LETTERS[i+4],x=c(.01,.34,.67)[(i-1)%%3+1],y=if(i<=3).437 else .32,just="left",gp=gpar(fontsize=9,fontface="bold"))
+grid.text("Node area: mean relative abundance (%)",x=.76,y=.724,gp=gpar(fontsize=7))
+draw_scale<-function(x,y,w,title,palette,labels) {
+  cs<-palette(seq(0,1,length.out=40))
+  for(i in seq_along(cs))grid.rect(x=x-w/2+w*(i-.5)/40,y=y,width=w/40,height=.005,gp=gpar(fill=cs[i],col=NA))
+  grid.text(title,x=x,y=y+.013,gp=gpar(fontsize=7))
+  grid.text(labels,x=seq(x-w/2,x+w/2,length.out=length(labels)),y=y-.011,gp=gpar(fontsize=7))
+}
+draw_scale(.145,.724,.20,"A: completeness (%)",mag$scales$get_scales("fill_ggnewscale_1")$palette,c("75","100"))
+draw_scale(.395,.724,.20,"A: contamination (%)",mag$scales$get_scales("fill")$palette,c("0","25"))
+# Network keys are placed alongside D, not hidden in the caption.
+grid.points(x=c(.60,.74,.88),y=rep(.517,3),default.units="npc",pch=c(21,23,25),size=unit(1.6,"mm"),gp=gpar(fill="#D5D9DD",col="#333333",lwd=.4))
+grid.text(c("MAG","Duplodnaviria","Unclassified"),x=c(.60,.74,.88),y=.508,gp=gpar(fontsize=7))
+draw_scale(.74,.479,.20,"D: viral completeness (%)",scales::gradient_n_pal(c("#FFF4C7","#E8B46D","#B57133","#593214")),c("0","25","100"))
+grid.rect(x=.9,y=.48,width=.012,height=.007,gp=gpar(fill="#D5D9DD",col=NA));grid.text("NA",x=.918,y=.48,just="left",gp=gpar(fontsize=7))
+for(i in 1:3){xx<-c(.045,.205,.37)[i];grid.lines(x=c(xx,xx+.035),y=rep(.482,2),gp=gpar(col=c("#8FCB8A","#7E57C2","#B0B7BD")[i],lwd=1.4));grid.text(c("Down","Up","Unsupported")[i],x=xx+.043,y=.482,just="left",gp=gpar(fontsize=7))}
+grid.text("D: host response in treatment",x=.25,y=.496,gp=gpar(fontsize=7))
+for(i in 1:2){xx<-c(.13,.30)[i];nn<-range(e$n_hits)[i];grid.lines(x=c(xx,xx+.035),y=rep(.46,2),gp=gpar(col="#555555",lwd=c(.3,1.7)[i]));grid.text(paste(nn,"links"),x=xx+.045,y=.46,just="left",gp=gpar(fontsize=7))}
+# Real symbol keys shared by all six individual trajectory panels.
+grid.text("E-J",x=.025,y=.194,just="left",gp=gpar(fontsize=7,fontface="bold"))
+for(i in 1:2){xx<-c(.10,.29)[i];cc<-c("#8FCB8A","#7E57C2")[i];grid.lines(x=c(xx,xx+.045),y=rep(.194,2),gp=gpar(col=cc,lwd=1));grid.points(xx+.022,.194,default.units="npc",pch=16,size=unit(1.2,"mm"),gp=gpar(col=cc));grid.text(c("Control","Treatment")[i],x=xx+.054,y=.194,just="left",gp=gpar(fontsize=7))}
+for(i in 1:2){xx<-c(.53,.74)[i];grid.lines(x=c(xx,xx+.045),y=rep(.194,2),gp=gpar(col="#333333",lwd=1,lty=i));grid.points(xx+.022,.194,default.units="npc",pch=c(16,17)[i],size=unit(1.2,"mm"));grid.text(c("Initial","Backflush")[i],x=xx+.054,y=.194,just="left",gp=gpar(fontsize=7))}
+# Complete common key: all 70 categories, no omitted or remapped taxon colours.
+grid.text("A, C, D: shared prokaryotic taxonomy",x=.015,y=.173,just="left",gp=gpar(fontsize=7,fontface="bold"))
+key[,short_label:=gsub(" \\[unresolved\\]"," *",gsub(" \\[remainder\\]"," +",display_category))]
+nr<-ceiling(nrow(key)/4)
+for(i in seq_len(nrow(key))){cc<-(i-1)%/%nr;rr<-(i-1)%%nr;xx<-.015+cc*.25;yy<-.162-rr*.0084
+ grid.rect(x=xx,y=yy,width=.009,height=.0045,gp=gpar(fill=key$colour[i],col=NA))
+ grid.text(key$short_label[i],x=xx+.009,y=yy,just="left",gp=gpar(fontsize=7))}
+grid.text("* No deeper assignment; + other assignments within phylum",x=.015,y=.005,just="left",gp=gpar(fontsize=7))
+dev.off()
+# A separate readable shared colour key, rather than 70 tiny labels in the main.
+pdf(file.path(out,"figures/supplementary-figure3-colour-key.pdf"),width=180/25.4,height=250/25.4,useDingbats=FALSE)
+grid.newpage();grid.text("Supplementary Figure 3 | Shared prokaryotic colour key",x=.03,y=.97,just="left",gp=gpar(fontsize=10,fontface="bold"))
+for(i in seq_len(nrow(key))) {
+ col<-if(i<=ceiling(nrow(key)/2))0 else 1;row<-(i-1)%%ceiling(nrow(key)/2)
+ grid.rect(x=.04+.49*col,y=.92-row*.023,width=.013,height=.009,gp=gpar(fill=key$colour[i],col=NA))
+ grid.text(key$display_category[i],x=.055+.49*col,y=.92-row*.023,just="left",gp=gpar(fontsize=7))
+}
+grid.text("Identical colours in MAG tips, stacked bars and network MAG nodes.\nUnresolved = no deeper reported assignment; remainder = other assignments in that phylum.",
+ x=.03,y=.065,just="left",gp=gpar(fontsize=7))
+dev.off()
+fwrite(M$labels,file.path(out,"tables/main_MAG_tree_labels.tsv"),sep="\t");fwrite(V$labels,file.path(out,"tables/main_viral_tree_labels.tsv"),sep="\t")
+fwrite(labels,file.path(out,"tables/main_network_labels.tsv"),sep="\t")
+writeLines(c("Actual-size trial: 180 x 250 mm. Text 7pt minimum; panel letters9pt. Not author-approved.",
+ "All data and colour assignments retained. Tree labels selectively retained for readability; network labels are the three highest-degree hosts (ID tie break). Full labels remain in frozen source artwork/tables.",
+ "S1 experimental design/workflow; S2 full abundance-test overview; S3 full shared taxonomy key.",
+ "E-F are the same two MAGs/four vOTUs selected by archived BH thresholds. No refits. Connecting lines not fitted predictions. Independent pseudo-log y axes; normalized sequencing counts not cells.",
+ "Print at 100%, no Fit to Page. This PDF is already 180mm wide.",
+ "Network: MAG circles and viral diamond/triangle nodes. Viral fill is completeness (sqrt spacing), grey unavailable; diamond Duplodnaviria, triangle unclassified realm. Edges: green down in treatment host expression, purple up in treatment, grey unsupported; width is reported link count, not confidence. Node positions are layout, not ecology distances.",
+ "MAG QC: completeness inner ring, contamination outer ring. Phylum/descendant shades unchanged. Tree nodes sized by within-community mean abundance; physical node sizes across differently sized panels are not directly comparable."),file.path(out,"PRINT_REVIEW.txt"))
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/figure1_print_proof.qmd"))
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+fwrite(data.table(path=paths,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,hash,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+cat("PASS: source hashes unchanged; all nodes/edges/trajectories retained; review canvas 180x300mm\n")
+```

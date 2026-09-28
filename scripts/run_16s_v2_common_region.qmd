@@ -1,0 +1,319 @@
+---
+title: "16S v2: common-region cross-cohort comparison"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/run_16s_v2_common_region.qmd`. It evaluates whether the three earlier
+U+B40 samples from PRJEB38595 (single-end, 300 bp MiSeq, 515F-primed) can be
+compared with the current PRJEB79569 samples (paired-end, 301 bp MiSeq,
+515F/907R), and produces a descriptive comparison where that is defensible.
+
+Compatibility decision encoded here:
+
+- Both cohorts begin with the 515F primer (verified on the reads, about 94% of
+  earlier reads carry the exact degenerate prefix) and neither reaches the 907R
+  site within a single read, so the amplicon is the same V4-V5 product.
+- The only homologous sequence shared by every read in both cohorts is the
+  forward read downstream of 515F. The common region is therefore defined as
+  the first `trunc_len` bases after primer removal (default 250, where mean
+  quality is still above 30 in both cohorts), forward reads only.
+- Paired-end ASVs from the accepted v1 run and forward-only ASVs are different
+  sequence definitions and are never concatenated. The current cohort is
+  re-denoised on the common region inside v2, so both cohorts share one ASV
+  definition, with SEPARATE error models and separate chimera removal per
+  cohort (different runs, different library preparations).
+- The earlier cohort is a separate study, a different specimen (attached
+  biofilm, not Initial or Backflush liquid) and a different protocol. Nothing
+  here treats it as cycle 0 and no cross-cohort inference is attempted.
+  Between-cohort separation in an ordination is a study/specimen/batch
+  difference until proven otherwise.
+
+```sh
+source config/16s_v2_paths.sh
+bash scripts/run_qmd.sh scripts/run_16s_v2_common_region.qmd \
+  [current_r1_dir] [earlier_se_dir] [reference_dir] [output_dir] [trunc_len]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: run-16s-v2-common-region
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+current_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_SUBSAMPLED_DIR")
+earlier_dir <- if (length(args) >= 2L) args[[2L]] else file.path(Sys.getenv("PHAGE_UV_16S_DERIVED"), "11_earlier_cohort_primer_removal")
+reference_dir <- if (length(args) >= 3L) args[[3L]] else Sys.getenv("PHAGE_UV_16S_REFERENCE_DIR")
+output_dir <- if (length(args) >= 4L) args[[4L]] else file.path(Sys.getenv("PHAGE_UV_16S_DERIVED"), "12_common_region")
+trunc_len <- as.integer(if (length(args) >= 5L) args[[5L]] else Sys.getenv("PHAGE_UV_16S_V2_COMMON_TRUNC_LEN", "250"))
+if (!nzchar(current_dir) || !nzchar(earlier_dir) || !nzchar(reference_dir) || !nzchar(output_dir)) {
+  abort("Provide the four directories, or source config/16s_v2_paths.sh first.")
+}
+for (pkg in c("dada2", "vegan", "ggplot2")) {
+  if (!requireNamespace(pkg, quietly = TRUE)) abort("Package %s is required.", pkg)
+}
+protected <- c("derived/16s_analysis", "derived/16s_manuscript_integration",
+               "phage_uv_treatment/PRJEB79569", "OneDrive-nium.io")
+for (p in protected) if (grepl(p, output_dir, fixed = TRUE)) abort("output_dir resolves into protected location %s", p)
+threads <- as.integer(Sys.getenv("PHAGE_UV_16S_THREADS", "4"))
+learn_nbases <- as.numeric(Sys.getenv("PHAGE_UV_16S_LEARN_NBASES", "5e7"))
+min_boot <- as.integer(Sys.getenv("PHAGE_UV_16S_MIN_BOOT", "80"))
+set.seed(20260901L)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+notebook <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH", unset = "")
+repo_root <- if (nzchar(notebook)) dirname(dirname(notebook)) else getwd()
+source(file.path(repo_root, "R", "figure_style.R"))
+library(dada2)
+
+read_tsv <- function(path) read.delim(path, sep = "\t", header = TRUE, quote = "", comment.char = "",
+                                      check.names = FALSE, stringsAsFactors = FALSE)
+write_tsv <- function(x, name) write.table(x, file.path(output_dir, name), sep = "\t", quote = FALSE,
+                                           row.names = FALSE, na = "")
+
+# ------------------------------------------------------------------ cohorts
+current_meta <- read_tsv(file.path(repo_root, "metadata", "sample_metadata.tsv"))
+earlier_meta <- read_tsv(file.path(repo_root, "metadata", "16s_v2_earlier_cohort_sample_map.tsv"))
+current_files <- setNames(file.path(current_dir, paste0(current_meta$sample_title, "_R1.trimmed.fastq.gz")), current_meta$sample_title)
+earlier_files <- setNames(file.path(earlier_dir, paste0(earlier_meta$sample_title, "_SE.trimmed.fastq.gz")), earlier_meta$sample_title)
+missing <- c(current_files, earlier_files)[!file.exists(c(current_files, earlier_files))]
+if (length(missing)) abort("Missing primer-free reads: %s", paste(missing, collapse = ", "))
+
+cohorts <- list(
+  current = list(files = current_files, label = "current_PRJEB79569"),
+  earlier = list(files = earlier_files, label = "earlier_PRJEB38595_UplusB40")
+)
+
+# ----------------------------------------------------------- per-cohort DADA2
+# Forward reads only, one common truncation, and SEPARATE error models per
+# cohort. pool = FALSE and consensus chimera removal match the accepted v1 run.
+filtered_dir <- file.path(output_dir, "filtered")
+dir.create(filtered_dir, showWarnings = FALSE)
+retention <- list()
+seqtabs <- list()
+error_models <- list()
+# Denoising is the expensive part. A completed per-cohort table is reused on
+# rerun; delete the cache files under output_dir/cache to force re-denoising.
+cache_dir <- file.path(output_dir, "cache")
+dir.create(cache_dir, showWarnings = FALSE)
+for (co in names(cohorts)) {
+  cache_file <- file.path(cache_dir, sprintf("%s_trunc%d.rds", co, trunc_len))
+  if (file.exists(cache_file)) {
+    cached <- readRDS(cache_file)
+    seqtabs[[co]] <- cached$seqtab
+    retention[[co]] <- cached$retention
+    cat("Reusing cached denoising for cohort", co, "\n")
+    next
+  }
+  files <- cohorts[[co]]$files
+  filt <- setNames(file.path(filtered_dir, paste0(names(files), ".", co, ".filt.fastq.gz")), names(files))
+  track <- filterAndTrim(files, filt, truncLen = trunc_len, maxEE = 2, truncQ = 2, maxN = 0,
+                         rm.phix = TRUE, compress = TRUE, multithread = threads)
+  err <- learnErrors(filt, nbases = learn_nbases, multithread = threads, randomize = TRUE, verbose = FALSE)
+  error_models[[co]] <- err
+  grDevices::pdf(file.path(output_dir, sprintf("16s_v2_common_region_error_model_%s.pdf", co)), width = 9, height = 7)
+  print(plotErrors(err, nominalQ = TRUE))
+  grDevices::dev.off()
+  dd <- dada(filt, err = err, pool = FALSE, multithread = threads, verbose = FALSE)
+  st <- makeSequenceTable(dd)
+  st_nochim <- removeBimeraDenovo(st, method = "consensus", multithread = threads, verbose = FALSE)
+  rownames(st_nochim) <- names(files)
+  seqtabs[[co]] <- st_nochim
+  retention[[co]] <- data.frame(
+    cohort = cohorts[[co]]$label, sample_title = names(files),
+    input_reads = track[, "reads.in"], filtered_reads = track[, "reads.out"],
+    denoised_reads = vapply(dd, function(x) sum(getUniques(x)), numeric(1)),
+    nonchimeric_reads = rowSums(st_nochim),
+    fraction_retained_overall = round(rowSums(st_nochim) / track[, "reads.in"], 4),
+    stringsAsFactors = FALSE)
+  saveRDS(list(seqtab = st_nochim, retention = retention[[co]]), cache_file)
+}
+seqtab <- mergeSequenceTables(tables = seqtabs)
+asv_ids <- sprintf("CR%04d", seq_len(ncol(seqtab)))
+sequences <- colnames(seqtab)
+colnames(seqtab) <- asv_ids
+saveRDS(seqtab, file.path(output_dir, "16s_v2_common_region_seqtab.rds"))
+write_tsv(do.call(rbind, retention), "16s_v2_common_region_read_retention.tsv")
+Biostrings::writeXStringSet(Biostrings::DNAStringSet(setNames(sequences, asv_ids)),
+                            file.path(output_dir, "16s_v2_common_region_asv_sequences.fasta"))
+write_tsv(data.frame(asv_id = asv_ids, t(seqtab), check.names = FALSE),
+          "16s_v2_common_region_asv_counts_unrarefied.tsv")
+
+# ---------------------------------------------------------------- taxonomy
+silva <- file.path(reference_dir, "silva_nr99_v138.2_toGenus_trainset.fa.gz")
+if (!file.exists(silva)) abort("SILVA training set missing: %s", silva)
+tax_cache <- file.path(cache_dir, sprintf("taxonomy_trunc%d.rds", trunc_len))
+tax <- if (file.exists(tax_cache)) readRDS(tax_cache) else assignTaxonomy(sequences, silva, minBoot = min_boot, multithread = threads)
+saveRDS(tax, tax_cache)
+rownames(tax) <- asv_ids
+taxonomy <- data.frame(asv_id = asv_ids, tax, stringsAsFactors = FALSE, check.names = FALSE)
+write_tsv(taxonomy, "16s_v2_common_region_asv_taxonomy_silva138.2.tsv")
+
+# ------------------------------------------------------------- sample table
+samples <- rbind(
+  data.frame(sample_title = current_meta$sample_title, cohort = "current_PRJEB79569",
+             condition = current_meta$condition, phase = current_meta$phase,
+             cycle = as.character(current_meta$cycle), specimen = "liquid", stringsAsFactors = FALSE),
+  data.frame(sample_title = earlier_meta$sample_title, cohort = "earlier_PRJEB38595_UplusB40",
+             condition = "earlier_phage_uv", phase = "attached_biofilm", cycle = "unassigned",
+             specimen = "attached_biofilm", stringsAsFactors = FALSE))
+rownames(samples) <- samples$sample_title
+seqtab <- seqtab[samples$sample_title, , drop = FALSE]
+samples$library_size <- rowSums(seqtab)
+write_tsv(samples, "16s_v2_common_region_sample_table.tsv")
+
+# ---------------------------------------------------- descriptive comparison
+relative <- sweep(seqtab, 1L, rowSums(seqtab), "/")
+present <- seqtab > 0
+shared <- data.frame(
+  asvs_total = ncol(seqtab),
+  asvs_in_current = sum(colSums(present[samples$cohort == "current_PRJEB79569", ]) > 0),
+  asvs_in_earlier = sum(colSums(present[samples$cohort != "current_PRJEB79569", ]) > 0),
+  asvs_shared = sum(colSums(present[samples$cohort == "current_PRJEB79569", ]) > 0 &
+                    colSums(present[samples$cohort != "current_PRJEB79569", ]) > 0))
+shared$reads_in_earlier_from_shared_asvs <- round(sum(relative[samples$cohort != "current_PRJEB79569",
+  colSums(present[samples$cohort == "current_PRJEB79569", ]) > 0]) / sum(samples$cohort != "current_PRJEB79569"), 4)
+shared$reads_in_current_from_shared_asvs <- round(sum(relative[samples$cohort == "current_PRJEB79569",
+  colSums(present[samples$cohort != "current_PRJEB79569", ]) > 0]) / sum(samples$cohort == "current_PRJEB79569"), 4)
+write_tsv(shared, "16s_v2_common_region_shared_asvs.tsv")
+
+# Alpha diversity, unrarefied plus a rarefied sensitivity at the smallest depth.
+min_depth <- min(samples$library_size)
+rarefied <- vegan::rrarefy(seqtab, min_depth)
+alpha <- data.frame(
+  samples[, c("sample_title", "cohort", "condition", "phase", "cycle", "library_size")],
+  observed_asvs = rowSums(seqtab > 0), shannon = vegan::diversity(seqtab, "shannon"),
+  observed_asvs_rarefied = rowSums(rarefied > 0), shannon_rarefied = vegan::diversity(rarefied, "shannon"),
+  rarefaction_depth = min_depth, stringsAsFactors = FALSE)
+write_tsv(alpha, "16s_v2_common_region_alpha_diversity.tsv")
+
+# Beta diversity: Bray-Curtis on relative abundance and Aitchison on CLR.
+clr <- t(apply(log2(seqtab + 0.5), 1L, function(x) x - mean(x)))
+distances <- list(bray_curtis = vegan::vegdist(relative, "bray"), aitchison = dist(clr))
+ordination <- list()
+dispersion_summary <- list()
+for (metric in names(distances)) {
+  d <- distances[[metric]]
+  pc <- cmdscale(d, k = 2L, eig = TRUE)
+  var_explained <- pc$eig[1:2] / sum(pc$eig[pc$eig > 0])
+  ordination[[metric]] <- data.frame(metric = metric, samples[rownames(pc$points), ],
+    axis1 = pc$points[, 1L], axis2 = pc$points[, 2L],
+    axis1_variance = round(var_explained[1L], 4), axis2_variance = round(var_explained[2L], 4),
+    stringsAsFactors = FALSE)
+  m <- as.matrix(d)
+  is_current <- samples$cohort == "current_PRJEB79569"
+  within_current <- m[is_current, is_current][upper.tri(m[is_current, is_current])]
+  within_earlier <- m[!is_current, !is_current][upper.tri(m[!is_current, !is_current])]
+  between <- as.vector(m[is_current, !is_current])
+  dispersion_summary[[metric]] <- data.frame(metric = metric,
+    mean_within_current = round(mean(within_current), 4), mean_within_earlier = round(mean(within_earlier), 4),
+    mean_between_cohorts = round(mean(between), 4),
+    reading = "descriptive; between-cohort distance reflects study, specimen and batch as well as biology",
+    stringsAsFactors = FALSE)
+}
+write_tsv(do.call(rbind, ordination), "16s_v2_common_region_ordination_coordinates.tsv")
+write_tsv(do.call(rbind, dispersion_summary), "16s_v2_common_region_distance_summary.tsv")
+
+# Current cohort alone on the common region: marginal R2 for the three design
+# terms, reported as DESCRIPTIVE effect sizes. No permutation p-value is
+# carried, because one membrane per condition and repeated observations do not
+# support an unrestricted permutation test (return-receipt audit, 2026-09-04).
+cur <- samples[samples$cohort == "current_PRJEB79569", ]
+cur$condition <- factor(cur$condition); cur$phase <- factor(cur$phase); cur$cycle <- factor(cur$cycle)
+r2 <- do.call(rbind, lapply(names(distances), function(metric) {
+  d <- as.dist(as.matrix(distances[[metric]])[cur$sample_title, cur$sample_title])
+  # A handful of permutations only so vegan returns the partition; the p-value
+  # column is deliberately not written.
+  fit <- vegan::adonis2(d ~ cycle + phase + condition, data = cur, permutations = 9, by = "margin")
+  data.frame(metric = metric, term = rownames(fit)[1:3], r2 = round(fit$R2[1:3], 4),
+             note = "marginal R2 on the forward-only common region; descriptive, no permutation p-value",
+             stringsAsFactors = FALSE)
+}))
+write_tsv(r2, "16s_v2_common_region_current_cohort_marginal_r2.tsv")
+
+# Family-level composition, with unclassified kept distinct.
+family <- taxonomy$Family
+family[is.na(family) | family == ""] <- "Unclassified at family level"
+fam_rel <- t(rowsum(t(relative), group = family))
+composition <- data.frame(sample_title = rep(rownames(fam_rel), ncol(fam_rel)),
+                          family = rep(colnames(fam_rel), each = nrow(fam_rel)),
+                          relative_abundance = as.vector(fam_rel), stringsAsFactors = FALSE)
+composition <- merge(composition, samples[, c("sample_title", "cohort", "condition", "phase", "cycle")], by = "sample_title")
+write_tsv(composition[composition$relative_abundance > 0, ], "16s_v2_common_region_family_profile_long.tsv")
+
+# -------------------------------------------------------------- figures
+library(ggplot2)
+samples$cohort_label <- ifelse(samples$cohort == "current_PRJEB79569", "Current study (2 membranes, 3 cycles)", "Earlier study U+B40 (attached biofilm)")
+ord <- do.call(rbind, ordination)
+ord$cohort_label <- samples$cohort_label[match(ord$sample_title, samples$sample_title)]
+ord$membrane <- ifelse(ord$cohort == "current_PRJEB79569", ord$condition, "earlier")
+ord$membrane <- factor(ord$membrane, levels = c("control", "treatment", "earlier"))
+p_ord <- ggplot(ord, aes(axis1, axis2, colour = membrane, shape = cohort_label)) +
+  geom_point(size = 2.4) +
+  facet_wrap(~ metric, scales = "free") +
+  scale_colour_manual(values = c(control = phage_uv_condition_colours[["control"]],
+                                 treatment = phage_uv_condition_colours[["treatment"]], earlier = "#555555"),
+                      labels = c(control = "Control membrane", treatment = "Phage-UV membrane", earlier = "Earlier U+B40"),
+                      name = "Membrane / cohort") +
+  scale_shape_manual(values = c(16, 4), name = "Cohort") +
+  labs(x = "PCoA axis 1", y = "PCoA axis 2",
+       caption = "Forward-only common region after 515F.\nCohort separation reflects study, specimen and batch; not a treatment or temporal effect.") +
+  theme_phage_uv()
+grDevices::pdf(file.path(output_dir, "16s-v2-common-region-ordination.pdf"), width = 7.2, height = 3.6, useDingbats = FALSE)
+print(p_ord)
+grDevices::dev.off()
+
+top_families <- names(sort(colMeans(fam_rel[, colnames(fam_rel) != "Unclassified at family level", drop = FALSE]), decreasing = TRUE))[1:15]
+comp <- composition
+comp$family_shown <- ifelse(comp$family %in% top_families, comp$family,
+                            ifelse(comp$family == "Unclassified at family level", comp$family, "Other classified families"))
+comp <- aggregate(relative_abundance ~ sample_title + cohort + family_shown, comp, sum)
+comp$family_shown <- factor(comp$family_shown, levels = c(top_families, "Other classified families", "Unclassified at family level"))
+comp$sample_title <- factor(comp$sample_title, levels = samples$sample_title)
+p_comp <- ggplot(comp, aes(sample_title, relative_abundance, fill = family_shown)) +
+  geom_col(width = 0.85) +
+  facet_grid(~ cohort, scales = "free_x", space = "free_x") +
+  labs(x = NULL, y = "Relative abundance", fill = "Family") +
+  theme_phage_uv() + theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 6))
+grDevices::pdf(file.path(output_dir, "16s-v2-common-region-family-composition.pdf"), width = 8.5, height = 4.5, useDingbats = FALSE)
+print(p_comp)
+grDevices::dev.off()
+
+alpha$cohort_label <- samples$cohort_label[match(alpha$sample_title, samples$sample_title)]
+alpha_long <- rbind(data.frame(alpha[, c("sample_title", "cohort_label", "condition")], index = "Observed ASVs", value = alpha$observed_asvs),
+                    data.frame(alpha[, c("sample_title", "cohort_label", "condition")], index = "Shannon", value = alpha$shannon))
+p_alpha <- ggplot(alpha_long, aes(cohort_label, value, colour = condition)) +
+  geom_jitter(width = 0.1, size = 2) + facet_wrap(~ index, scales = "free_y") +
+  scale_colour_manual(values = c(phage_uv_condition_colours, earlier_phage_uv = "#555555")) +
+  labs(x = NULL, y = NULL, caption = "Unrarefied; rarefied sensitivity in the alpha table.") +
+  theme_phage_uv() + theme(axis.text.x = element_text(size = 6))
+grDevices::pdf(file.path(output_dir, "16s-v2-common-region-alpha-diversity.pdf"), width = 7.2, height = 3.2, useDingbats = FALSE)
+print(p_alpha)
+grDevices::dev.off()
+
+# ---------------------------------------------------------------- provenance
+write_tsv(data.frame(
+  parameter = c("common_region", "trunc_len", "max_ee", "trunc_q", "pool", "chimera_method", "learn_error_nbases",
+                "error_models", "min_boot", "taxonomy", "threads", "dada2_version", "r_version", "run_timestamp_utc"),
+  value = c("forward read after 515F removal", trunc_len, 2, 2, "FALSE", "consensus", format(learn_nbases, scientific = TRUE),
+            "separate per cohort", min_boot, "SILVA 138.2 nr99 toGenus", threads,
+            as.character(packageVersion("dada2")), paste(R.version$major, R.version$minor, sep = "."),
+            format(Sys.time(), "%Y-%m-%d %H:%M:%S", tz = "UTC"))), "16s_v2_common_region_parameters.tsv")
+inputs <- c(current_files, earlier_files, silva)
+write_tsv(data.frame(file = inputs, md5 = unname(tools::md5sum(inputs))), "16s_v2_common_region_input_checksums.tsv")
+outputs <- setdiff(list.files(output_dir, recursive = FALSE), c("filtered", "cache", "16s_v2_common_region_output_checksums.tsv"))
+write_tsv(data.frame(file = outputs, bytes = file.size(file.path(output_dir, outputs)),
+                     md5 = unname(tools::md5sum(file.path(output_dir, outputs)))), "16s_v2_common_region_output_checksums.tsv")
+print(do.call(rbind, retention)[, c("cohort", "sample_title", "input_reads", "nonchimeric_reads", "fraction_retained_overall")])
+print(shared)
+print(do.call(rbind, dispersion_summary))
+print(r2)
+```

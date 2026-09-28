@@ -1,0 +1,149 @@
+---
+title: "MAG and vOTU abundance: condition and cycle interaction"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Run `bash scripts/run_qmd.sh analysis/community_cycle_models.qmd NEW_OUTPUT`.
+Append `--catalogue-aligned` to include all 634 high-quality, viral-gene-positive
+CheckV representatives, irrespective of Cenote annotation availability. The
+default preserves the archived 616-vOTU eligibility for reproducibility.
+Uses the same CoverM counts, 348-MAG/616-vOTU catalogue rules and count filter
+as `scripts/run_community_differential_abundance.qmd`. Does not overwrite it.
+DESeq2 additive Wald test: `~phase + cycle + condition`. Joint interaction LRT:
+full `~phase + cycle * condition`, reduced `~phase + cycle + condition` (2 df).
+No random effects or autocorrelation model. System-specific exploratory evidence,
+not replicated treatment inference. Counts are relative sequencing abundance,
+not absolute microbial load. Each assay has a separate normalisation and BH family.
+
+```{r}
+#| label: input-contract
+suppressPackageStartupMessages({library(data.table);library(DESeq2);library(digest)})
+args <- commandArgs(trailingOnly=TRUE)
+catalogue_aligned <- "--catalogue-aligned" %in% args
+args <- args[args != "--catalogue-aligned"]
+stopifnot(length(args)==1L)
+out <- args[[1]]
+stopifnot(!dir.exists(out))
+repo <- normalizePath(getwd())
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+vp <- file.path(root,"viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue")
+paths <- c(counts=file.path(root,"quantification/mags_votu/coverage/metagenomics/coverm/output-Read_Count.tsv"),
+ metadata=file.path(repo,"metadata/sample_metadata.tsv"),
+ checkv=file.path(vp,"checkv/quality_summary.tsv"),
+ cenote=file.path(vp,"cenotetaker3/output/output_virus_summary.tsv"),
+ notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+if(catalogue_aligned) paths <- c(paths, composition_catalogue=file.path(root,
+ "derived/votu_taxonomic_resolution_review_2026-09-13-v4/tables/catalogue_rank_assignments.tsv"))
+stopifnot(all(file.exists(paths)))
+sha <- function(p)digest(file=p,algo="sha256")
+hashes<-vapply(paths,sha,character(1))
+for(s in c("tables","models","source"))dir.create(file.path(out,s),recursive=TRUE)
+fwrite(data.table(name=names(paths),path=paths,sha256=hashes),file.path(out,"input_sha256.tsv"),sep="\t")
+m<-fread(paths[["metadata"]])[,.(sample_title,condition,phase,cycle,metagenome_run_accession)]
+m[,`:=`(condition=factor(condition,c("control","treatment")),phase=factor(phase,c("initial","backflush")),cycle=factor(cycle,c("1","2","3")))]
+setorder(m,cycle,phase,condition)
+stopifnot(nrow(m)==12,!anyDuplicated(m$sample_title),all(table(m$condition,m$phase,m$cycle)==1))
+md<-as.data.frame(m);rownames(md)<-md$sample_title
+dmain<-model.matrix(~phase+cycle+condition,md)
+dfull<-model.matrix(~phase+cycle*condition,md)
+stopifnot(qr(dmain)$rank==5,qr(dfull)$rank==7)
+fwrite(m,file.path(out,"tables/sample_metadata.tsv"),sep="\t")
+for(n in c("dmain","dfull"))fwrite(as.data.table(get(n),keep.rownames="sample_title"),file.path(out,"tables",paste0(n,".tsv")),sep="\t")
+cv<-fread(paths[["checkv"]],select=c("contig_id","viral_genes","miuvig_quality"))
+ct<-fread(paths[["cenote"]],select=c("input_name","virus_seq_length","taxonomy_hierarchy"));setnames(ct,"input_name","contig_id")
+v<-merge(ct,cv,by="contig_id",all.x=TRUE);setorder(v,contig_id,-virus_seq_length,taxonomy_hierarchy,na.last=TRUE)
+v<-v[,.SD[1L],by=contig_id][miuvig_quality=="High-quality" & viral_genes>0]
+stopifnot(nrow(v)==616)
+archived_ids <- v$contig_id
+if(catalogue_aligned){
+ stopifnot(!anyDuplicated(cv$contig_id))
+ v <- cv[miuvig_quality=="High-quality" & viral_genes>0]
+ catalogue <- fread(paths[["composition_catalogue"]])
+ stopifnot(nrow(v)==634L,!anyDuplicated(catalogue$contig_id),
+           setequal(v$contig_id,catalogue$contig_id),all(archived_ids %chin% v$contig_id))
+}
+fwrite(data.table(feature_id=v$contig_id,archived_eligible=v$contig_id %chin% archived_ids,
+ catalogue_mode=if(catalogue_aligned)"checkv_catalogue_634" else "archived_cenote_616"),
+ file.path(out,"tables/votu_eligibility.tsv"),sep="\t")
+x<-fread(paths[["counts"]]);cols<-setdiff(names(x),"Contig")
+acc<-sub(".*(ERR[0-9]+).*","\\1",cols)
+stopifnot(!anyDuplicated(acc),setequal(acc,m$metagenome_run_accession))
+setnames(x,cols,m$sample_title[match(acc,m$metagenome_run_accession)])
+samples<-m$sample_title
+mg<-x[grepl("_MAGScoT_",Contig,fixed=TRUE)]
+mg[,feature_id:=vapply(strsplit(Contig,"_",fixed=TRUE),function(z)paste(z[1:4],collapse="_"),character(1))]
+mg<-mg[,lapply(.SD,sum,na.rm=TRUE),by=feature_id,.SDcols=samples]
+vv<-x[Contig %chin% v$contig_id,c("Contig",samples),with=FALSE];setnames(vv,"Contig","feature_id")
+stopifnot(nrow(mg)==348,nrow(vv)==nrow(v),!anyDuplicated(vv$feature_id),
+          setequal(vv$feature_id,v$contig_id))
+rm(x);gc()
+```
+
+```{r}
+#| label: fit-and-export
+summary_rows<-list()
+for(layer in c("mag","votu")){
+ message("Fitting ",layer)
+ tab<-if(layer=="mag")mg else vv
+ mat<-as.matrix(tab[,..samples]);rownames(mat)<-tab$feature_id
+ stopifnot(all(is.finite(mat)),all(mat>=0),max(mat)<.Machine$integer.max)
+ rounded<-round(mat);storage.mode(rounded)<-"integer"
+ keep<-rowSums(rounded>=10)>=3
+ fwrite(data.table(feature_id=rownames(mat),retained=keep,max_rounding_delta=apply(abs(mat-rounded),1,max)),file.path(out,"tables",paste0(layer,"_filter.tsv")),sep="\t")
+ fwrite(data.table(feature_id=rownames(rounded),rounded),file.path(out,"tables",paste0(layer,"_counts.tsv")),sep="\t")
+ base<-DESeqDataSetFromMatrix(rounded[keep,,drop=FALSE],md,~phase+cycle+condition)
+ main<-DESeq(base,fitType="local",quiet=TRUE)
+ full<-base;design(full)<-~phase+cycle*condition
+ full<-DESeq(full,fitType="local",test="LRT",reduced=~phase+cycle+condition,quiet=TRUE)
+ stopifnot(isTRUE(all.equal(sizeFactors(main),sizeFactors(full))))
+ # Save fitted objects so a later agent can inspect likelihoods and diagnostics.
+ saveRDS(main,file.path(out,"models",paste0(layer,"_main.rds")))
+ saveRDS(full,file.path(out,"models",paste0(layer,"_interaction_lrt.rds")))
+ a<-as.data.table(as.data.frame(results(main,contrast=c("condition","treatment","control"),alpha=.05)),keep.rownames="feature_id")
+ b<-as.data.table(as.data.frame(results(full,alpha=.05)),keep.rownames="feature_id")
+ # The LRT's displayed coefficient is NOT its joint effect. Omit it from joint table.
+ b[,c("log2FoldChange","lfcSE"):=NULL]
+ b[,test_df:=2L]
+ stopifnot(all(b$stat[is.finite(b$stat)]>=-1e-8))
+ for(z in c("a","b")){
+  q<-get(z);q[,padj_BH_all_nonmissing:=p.adjust(pvalue,"BH")]
+  fwrite(q,file.path(out,"tables",paste0(layer,if(z=="a")"_main_wald.tsv" else "_interaction_lrt.tsv")),sep="\t")
+ }
+ # Secondary Wald coefficients use the full model's dispersion estimates.
+ w<-nbinomWaldTest(full,quiet=TRUE)
+ rn<-resultsNames(w);ints<-grep("cycle[23].conditiontreatment",rn,value=TRUE)
+ stopifnot(length(ints)==2)
+ co<-rbindlist(lapply(ints,function(n){z<-as.data.table(as.data.frame(results(w,name=n,alpha=.05)),keep.rownames="feature_id");z[,coefficient:=n];z}))
+ co[,padj_BH_two_coefficients:=p.adjust(pvalue,"BH")]
+ fwrite(co,file.path(out,"tables",paste0(layer,"_interaction_coefficients.tsv")),sep="\t")
+ fwrite(data.table(sample_title=samples,size_factor=sizeFactors(main)),file.path(out,"tables",paste0(layer,"_size_factors.tsv")),sep="\t")
+ normalized<-counts(main,normalized=TRUE)
+ fwrite(data.table(feature_id=rownames(normalized),normalized),file.path(out,"tables",paste0(layer,"_normalized_counts.tsv")),sep="\t")
+ for(n in c("main","full")){
+  fit<-get(n);dg<-as.data.table(as.data.frame(mcols(fit)),keep.rownames="feature_id")
+  fwrite(dg,file.path(out,"tables",paste0(layer,"_",n,"_diagnostics.tsv")),sep="\t")
+  fwrite(data.table(feature_id=rownames(fit),assays(fit)[["cooks"]]),file.path(out,"tables",paste0(layer,"_",n,"_cooks.tsv")),sep="\t")
+ }
+ summary_rows[[layer]]<-data.table(layer=layer,input_features=nrow(mat),retained=sum(keep),
+  main_fdr05=sum(a$padj<.05,na.rm=TRUE),interaction_fdr05=sum(b$padj<.05,na.rm=TRUE),
+  main_unfiltered_BH05=sum(a$padj_BH_all_nonmissing<.05,na.rm=TRUE),interaction_unfiltered_BH05=sum(b$padj_BH_all_nonmissing<.05,na.rm=TRUE),
+  main_nonconverged=sum(!mcols(main)$betaConv),full_nonconverged=sum(!mcols(full)$fullBetaConv),
+  residual_df_main=7L,residual_df_full=5L)
+}
+fwrite(rbindlist(summary_rows),file.path(out,"tables/summary.tsv"),sep="\t")
+stopifnot(identical(hashes,vapply(paths,sha,character(1))))
+file.copy(paths[["notebook"]],file.path(out,"source/community_cycle_models.qmd"))
+writeLines(capture.output(sessionInfo()),file.path(out,"sessionInfo.txt"))
+payload<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(payload,nchar(out)+2),sha256=vapply(payload,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+print(rbindlist(summary_rows))
+```
+
+DESeq2 references: https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html
+Default independent filtering and Cook's handling are retained for parity with
+the additive predecessor. Additional all-nonmissing BH columns expose the effect
+of independent filtering; missing p-values are not silently converted to 1.
+No model significance is inferred from plotted normalised counts.

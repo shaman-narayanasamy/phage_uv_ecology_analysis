@@ -1,0 +1,241 @@
+---
+title: "Multi-omics workflow: manuscript metro schematic"
+format:
+  html:
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+The author's reference `pipeline_schematic_draft_v3.pdf` informs the route and
+station visual grammar only. All scientific labels below come from this
+project's current analysis registry and the validated 16S integration.
+Routes indicate data provenance, not biological causation. Colour identifies
+the omics route; the header retains the fixed experimental-condition colours.
+
+Run from the repository root:
+
+```sh
+bash scripts/run_qmd.sh scripts/build_workflow_metro.qmd /absolute/new/output/directory
+```
+
+```{r}
+#| label: workflow-metro
+library(grid)
+source("R/figure_style.R")
+args <- commandArgs(trailingOnly = TRUE)
+out <- if (length(args)) args[[1]] else
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/workflow_metro_v10"
+if (dir.exists(out)) stop("Use a new output directory to preserve versions")
+dir.create(out, recursive = TRUE)
+
+W <- 1870; H <- 950
+ink <- "#243341"; muted <- "#627181"; pale <- "#E5EAF0"
+route <- c(amplicon = "#147D92", metagenome = "#B47A20",
+           virus = "#BE5363", transcriptome = "#416EB0")
+tx <- function(x, y, s, size = 11, colour = ink, face = "plain", rot = 0,
+               just = "left") {
+  grid.text(s, x/W, 1-y/H, just = just, rot = rot,
+            gp = gpar(fontfamily = "sans", fontsize = size,
+                      col = colour, fontface = face, lineheight = 1.25))
+}
+ln <- function(x, y, col, width = 4, dash = "solid", arrow = NULL) {
+  grid.lines(x/W, 1-y/H, gp = gpar(col = col, lwd = width,
+    lineend = "round", linejoin = "round", lty = dash), arrow = arrow)
+}
+station <- function(x, y, col, label = NULL, sub = NULL) {
+  grid.roundrect(x/W, 1-y/H, 15/W, 27/H, r = unit(7, "pt"),
+                 gp = gpar(fill = "white", col = col, lwd = 1.8))
+  if (!is.null(label)) tx(x-2, y-27, label, 10.5, face = "bold", rot = 36)
+  if (!is.null(sub)) tx(x, y+30, sub, 9, muted, just = "centre")
+}
+terminal <- function(x, y, col) {
+  grid.circle(x/W, 1-y/H, r = unit(4, "pt"),
+              gp = gpar(fill = "white", col = col, lwd = 2))
+}
+endpoint <- function(y, col, title, body) {
+  ln(c(864,864), c(y-23,y+38), col, 2.5)
+  tx(881,y-15,title,12,face="bold")
+  tx(881,y+12,body,10,muted)
+}
+draw <- function() {
+  grid.newpage()
+  ref <- "#626B78"; host <- "#697D45"
+  tx(38,35,"Phage-UV: the integrated multi-omics journey",23,face="bold")
+  tx(38,65,"One experiment / complementary measurements / shared references / connected evidence",11,muted)
+  # nf-core-inspired vertical stage bands, with no detached panels.
+  bands <- data.frame(x=c(185,395,680,990,1175,1445),w=c(198,273,298,173,258,300),
+                      label=c("PREPARE","ASSEMBLE","RECOVER REFERENCES","UNIFY","QUANTIFY","INTERPRET"))
+  for(i in seq_len(nrow(bands))) {
+    grid.roundrect((bands$x[i]+bands$w[i]/2)/W,1-505/H,bands$w[i]/W,778/H,
+                   r=unit(8,"pt"),gp=gpar(fill=if(i%%2) "#F4F5F7" else "#FAFBFC",col=NA))
+    tx(bands$x[i]+14,139,bands$label[i],9,muted,face="bold")
+  }
+  stop <- function(x,y,col,title=NULL,subtitle=NULL,dy=-43,rot=0,just="centre") {
+    station(x,y,col)
+    if(!is.null(title)) tx(x,y+dy,title,10.5,face="bold",rot=rot,just=just)
+    if(!is.null(subtitle)) tx(x,y+dy+18,subtitle,8.5,muted,just=just)
+  }
+  finish <- function(x,y,col,title,subtitle) {
+    terminal(x,y,col)
+    tx(x+18,y-8,title,11,face="bold")
+    tx(x+18,y+12,subtitle,9,muted)
+  }
+  # The experiment is the common origin of all routes.
+  ln(c(75,130,175,215),c(465,465,245,245),route[["amplicon"]],4)
+  ln(c(75,150,195,290),c(465,465,410,410),route[["metagenome"]],4)
+  ln(c(75,150,195,290),c(465,465,530,530),route[["transcriptome"]],4)
+  grid.circle(75/W,1-465/H,r=unit(9,"pt"),gp=gpar(fill="white",col=ink,lwd=2))
+  tx(39,374,"12 samples",12,face="bold")
+  tx(39,396,"3 cycles",10,muted)
+  tx(39,414,"2 phases",10,muted)
+  tx(39,489,"Control",10,phage_uv_condition_colours[["control"]],"bold")
+  tx(39,509,"Phage-UV",10,phage_uv_condition_colours[["phage_uv"]],"bold")
+  tx(39,552,"Initial /",9,muted)
+  tx(39,569,"backflush",9,muted)
+
+  # The amplicon route travels directly to the same community endpoint.
+  ln(c(215,1050,1105,1500),c(245,245,210,210),route[["amplicon"]],4.5)
+  stop(290,245,route[["amplicon"]],"16S cDNA","cutadapt")
+  stop(515,245,route[["amplicon"]],"Denoise","DADA2")
+  stop(800,245,route[["amplicon"]],"Assign taxonomy","SILVA / 2,700 ASVs")
+
+  # MG and MT enter a shared, sample-specific coassembly station.
+  ln(c(290,390,450,605),c(410,410,454,454),route[["metagenome"]],4.5)
+  ln(c(290,390,450,605),c(530,530,470,470),route[["transcriptome"]],4.5)
+  stop(290,410,route[["metagenome"]],"Metagenomes","Read QC / 12 runs")
+  stop(290,530,route[["transcriptome"]])
+  tx(220,576,"Metatranscriptomes",10.5,face="bold",just="centre")
+  tx(220,596,"QC + rRNA filtering",8.5,muted,just="centre")
+  tx(220,613,"23 runs",8.5,muted,just="centre")
+  grid.roundrect(535/W,1-462/H,17/W,44/H,r=unit(8,"pt"),
+                 gp=gpar(fill="white",col=ink,lwd=1.8))
+  tx(530,402,"MG + MT coassembly",11,face="bold",just="centre")
+  tx(530,423,"MEGAHIT / per sample",9,muted,just="centre")
+  ln(c(605,605),c(454,470),ref,2)
+
+  # Parallel assemblies also start from the same QC-passed read streams.
+  # Draw underpasses where these input paths cross a route without joining.
+  ln(c(344,368,368,437,470),c(410,434,604,661,661),route[["metagenome"]],2)
+  ln(c(344,355,355,425,470),c(530,541,617,673,673),route[["transcriptome"]],2)
+  ln(c(360,379),c(530,530),"white",5)
+  ln(c(360,379),c(530,530),route[["transcriptome"]],4.5)
+  grid.roundrect(480/W,1-667/H,17/W,42/H,r=unit(8,"pt"),
+                 gp=gpar(fill="white",col=ink,lwd=1.6))
+  tx(480,713,"Single-omics assemblies",10.5,face="bold",just="centre")
+  tx(480,735,"MG: Penguin / MT: MEGAHIT + Penguin",8.5,muted,just="centre")
+  ln(c(480,500,500,523),c(645,617,510,485),muted,1.2,"dashed",
+     grid::arrow(length=unit(4,"pt"),type="closed"))
+  tx(535,596,"MT contigs",8.5,muted)
+
+  # Coassembly separates into genome and viral reference routes.
+  ln(c(605,665,720,970,1045),c(462,370,370,370,440),route[["metagenome"]],4.5)
+  ln(c(605,665,720,970,1045),c(462,615,615,615,474),route[["virus"]],4.5)
+  ln(c(490,600,655,720),c(667,667,615,615),route[["virus"]],2.5)
+  stop(738,370,route[["metagenome"]],"Bin & refine","MAGScoT")
+  stop(906,370,route[["metagenome"]],"Dereplicate","dRep / across samples",dy=35)
+  stop(738,615,route[["virus"]],"Viral discovery")
+  stop(906,615,route[["virus"]],"Pool & cluster","Vclust / across samples")
+  tx(825,661,"geNomad / VirSorter2 / VirALM",8.5,muted,just="centre")
+  tx(825,680,"DeepMicroClass for coassemblies",8.5,muted,just="centre")
+  grid.roundrect(1060/W,1-457/H,24/W,62/H,r=unit(9,"pt"),
+                 gp=gpar(fill="white",col=ink,lwd=2))
+  tx(1060,351,"Unified",12,face="bold",just="centre")
+  tx(1060,373,"MAG/vOTU",12,face="bold",just="centre")
+  tx(1060,395,"catalogue",12,face="bold",just="centre")
+  tx(1078,530,"348 MAGs + vOTUs",8.5,muted)
+  tx(1078,551,"Annotated reference",7.5,muted)
+  tx(1078,568,"Gene coordinates",7.5,muted)
+  # Sequence catalogue supplies a common reference for both read types.
+  ln(c(1072,1142,1195),c(457,457,457),ref,2.5)
+  tx(1135,483,"reference",8.5,muted,just="centre")
+
+  # Continuous MG and MT bypass tracks retain reads for remapping.
+  ln(c(310,345,1100,1195),c(410,308,308,416),route[["metagenome"]],3)
+  tx(660,286,"QC-passed MG reads",9,route[["metagenome"]],just="centre")
+  ln(c(310,330,1100,1195),c(530,790,790,498),route[["transcriptome"]],3)
+  tx(900,816,"QC-passed MT reads",9,route[["transcriptome"]],just="centre")
+  grid.roundrect(1205/W,1-457/H,18/W,108/H,r=unit(8,"pt"),
+                 gp=gpar(fill="white",col=ink,lwd=1.8))
+  tx(1132,420,"Map both omics",10,face="bold",just="centre")
+  tx(1132,440,"BWA-MEM",8.5,muted,just="centre")
+  # MG abundance joins 16S at the community interpretation interchange.
+  ln(c(1214,1300,1360,1440,1500),c(416,416,290,290,210),route[["metagenome"]],4.5)
+  stop(1310,395,route[["metagenome"]],"Abundance","CoverM",dy=-35)
+  finish(1500,210,route[["amplicon"]],"Community structure","Composition / diversity / trajectories")
+  tx(1505,255,"MAG and phage abundance comparisons",9,muted)
+  # Gene expression remains a full-universe branch.
+  ln(c(1214,1260,1290,1500),c(498,498,563,563),route[["transcriptome"]],4.5)
+  stop(1295,563,route[["transcriptome"]],"Gene counts","BED-guided coverage",dy=34)
+  stop(1415,563,route[["transcriptome"]],"Aggregate runs","12 samples",dy=-62)
+  finish(1500,563,route[["transcriptome"]],"Full-universe edgeR","361,907 features / cycle interactions")
+  tx(1518,614,"Functional interpretation / MAG coherence",9,muted)
+
+  # Host-phage evidence branches physically from the common reference.
+  ln(c(1060,1060,1120,1390,1500),c(488,676,705,705,705),"white",6)
+  ln(c(1060,1060,1120,1390,1500),c(488,676,705,705,705),host,3)
+  stop(1275,705,host,"CRISPR host linking","SpacePHARER")
+  finish(1500,705,host,"Host-phage context","86 candidate pairs")
+
+  # MAG-only population mapping uses both MG reads and MAG representatives.
+  ln(c(906,940,940,1280),c(370,340,165,165),"white",6)
+  ln(c(906,940,940,1280),c(370,340,165,165),route[["metagenome"]],2.5)
+  ln(c(890,925,940),c(308,180,165),"white",6)
+  ln(c(890,925,940),c(308,180,165),route[["metagenome"]],2.5)
+  stop(1240,165,route[["metagenome"]],"MAG-only mapping + inStrain",dy=27)
+  finish(1500,165,route[["metagenome"]],"", "")
+  ln(c(1280,1350,1450,1500),c(165,111,111,165),route[["metagenome"]],2.5)
+  tx(1445,88,"Genomic variation / five selected MAGs",10,muted,just="centre")
+  # Key is compact; grey dashed line is the assembly-contig input only.
+  ln(c(45,70),c(862,862),ref,3)
+  tx(82,862,"Continuous route = data flow",9,muted)
+  station(348,862,ink)
+  tx(370,862,"Shared station = shared operation or reference",9,muted)
+  tx(760,862,"Crossings without stations do not join routes.",9,muted)
+  tx(45,919,"One membrane per condition; repeated sampling describes these systems but does not replicate treatment.",9,muted)
+}
+
+# Audit the logical graph independently of drawing coordinates. All stations
+# must be reachable from the physical experiment, with no orphaned branch.
+edge_spec <- c(
+  "samples amplicon", "samples mg_qc", "samples mt_qc",
+  "amplicon asv", "asv taxonomy", "taxonomy community",
+  "mg_qc coassembly", "mt_qc coassembly", "mg_qc single_omics",
+  "mt_qc single_omics", "single_omics coassembly", "single_omics viral_discovery",
+  "coassembly binning", "binning mag_derep", "coassembly viral_discovery",
+  "viral_discovery votu_clustering", "mag_derep catalogue", "votu_clustering catalogue",
+  "catalogue shared_mapping", "mg_qc shared_mapping", "mt_qc shared_mapping",
+  "shared_mapping abundance", "abundance community", "shared_mapping gene_counts",
+  "gene_counts aggregate_runs", "aggregate_runs full_de",
+  "catalogue host_links", "mag_derep mag_only_mapping", "mg_qc mag_only_mapping"
+)
+edges <- as.data.frame(do.call(rbind,strsplit(edge_spec," ")),stringsAsFactors=FALSE)
+names(edges) <- c("from","to")
+nodes <- unique(c(edges$from,edges$to))
+seen <- "samples"
+repeat {
+  expanded <- union(seen,edges$to[edges$from %in% seen])
+  if(length(expanded)==length(seen)) break
+  seen <- expanded
+}
+stopifnot(setequal(seen,nodes), !anyDuplicated(edges))
+write.table(edges,file.path(out,"workflow_edges.tsv"),sep="\t",quote=FALSE,row.names=FALSE)
+write.table(data.frame(node_id=nodes,reachable_from_experiment=nodes %in% seen),
+            file.path(out,"workflow_nodes.tsv"),sep="\t",quote=FALSE,row.names=FALSE)
+
+pdf(file.path(out,"study-analysis-workflow.pdf"),width=18.7,height=9.5,
+    useDingbats=FALSE,title="Phage-UV multi-omics analysis workflow")
+draw(); dev.off()
+if (nzchar(Sys.which("pdftocairo"))) {
+  status <- system2("pdftocairo", c("-svg", shQuote(file.path(out,"study-analysis-workflow.pdf")),
+                                 shQuote(file.path(out,"study-analysis-workflow.svg"))))
+  if (status != 0) stop("SVG export failed")
+}
+png(file.path(out,"study-analysis-workflow.png"),width=3740,height=1900,res=200)
+draw(); dev.off()
+files <- list.files(out,full.names=TRUE)
+write.table(data.frame(file=basename(files),bytes=file.info(files)$size,
+  md5=unname(tools::md5sum(files))),file.path(out,"output_checksums.md5.tsv"),
+  sep="\t",quote=FALSE,row.names=FALSE)
+```

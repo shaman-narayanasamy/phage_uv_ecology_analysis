@@ -1,0 +1,155 @@
+---
+title: "PRJEB79569 verified manuscript analysis"
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## Biofilm review addendum
+
+The restored biofilm-associated transcription analysis is maintained in
+[biofilm_full_transcriptome_review.qmd](biofilm_full_transcriptome_review.qmd).
+Its versioned v4 output is registered as `biofilm_postmodel_review_v4` in the data
+manifest. See [the review handoff](../notes/biofilm-review-2026-09-13.md) for results,
+figure legends, sensitivity checks and the remaining upstream numerical QC gate.
+This is a local author-review candidate, not an adopted manuscript replacement.
+
+```{r}
+library(data.table)
+library(knitr)
+
+repo_root <- normalizePath("..")
+data_manifest <- fread(file.path(repo_root, "manifests", "data_manifest.tsv"))
+analysis_registry <- fread(file.path(repo_root, "manuscript", "analysis_registry.tsv"))
+claim_registry <- fread(file.path(repo_root, "manuscript", "claim_evidence_registry.tsv"))
+
+manifest_path <- function(id) {
+  hit <- data_manifest[data_id == id]
+  stopifnot(nrow(hit) == 1L)
+  path <- hit$path[[1L]]
+  if (!grepl("^/", path)) path <- file.path(repo_root, path)
+  normalizePath(path, mustWork = TRUE)
+}
+
+full_de_root <- manifest_path("full_transcriptome_de_results")
+interpretation_root <- manifest_path("full_de_interpretation")
+candidate_root <- manifest_path("mag_genomic_variation_dossiers")
+```
+
+## Interpretation boundary
+
+This report reads only verified, manifest-registered outputs. It does not refit a
+subset-restricted model. Condition is confounded with membrane identity, so its
+coefficient describes the persistent difference between the treated and control
+membrane systems. SOS transcription is not direct evidence of DNA damage,
+mutagenesis, or adaptation. The 16S stream is separately owned, and host-phage
+integration remains deferred.
+
+## Analysis registry
+
+```{r}
+kable(analysis_registry)
+```
+
+## Complete transcriptome-wide differential expression
+
+```{r}
+filtering <- fread(file.path(full_de_root, "tables", "filtering_summary.tsv"))
+audit <- fread(file.path(full_de_root, "tables", "deterministic_result_summary.tsv"))
+kable(filtering)
+kable(audit)
+```
+
+```{r}
+condition_pdf <- file.path(full_de_root, "figures", "condition-effect-landscape.pdf")
+if (file.exists(condition_pdf)) knitr::include_graphics(condition_pdf)
+```
+
+## Frozen functional categories
+
+```{r}
+category_results <- fread(file.path(
+  interpretation_root,
+  "tables",
+  "functional_category_enrichment.tsv"
+))
+kable(category_results)
+```
+
+```{r}
+knitr::include_graphics(file.path(
+  interpretation_root,
+  "figures",
+  "functional-category-enrichment.pdf"
+))
+```
+
+## Organism-resolved coherence
+
+```{r}
+mag_results <- fread(file.path(
+  interpretation_root,
+  "tables",
+  "mag_coherence.tsv"
+))
+mag_summary <- mag_results[eligible == TRUE, .(
+  eligible_MAGs = uniqueN(MAG_ID),
+  supported_MAGs = sum(FDR < 0.05),
+  higher_ranked = sum(FDR < 0.05 & Direction == "Up"),
+  lower_ranked = sum(FDR < 0.05 & Direction == "Down")
+), by = coefficient]
+kable(mag_summary)
+```
+
+```{r}
+knitr::include_graphics(file.path(
+  interpretation_root,
+  "figures",
+  "mag-condition-coherence.pdf"
+))
+```
+
+## Six-cell descriptive recurrence
+
+```{r}
+gene_candidates <- fread(file.path(
+  interpretation_root,
+  "tables",
+  "predeclared_gene_candidates.tsv"
+))
+recurrence_summary <- gene_candidates[, .(features = .N), by = recurrence_class]
+kable(recurrence_summary)
+```
+
+```{r}
+knitr::include_graphics(file.path(
+  interpretation_root,
+  "figures",
+  "recurrent-gene-cell-effects.pdf"
+))
+```
+
+## Descriptive population-genomic context
+
+```{r}
+popgen_qc <- file.path(
+  candidate_root,
+  "tables",
+  "population_genomics_mag_qc.tsv"
+)
+if (file.exists(popgen_qc)) kable(fread(popgen_qc))
+```
+
+## Claim audit
+
+Figure numbering and main-versus-supplement allocation remain deliberately
+unassigned.
+
+```{r}
+kable(claim_registry)
+```

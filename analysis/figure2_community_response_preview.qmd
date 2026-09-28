@@ -1,0 +1,74 @@
+---
+title: "Figure 2 community-response layout trial"
+format: html
+editor: source
+---
+
+Provisional author-review figure, not a live manuscript replacement. Existing
+DESeq2 results only; no model refits. Overview retains every tested feature.
+Trajectories show the union of main-condition and joint-interaction BH<0.05 hits,
+selected by an explicit rule rather than visual appearance. Points are actual
+sample values; connecting lines are guides, not fitted time-series curves.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(patchwork)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/community_cycle_models_2026-09-13-v1/tables"
+source("R/figure_style.R")
+meta<-fread(file.path(root,"sample_metadata.tsv"))
+all<-list();traj<-list();paths<-file.path(root,"sample_metadata.tsv")
+for(comm in c("mag","votu")){
+ p<-file.path(root,paste0(comm,c("_main_wald.tsv","_interaction_lrt.tsv","_normalized_counts.tsv")))
+ paths<-c(paths,p);a<-fread(p[1]);b<-fread(p[2]);n<-fread(p[3])
+ x<-merge(a[,.(feature_id,log2FoldChange,main_q=padj)],b[,.(feature_id,interaction_q=padj)],by="feature_id")
+ x[,community:=if(comm=="mag")"MAGs" else "vOTUs"]
+ x[,supported:=(!is.na(main_q)&main_q<.05)|(!is.na(interaction_q)&interaction_q<.05)]
+ all[[comm]]<-x
+ ids<-x[supported==TRUE,feature_id]
+ z<-melt(n[feature_id %in% ids],id.vars="feature_id",variable.name="sample_title",value.name="normalized_count")
+ z<-merge(z,meta,by="sample_title");z<-merge(z,x,by="feature_id")
+ short<-if(comm=="mag")sub("_MAGScoT_cleanbin_"," / MAG ",ids) else sub("_coassembly_megahit_.*_contig_k141_"," / vOTU ",ids)
+ labels<-x[match(ids,feature_id),sprintf("%s\nCondition q=%s; interaction q=%s",short,
+  formatC(main_q,format="g",digits=2),formatC(interaction_q,format="g",digits=2))]
+ z[,label:=labels[match(feature_id,ids)]]
+ z[,condition:=factor(condition,levels=c("control","treatment"))]
+ z[,phase:=factor(phase,levels=c("initial","backflush"))]
+ traj[[comm]]<-z
+}
+a<-rbindlist(all);z<-rbindlist(traj)
+stopifnot(nrow(a)==908,all(z$normalized_count>=0),!anyDuplicated(z[,.(feature_id,sample_title)]))
+col<-c(control="#8FCB8A",treatment="#7E57C2")
+base<-theme_classic(base_size=11)+theme(strip.background=element_rect(fill="#F2F3F4",colour=NA),
+ strip.text=element_text(size=9),legend.position="bottom",plot.margin=margin(8,12,8,8))
+a[,log_main:=-log10(pmax(main_q,1e-300))]
+a[,log_interaction:=-log10(pmax(interaction_q,1e-300))]
+overview<-ggplot(a,aes(log_main,log_interaction))+geom_hline(yintercept=-log10(.05),linetype=2,colour="grey60")+
+ geom_vline(xintercept=-log10(.05),linetype=2,colour="grey60")+
+ geom_point(aes(shape=supported),colour="#375568",size=2,alpha=.65)+
+ scale_shape_manual(values=c(`FALSE`=1,`TRUE`=16),guide="none")+facet_wrap(~community,nrow=1)+
+ labs(x=expression("Condition association ("*-log[10]*" adjusted p)"),
+ y=expression("Condition x cycle ("*-log[10]*" adjusted p)"))+base
+trajectory<-function(d){ggplot(d,aes(cycle,normalized_count,colour=condition,
+ group=interaction(condition,phase),shape=phase,linetype=phase))+
+ geom_line(linewidth=.55)+geom_point(size=2.4)+
+ scale_colour_manual(values=col,labels=c("Control","Phage-UV"),name=NULL)+
+ scale_shape_manual(values=c(initial=16,backflush=17),name=NULL)+
+ scale_linetype_manual(values=c(initial="solid",backflush="dashed"),name=NULL)+
+ scale_x_continuous(breaks=1:3)+scale_y_continuous(trans=scales::pseudo_log_trans(base=10),
+ labels=scales::label_number())+facet_wrap(~label,scales="free_y",ncol=2)+
+ labs(x="Cleaning cycle",y="Normalized mapped-read count\n(pseudo-log scale)")+base}
+g<-overview/(trajectory(traj$mag)|trajectory(traj$votu))+
+ plot_layout(heights=c(1,2.2),widths=c(1,1))+plot_annotation(tag_levels="A")
+dir.create(file.path(out,"figures"),recursive=TRUE)
+ggsave(file.path(out,"figures/figure2-community-response.pdf"),g,width=15,height=12,device=grDevices::pdf,useDingbats=FALSE)
+fwrite(a,file.path(out,"all_tested_features.tsv"),sep="\t")
+fwrite(z,file.path(out,"selected_trajectories.tsv"),sep="\t")
+paths<-c(paths,Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(path=paths,sha256=vapply(paths,function(p)digest::digest(file=p,algo="sha256"),character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+writeLines(c("Provisional Figure 2: community abundance associations and trajectories.",
+ "A: all348MAGs and560vOTUs, separate-community BH adjusted main-condition and joint condition-by-cycle interaction tests. Dashed lines: adjusted p=.05; filled points meet either threshold. Missing adjusted p-values cannot be positioned and remain in the source table.",
+ "B-C: union of features meeting either threshold; all12samples shown per feature. Lines connect observations within membrane/fraction; they are not fitted curves. Y axes show normalized counts on pseudo-log scale, not relative abundances. Free y scales support within-feature reading only.",
+ "Main design: phase+cycle+condition. Joint LRT: phase+cycle*condition versus phase+cycle+condition. One membrane per condition; results are system-specific, not replicated causal treatment effects.",
+ "Review trial only. No live document changes."),file.path(out,"FIGURE_LEGEND_DRAFT.txt"))
+cat("PASS: source-based overview and",uniqueN(z$feature_id),"complete feature trajectories\n")
+```

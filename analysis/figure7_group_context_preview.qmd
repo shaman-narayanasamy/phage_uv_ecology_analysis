@@ -1,0 +1,44 @@
+---
+title: "Figure 7 with community context in panel B"
+format: html
+---
+
+Review preview only. Figure 5 is unchanged. Retain the original 14 candidates,
+unchanged top-12 display and panel A. Preserve UBA8904 as a separate panel.
+No manuscript writes or model refits.
+
+```{r}
+src<-readLines("analysis/figure7_candidate_suppression.qmd")
+a<-which(src=="```{r}")+1
+b<-grep('^top <-',src)-1
+eval(parse(text=src[a:b]))
+dir.create(out,recursive=TRUE)
+old_B<-B
+g<-fread(file.path(root,"cleaning_score_MAG_global_summary_2026-09-21-v1/global_summary.tsv"))
+g<-g[specification=="categorical_cycle" & group%in%c("up","down","ns","not_tested")]
+stopifnot(nrow(g)==8,all(g[,.(n=sum(MAGs)),by=phase]$n==348),all(g$q25<=g$median_gain),all(g$median_gain<=g$q75))
+g[,group_label:=factor(group,levels=c("not_tested","ns","down","up"),labels=c("No tested biofilm\ngenes (64)","No main-effect\nhit (248)","Downregulated\nonly (22)","Upregulated (14)"))]
+g[,phase_label:=factor(phase,levels=c("initial","backflush"),labels=c("Initial","Backflush"))]
+B<-ggplot(g,aes(median_gain,group_label,colour=group))+
+ geom_vline(xintercept=0,linetype=2,colour="grey65",linewidth=.3)+
+ geom_segment(aes(x=q25,xend=q75,yend=group_label),linewidth=.8)+geom_point(size=1.7)+
+ facet_grid(phase_label~.)+
+ scale_colour_manual(values=c(up="#7E57C2",down="#8FCB8A",ns="#555555",not_tested="#AAAAAA"))+
+ scale_x_continuous(limits=c(-.85,1.95),breaks=c(-.5,0,.5,1,1.5))+
+ labs(x=expression(Delta*hat(S)~"at 50% MAG reduction"),y=NULL)+base+
+ theme(legend.position="none",axis.ticks.y=element_blank(),axis.line.y=element_blank(),
+ axis.text.y=element_text(size=6.5),panel.spacing.y=unit(3,"mm"))
+fig<-((A|B)/C)+plot_layout(heights=c(1,1.7))+plot_annotation(tag_levels="A")
+ggsave(file.path(out,"figure7-proposed.png"),fig,width=200,height=260,units="mm",dpi=220,bg="white",device=ragg::agg_png)
+ggsave(file.path(out,"UBA8904-preserved.png"),old_B,width=95,height=85,units="mm",dpi=220,bg="white",device=ragg::agg_png)
+fwrite(g,file.path(out,"panel-B-values.tsv"),sep="\t")
+writeLines(c("PREVIEW ONLY. No live document changes. Figure 5 unchanged.",
+ "B: primary condition + categorical-cycle model, initial/backflush displayed separately.",
+ "Points: median predicted change after reducing each MAG separately by 50%.",
+ "Bars: interquartile range across MAG estimates, not confidence intervals.",
+ "Expression groups mutually exclusive; original 14 remain the shortlist.",
+ "UBA8904 preserved separately for possible supplementary placement.",
+ "A and C reused without changing data or candidate order."),file.path(out,"README.txt"))
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+cat("PASS: 348 MAGs per phase, 8 summary rows; original inputs unchanged; no refits.\n")
+```

@@ -1,0 +1,262 @@
+---
+title: "Build Community Figure 1"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook implements the corresponding author's decision that Figure 1
+describes the microbial and phage communities before the transcriptomic story.
+It combines the sampling design, aligned stacked compositions, Bray-Curtis
+ordinations, and the design-aware community tests. Taxonomic trees and detailed
+differential-abundance landscapes remain supplementary.
+
+```sh
+bash scripts/run_qmd.sh scripts/build_community_figure_one.qmd [output-directory]
+```
+
+For a versioned, provisional 180 mm-wide publication layout, pass a new output
+directory followed by `--publication-size`. This changes only the layout;
+source values, full-denominator profiles and statistical summaries are retained.
+
+```{r}
+#| label: build-community-figure-one
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+write_checksums <- function(output_dir) {
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE)
+  files <- files[file.info(files)$isdir %in% FALSE & basename(files) != "output_checksums.md5.tsv"]
+  fwrite(data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  ), file.path(output_dir, "output_checksums.md5.tsv"), sep = "\t")
+}
+
+root <- normalizePath(getwd())
+if (!file.exists(file.path(root, "R", "figure_style.R"))) abort("Run from the repository root")
+source(file.path(root, "R", "figure_style.R"))
+
+project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+args <- commandArgs(trailingOnly = TRUE)
+publication_size <- "--publication-size" %in% args
+args <- args[args != "--publication-size"]
+output_dir <- if (length(args)) normalizePath(args[[1L]], mustWork = FALSE) else
+  file.path(project_data, "derived", "community_figure_one")
+if (dir.exists(output_dir)) abort("Output directory already exists: %s", output_dir)
+staging <- file.path(dirname(output_dir), sprintf(".community-figure-one-staging-%d", Sys.getpid()))
+dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+paths <- list(
+  metadata = file.path(root, "metadata", "sample_metadata.tsv"),
+  mag_profile = file.path(project_data, "derived", "taxonomic_resolution_exploration", "tables", "family_top25_community_profile.tsv"),
+  mag_colours = file.path(project_data, "derived", "taxonomic_resolution_exploration", "tables", "family_microshades_colour_key.tsv"),
+  votu_profile = file.path(project_data, "derived", "taxonomic_timeseries_layout_comparison", "tables", "votu_realm_profile.tsv"),
+  votu_colours = file.path(project_data, "derived", "taxonomic_timeseries_layout_comparison", "tables", "votu_realm_colour_key.tsv"),
+  pcoa = file.path(project_data, "derived", "community_differential_abundance", "tables", "community_pcoa.tsv"),
+  permanova = file.path(project_data, "derived", "community_differential_abundance", "tables", "community_restricted_permanova.tsv"),
+  da_summary = file.path(project_data, "derived", "community_differential_abundance", "tables", "analysis_summary.tsv"),
+  mag_clr = file.path(project_data, "derived", "community_differential_abundance", "tables", "mag_matched_clr.tsv"),
+  votu_clr = file.path(project_data, "derived", "community_differential_abundance", "tables", "votu_matched_clr.tsv")
+)
+missing <- names(paths)[!file.exists(unlist(paths))]
+if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+metadata <- fread(paths$metadata)[, .(sample_title, condition, phase, cycle)]
+sample_levels <- c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B")
+metadata[, `:=`(
+  sample_label = factor(sprintf("C%d-%s", cycle, fifelse(phase == "initial", "I", "B")), levels = sample_levels),
+  condition_label = factor(fifelse(condition == "control", "Control", "Phage-UV"), levels = c("Control", "Phage-UV")),
+  phase_label = factor(fifelse(phase == "initial", "Initial", "Backflush"), levels = c("Initial", "Backflush"))
+)]
+setorder(metadata, condition_label, sample_label)
+
+condition_palette <- c("Control" = phage_uv_condition_colours[["control"]], "Phage-UV" = phage_uv_condition_colours[["phage_uv"]])
+
+design <- ggplot(metadata, aes(as.integer(sample_label), condition_label, colour = condition_label, shape = phase_label)) +
+  geom_hline(yintercept = c(1, 2), colour = "#ECECEC", linewidth = 0.5) +
+  geom_line(aes(group = condition_label), colour = "#BDBDBD", linewidth = 0.7) +
+  geom_point(size = 3.2, stroke = 0.7) +
+  scale_colour_manual(values = condition_palette, guide = "none") +
+  scale_shape_manual(values = c("Initial" = 16, "Backflush" = 17), name = "Sample fraction") +
+  scale_x_continuous(breaks = seq_along(sample_levels), labels = sample_levels, expand = expansion(mult = c(0.03, 0.03))) +
+  labs(x = if (publication_size) "Cleaning cycle and sampling phase" else "Three cleaning cycles sampled before and after backflush", y = NULL, tag = "A") +
+  theme_phage_uv(9) +
+  theme(panel.grid = element_blank(), axis.line.y = element_blank(), axis.ticks.y = element_blank(),
+        legend.position = "right", plot.tag = element_text(face = "bold", size = 12))
+
+mag <- fread(paths$mag_profile)
+mag_colours <- fread(paths$mag_colours)
+mag <- merge(mag, metadata[, .(sample_title, sample_label, condition_label)], by = "sample_title", all.x = TRUE, suffixes = c(".old", ""))
+mag[, display_category := factor(display_category, levels = rev(mag_colours$display_category))]
+mag_palette <- setNames(mag_colours$colour, mag_colours$display_category)
+mag_legend <- mag_colours[category_type == "top25 named" | display_category == "Other phyla"]
+mag_legend[, legend_label := if (publication_size) display_category else fifelse(display_category == "Other phyla", "Other phyla", paste(phylum, display_category, sep = " | "))]
+mag_labels <- setNames(mag_legend$legend_label, mag_legend$display_category)
+
+mag_stack <- ggplot(mag, aes(sample_label, relative_abundance, fill = display_category)) +
+  geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+  facet_grid(condition_label ~ ., scales = "fixed") +
+  scale_fill_manual(values = mag_palette, breaks = mag_legend$display_category,
+                    labels = mag_labels[mag_legend$display_category], name = if (publication_size) "MAG family" else "Phylum | family", drop = FALSE) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), breaks = seq(0, 1, 0.25), expand = expansion(mult = c(0, 0.01))) +
+  labs(x = NULL, y = "Relative abundance among MAG-mapped reads", tag = "B") +
+  theme_phage_uv(8.2) +
+  theme(legend.position = "right", legend.text = element_text(size = 5.5), legend.title = element_text(size = 6.8),
+        legend.key.height = grid::unit(0.27, "cm"), strip.text.y = element_text(angle = 0, face = "bold"),
+        axis.text.x = element_text(size = 7), plot.tag = element_text(face = "bold", size = 12)) +
+  guides(fill = guide_legend(ncol = 2, byrow = TRUE))
+
+votu <- fread(paths$votu_profile)
+votu_colours <- fread(paths$votu_colours)
+votu <- merge(votu, metadata[, .(sample_title, sample_label, condition_label)], by = "sample_title", all.x = TRUE, suffixes = c(".old", ""))
+realm_order <- votu[, .(mean_abundance = mean(relative_abundance)), by = realm][order(-mean_abundance)]$realm
+votu[, realm := factor(realm, levels = rev(realm_order))]
+realm_palette <- setNames(votu_colours$colour, votu_colours$realm)
+
+votu_stack <- ggplot(votu, aes(sample_label, relative_abundance, fill = realm)) +
+  geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+  facet_grid(condition_label ~ ., scales = "fixed") +
+  scale_fill_manual(values = realm_palette, breaks = realm_order, name = "Viral realm", drop = FALSE) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), breaks = seq(0, 1, 0.25), expand = expansion(mult = c(0, 0.01))) +
+  labs(x = "Cycle and fraction", y = "Relative abundance among high-quality vOTU reads", tag = "D") +
+  theme_phage_uv(8.2) +
+  theme(legend.position = "right", strip.text.y = element_text(angle = 0, face = "bold"),
+        axis.text.x = element_text(size = 7), plot.tag = element_text(face = "bold", size = 12))
+
+pcoa <- fread(paths$pcoa)
+pcoa <- merge(pcoa[, !c("condition", "phase", "cycle"), with = FALSE], metadata, by = "sample_title", all.x = TRUE)
+pcoa[, condition_label := factor(condition_label, levels = c("Control", "Phage-UV"))]
+permanova <- fread(paths$permanova)
+da_summary <- fread(paths$da_summary)[model == "phase_cycle_adjusted"]
+matched_summary <- data.table(
+  community = c("MAG", "vOTU"),
+  matched_tested = c(nrow(fread(paths$mag_clr)), nrow(fread(paths$votu_clr))),
+  matched_fdr05 = c(
+    sum(fread(paths$mag_clr)$exact_signflip_fdr < 0.05),
+    sum(fread(paths$votu_clr)$exact_signflip_fdr < 0.05)
+  )
+)
+
+make_ordination <- function(community, tag) {
+  target_community <- community
+  x <- pcoa[community == target_community]
+  stats <- permanova[community == target_community]
+  da <- da_summary[community == target_community]
+  matched <- matched_summary[community == target_community]
+  annotation <- sprintf(if (publication_size) "Paired BC: p = %.4g\nAdjusted DA: %d/%d\nMatched CLR: %d/%d" else "Paired Bray-Curtis exact p = %.4g\nAdjusted DA: %d/%d at FDR < 0.05\nMatched CLR: %d/%d at FDR < 0.05",
+                        stats$exact_p, da$fdr05, da$features_tested,
+                        matched$matched_fdr05, matched$matched_tested)
+  ggplot(x, aes(axis1, axis2, colour = condition_label, shape = phase_label)) +
+    geom_path(aes(group = interaction(condition_label, phase_label)), colour = "#C8C8C8", linewidth = 0.45) +
+    geom_point(size = 2.8) + geom_text(aes(label = cycle), colour = if (publication_size) "#222222" else "white", size = if (publication_size) 2.3 else 2.2, nudge_y = if (publication_size) 0.014 else 0, nudge_x = if (publication_size) ifelse(x$condition_label == "Control", -.035, .035) else 0, show.legend = FALSE) +
+    annotate("label", x = -Inf, y = Inf, label = annotation, hjust = -0.05, vjust = 1.1,
+             size = if (publication_size) 2.3 else 2.25, linewidth = 0.15, fill = alpha("white", 0.88)) +
+    scale_colour_manual(values = condition_palette, name = NULL) +
+    scale_shape_manual(values = c("Initial" = 16, "Backflush" = 17), name = "Sample fraction") +
+    labs(x = if (publication_size) "PCoA axis 1" else "Bray-Curtis PCoA axis 1", y = if (publication_size) "PCoA axis 2" else "Bray-Curtis PCoA axis 2", tag = tag) +
+    theme_phage_uv(8.2) +
+    theme(legend.position = "bottom", plot.tag = element_text(face = "bold", size = 12))
+}
+
+mag_pcoa <- make_ordination("MAG", "C")
+votu_pcoa <- make_ordination("vOTU", "E")
+
+if (publication_size) {
+  publication_theme <- theme(
+    text = element_text(size = 7.5), axis.text = element_text(size = 6.5),
+    axis.title = element_text(size = 7.5), strip.text = element_text(size = 7),
+    legend.text = element_text(size = 6.5), legend.title = element_text(size = 7),
+    plot.tag = element_text(size = 10, face = "bold"),
+    plot.margin = margin(4, 4, 4, 4), legend.margin = margin(0, 0, 0, 0),
+    legend.key.height = grid::unit(3, "mm"), legend.key.width = grid::unit(3, "mm"))
+  design <- design + publication_theme + theme(legend.position = "right") +
+    scale_y_discrete(limits = c("Phage-UV", "Control"))
+  mag_stack <- mag_stack + publication_theme +
+    labs(y = "MAG-mapped reads (%)") +
+    theme(legend.position = "bottom", legend.direction = "vertical",
+          legend.title.position = "top", axis.text.x = element_text(size = 6.5)) +
+    guides(fill = guide_legend(ncol = 2, byrow = TRUE))
+  votu_stack <- votu_stack + publication_theme +
+    labs(y = "Classified vOTU reads (%)", x = "Cycle and phase") +
+    theme(legend.position = "bottom", axis.text.x = element_text(size = 6.5)) +
+    guides(fill = guide_legend(ncol = 2, byrow = TRUE))
+  mag_pcoa <- mag_pcoa + publication_theme + theme(legend.position = "none") +
+    scale_y_continuous(expand = expansion(mult = c(.08, .32)))
+  votu_pcoa <- votu_pcoa + publication_theme + theme(legend.position = "none") +
+    scale_y_continuous(expand = expansion(mult = c(.08, .65)))
+  family_legend_grob <- ggplotGrob(mag_stack + guides(fill = guide_legend(ncol = 4, byrow = TRUE)))
+  family_legend <- wrap_elements(full = family_legend_grob$grobs[[which(family_legend_grob$layout$name == "guide-box-bottom")]])
+  mag_stack <- mag_stack + theme(legend.position = "none")
+  figure <- design /
+    (mag_stack + mag_pcoa + plot_layout(widths = c(1.65, 1))) /
+    family_legend /
+    (votu_stack + votu_pcoa + plot_layout(widths = c(1.65, 1))) +
+    plot_layout(heights = c(.55, 2.35, .85, 1.95))
+} else {
+figure <- design /
+  (mag_stack + mag_pcoa + plot_layout(widths = c(1.85, 1))) /
+  (votu_stack + votu_pcoa + plot_layout(widths = c(1.85, 1))) +
+  plot_layout(heights = c(0.58, 2.2, 1.45)) +
+  plot_annotation(
+    title = "Microbial and phage community structure across three cleaning cycles",
+    caption = paste(strwrap(paste(
+      "Stacked bars retain the six discrete observations for each membrane. MAG and vOTU community tests use exhaustive paired label swaps across the six phase-cycle cells.",
+      "Because one membrane represents each condition, the comparisons are exploratory and do not estimate a replicated treatment effect."
+    ), width = 155), collapse = "\n")
+  )
+}
+
+figure_path <- file.path(staging, "figures", "community-structure-figure-one.pdf")
+publication_device <- function(filename, width, height, ...) {
+  if (isTRUE(capabilities("aqua"))) {
+    grDevices::quartz(type = "pdf", file = filename, width = width, height = height, ...)
+  } else {
+    grDevices::pdf(file = filename, width = width, height = height, ...)
+  }
+}
+ggsave(figure_path, figure, width = if (publication_size) 180/25.4 else 16.5,
+       height = if (publication_size) 200/25.4 else 12.5,
+       device = if (publication_size) publication_device else grDevices::pdf)
+if (!file.exists(figure_path) || file.info(figure_path)$size == 0) abort("PDF device did not produce a figure")
+if (publication_size && nzchar(Sys.which("gs"))) {
+  grDevices::embedFonts(figure_path, outfile = figure_path)
+}
+
+registry <- data.table(
+  panel = LETTERS[1:5],
+  content = c("sampling design", "MAG family composition", "MAG Bray-Curtis PCoA", "vOTU realm composition", "vOTU Bray-Curtis PCoA"),
+  source = c(paths$metadata, paths$mag_profile, paths$pcoa, paths$votu_profile, paths$pcoa),
+  status = "allocated_main_figure_1"
+)
+fwrite(registry, file.path(staging, "tables", "figure_one_panel_registry.tsv"), sep = "\t")
+figure_stats <- Reduce(
+  function(x, y) merge(x, y, by = "community"),
+  list(
+    permanova,
+    da_summary[, .(community, features_tested, fdr05, fdr05_abs_lfc1)],
+    matched_summary
+  )
+)
+fwrite(figure_stats,
+       file.path(staging, "tables", "figure_one_statistics.tsv"), sep = "\t")
+fwrite(data.table(input = names(paths), path = unlist(paths), md5 = unname(tools::md5sum(unlist(paths)))),
+       file.path(staging, "tables", "input_provenance.tsv"), sep = "\t")
+write_checksums(staging)
+if (!file.rename(staging, output_dir)) abort("Failed to promote Figure 1 output")
+cat(sprintf("Community Figure 1 written to %s\n", output_dir))
+```

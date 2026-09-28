@@ -1,0 +1,79 @@
+---
+title: "Exploratory cleaning-performance score"
+format: html
+editor: source
+---
+
+Canonical decision: `notes/handoff-2026-09-14-cleaning-performance-score.md`.
+Exact Table 1 lag days and Figure 2 digitised release means from Myshkevych
+et al. (2025), DOI:10.1016/j.ceja.2025.100796. One row per membrane and
+published cleaning round. Omics-cycle matching remains provisional.
+
+$$
+R_k=I_k/(I_k+BF_k),\quad P=(R_{cells}+R_{protein}+R_{polysaccharides})/3,
+\qquad S=\tfrac12(P-\bar P)/s_P+\tfrac12(L-\bar L)/s_L.
+$$
+
+Sample SDs and means use the same six observations. This is a relative index,
+not percent removal. Published log cell means are back-transformed before ratios.
+Area-normalized EPS values are not volume-corrected again. No significance tests
+or MAG suppression fits are performed in this score-construction notebook.
+
+```{r}
+suppressPackageStartupMessages(library(data.table))
+out <- commandArgs(TRUE)[1]
+stopifnot(length(out)==1L, !is.na(out), !dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment"
+input <- file.path(root,"PRJEB79569/derived/figure_derived_biofilm_phenotypes_2026-09-13-v1/tables/figure_derived_measurements.tsv")
+d <- fread(input)
+stopifnot(nrow(d)==36L, !anyDuplicated(d[,.(condition,published_round,outcome,phase)]),
+          all(d$phase %in% c("initial","backflush")))
+ratio <- function(i,b) {
+  if(any(i<0 | b<0,na.rm=TRUE)) stop("Negative amount")
+  ans <- i/(i+b)
+  ans[!is.finite(ans)] <- NA_real_
+  ans
+}
+stopifnot(identical(ratio(1,3),.25), is.na(ratio(0,0)),
+          is.na(ratio(NA_real_,1)), ratio(0,1)==0,ratio(1,0)==1,
+          inherits(try(ratio(-1,2),silent=TRUE),"try-error"))
+d[,amount := ifelse(outcome=="log10_cells",10^estimate,estimate)]
+w <- dcast(d,condition+published_round+cycle+outcome~phase,value.var="amount")
+w[,R:=ratio(initial,backflush)]
+s <- dcast(w,condition+published_round+cycle~outcome,value.var="R")
+setnames(s,c("log10_cells","protein_ug_cm2","polysaccharide_ug_cm2"),
+         c("R_cells","R_protein","R_polysaccharides"))
+s[,P:= (R_cells+R_protein+R_polysaccharides)/3]
+# Source: original paper Table 1, rows 2nd, 3rd and 4th cleaning.
+lags <- data.table(condition=rep(c("control","treatment"),each=3),
+                   published_round=rep(2:4,2),lag_days=c(6,4,0,18,12,1))
+s <- merge(s,lags,by=c("condition","published_round"),all=TRUE)
+setorder(s,condition,published_round)
+stopifnot(nrow(s)==6L, !anyNA(s), all(s$P>=0 & s$P<=1))
+ref <- data.table(component=c("P","lag_days"),
+                  mean=c(mean(s$P),mean(s$lag_days)),
+                  sample_sd=c(sd(s$P),sd(s$lag_days)),n=6L)
+stopifnot(all(ref$sample_sd>0))
+s[,z_P:=(P-ref$mean[1])/ref$sample_sd[1]]
+s[,z_lag:=(lag_days-ref$mean[2])/ref$sample_sd[2]]
+s[,score:=.5*z_P+.5*z_lag]
+# Independent base-R standardization; centering and raw-weight reconciliation.
+expected <- rowMeans(scale(as.matrix(s[,.(P,lag_days)])))
+stopifnot(max(abs(expected-s$score))<1e-12,abs(mean(s$score))<1e-12,
+          abs(sd(s$z_P)-1)<1e-12, abs(sd(s$z_lag)-1)<1e-12)
+cell <- w[outcome=="log10_cells"]
+stopifnot(max(abs(cell$R-1/(1+cell$backflush/cell$initial)))<1e-12)
+dir.create(out,recursive=TRUE)
+saveRDS(list(scores=s,reference=ref,release_amounts=w,source=input),file.path(out,"cleaning_score.rds"))
+fwrite(s,file.path(out,"scores.tsv"),sep="\t")
+fwrite(ref,file.path(out,"frozen_reference.tsv"),sep="\t")
+fwrite(w,file.path(out,"release_components.tsv"),sep="\t")
+sources <- c(input,Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(root,"raw/1-s2.0-S2666821125000936-main.pdf"))
+fwrite(data.table(path=sources,sha256=vapply(sources,function(x)digest::digest(file=x,algo="sha256"),character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+writeLines(c("PASS: 36 source rows, 18 phase pairs, 6 complete scores.",
+ "PASS: ratios, missing/zero/negative guards and independent standardization.",
+ "Reference mean/SD frozen across six rows; no MAG model or inferential test.",
+ "Figure-derived means; pooled vs third BF and omics matching caveats retained."),file.path(out,"CHECKS.txt"))
+print(s)
+print(ref)
+```

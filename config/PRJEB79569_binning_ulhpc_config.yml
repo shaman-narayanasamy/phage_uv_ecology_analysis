@@ -1,0 +1,38 @@
+---
+tmp_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/tmp"
+output_dir: "/scratch/users/snarayanasamy/phage_uv_treatment/output/PRJEB79569"
+data_table: "/scratch/users/snarayanasamy/phage_uv_treatment/metadata/PRJEB79569_binning_input.tsv"
+
+binning:
+  min_contig_length: 1500
+
+concoct:
+  threads: 24
+  read_length: 150
+  contig_split_length: 1000
+
+metabat2:
+  threads: 24
+
+maxbin2:
+  threads: 24
+
+vamb:
+  threads: 24
+
+semibin:
+  threads: 24
+  environment_type: "global"
+
+semibin_multi_sample:
+  threads: 24
+
+magscot:
+  folder: "/home/users/snarayanasamy/repositories/MAGScoT"
+
+drep:
+  completeness: 75
+  contamination: 25
+  strain_heterogeneity_weight: 1
+  P_ani: 0.9
+  S_ani: 0.95

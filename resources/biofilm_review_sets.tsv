@@ -1,0 +1,11 @@
+set_id	label	role	field	pattern	boundary
+biofilm_explicit	Biofilm annotation	module	annotation	biofilm	Explicit annotation; not phenotype validation
+adhesion	Adhesion	module	annotation	adhesi	Adhesion-associated; not exclusively biofilm
+eps	Exopolysaccharide	module	annotation	exopolysacchar|extracellular polymeric|polysaccharide (synth|biosynth)	Matrix-associated synthesis; annotation-defined
+motility	Motility / flagella	module	annotation	motility|flagell	Motility-associated; not exclusively biofilm
+pili	Pili / pilus	module	annotation	pili|pilus	Includes prepilin-associated machinery; annotation audit required for specific functions
+quorum	Quorum sensing	module	annotation	quorum sensing	Explicit quorum-sensing annotation
+biofilm_union	Biofilm-associated union	primary	union	module	Unique union of six annotation modules; operational not exhaustive ontology
+historical9	Original nine keywords	sensitivity	annotation	Biofilm|Quorum sensing|Adhesion|Exopolysaccharide|Motility|Flagella|Pili|Extracellular|matrix	Exact historical search transferred to full tested annotation; includes generic extracellular proteins
+historical12	Expanded historical keywords	sensitivity	annotation	Biofilm|Quorum sensing|Adhesion|Exopolysaccharide|Motility|Flagella|Pili|Extracellular|matrix|polymeric[[:space:]]+substance|formation|polysaccharide synthesis	Broad historical search including nonspecific formation; not primary biological evidence
+historical_symbols	Original exact symbols	sensitivity	gene_symbol	^(fimH|flp|pilA|bap|icaA|icaB|icaC|icaD|psl|pel|vps|luxI|luxR|agrA|agrB|agrC|agrD|lasI|lasR|rhlI|rhlR|cdgA|cdgB|cdgC|rpoS|cspD|flg|fli|mot|cheA|cheY|fnbA|fnbB|clfA|clfB|fib|epbs|eno|cna)$	Historical exact-symbol list; no expansion of prefixes or universal biofilm specificity

@@ -1,0 +1,164 @@
+---
+title: "MAG abundance and expression associations with cleaning performance"
+format: html
+editor: source
+---
+
+## Specification fixed before execution
+
+Outcome: frozen six-row standardized composite from `cleaning_performance_score.qmd`.
+The 14 MAGs carrying at least one upregulated combined3905 gene are the fixed
+candidate set; candidate selection is post hoc, not independent validation.
+DNA predictor: log2 whole-MAG DESeq2-size-factor-normalized count. RNA predictor:
+mean gene-centred log2CPM of ALL combined3905 tested genes in each MAG.
+Initial and Backflush are separate predictor views, never pooled or used to
+duplicate outcomes within one fit. Each model has six observations.
+
+Primary: `lm(score ~ factor(cycle) + condition + x)` (5 parameters, 1 residual df).
+Sensitivity: `lm(score ~ cycle + condition + x)` (4 parameters, 2 residual df).
+The latter assumes a linear cycle trend. Neither is selected using its p-value.
+No condition interaction: categorical-cycle interaction model is saturated.
+No random membrane effect: only two membranes, each confounded with condition.
+
+Primary family: 14 MAGs x 2 predictor types x 2 phases = 56 slope tests.
+Sensitivity family: another 56. Report two-sided OLS t tests and BH over 56
+within specification, plus BH over all 112. HC3 t approximations corrected
+separately with the same family sizes. They are conditional model-based
+summaries, not calibrated repeated-membrane or post-selection inference.
+Gaussian independent errors and fixed predictors/score construction are working
+assumptions; digitisation and estimated score-scaling uncertainty are not in CIs.
+Deletion of each cycle is an influence check, not predictive validation; saturated
+deletion fits have no p-values. No stochastic bootstrap is performed here.
+
+DNA suppression scenarios use delta_x=log2(1-f) with frozen normalization;
+score change=beta*delta_x, in index units, NOT percent biofilm reduction.
+Do not sum separate MAG effects. RNA slopes are per score unit, not percent
+transcript suppression. A negative slope predicts improvement when x is reduced.
+The sequenced detached population is not a measured attached-cell population.
+Published rounds 2–4 to omics cycles 1–3 remain an explicit order-based assumption;
+pooled-phenotype versus third-backflush sequencing ambiguity remains unresolved.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+out <- commandArgs(TRUE)[1];stopifnot(length(out)==1,!is.na(out),!dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+paths <- c(score=file.path(root,"cleaning_performance_score_2026-09-14-v1/cleaning_score.rds"),
+ overlay=file.path(root,"figure_derived_biofilm_phenotypes_2026-09-13-v1/tables/expression_phenotype_overlay.tsv"),
+ dna=file.path(root,"community_cycle_models_2026-09-13-v1/tables/mag_normalized_counts.tsv"),
+ raw=file.path(root,"community_cycle_models_2026-09-13-v1/tables/mag_counts.tsv"),
+ sf=file.path(root,"community_cycle_models_2026-09-13-v1/tables/mag_size_factors.tsv"),
+ membership=file.path(root,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"))
+sha <- function(p)digest::digest(file=p,algo="sha256")
+before <- vapply(paths,sha,character(1))
+score <- readRDS(paths['score'])$scores
+stopifnot(nrow(score)==6,!anyDuplicated(score[,.(condition,cycle)]),
+          all(score$published_round==score$cycle+1L))
+z <- fread(paths['overlay'])
+z <- unique(z[,.(MAG_ID,genus,sample_title,condition,phase,cycle,expression_score)])
+stopifnot(nrow(z)==168,!anyDuplicated(z[,.(MAG_ID,sample_title)]))
+members <- fread(paths['membership'])[set_id=="biofilm_combined"]
+candidates <- sort(unique(members[FDR<.05 & logFC>0,MAG_ID]))
+stopifnot(length(candidates)==14,setequal(candidates,z$MAG_ID))
+dna <- fread(paths['dna']);raw <- fread(paths['raw']);sf <- fread(paths['sf'])
+stopifnot(identical(dna$feature_id,raw$feature_id))
+for(sn in sf$sample_title)stopifnot(max(abs(dna[[sn]]-raw[[sn]]/sf[sample_title==sn,size_factor]))<1e-6)
+long <- melt(dna[feature_id %in% candidates],id.vars="feature_id",variable.name="sample_title",value.name="DNA_count")
+setnames(long,"feature_id","MAG_ID")
+z <- merge(z,long,by=c("MAG_ID","sample_title"),all.x=TRUE)
+stopifnot(!anyNA(z$DNA_count),all(z$DNA_count>0))
+z[,DNA:=log2(DNA_count)];z[,RNA:=expression_score]
+z <- melt(z,id.vars=c("MAG_ID","genus","sample_title","condition","phase","cycle"),
+ measure.vars=c("DNA","RNA"),variable.name="predictor",value.name="x")
+z <- merge(z,score[,.(condition,cycle,published_round,score)],by=c("condition","cycle"),allow.cartesian=TRUE)
+stopifnot(nrow(z)==336,!anyDuplicated(z[,.(MAG_ID,predictor,phase,condition,cycle)]))
+```
+
+```{r}
+#| label: fits-and-independent-checks
+results <- list();obs <- list();deletions <- list();fits <- list();scenarios <- list()
+for(spec in c("categorical_cycle","linear_cycle"))for(mag in candidates)
+ for(pr in c("DNA","RNA"))for(ph in c("initial","backflush")){
+ d <- copy(z[MAG_ID==mag & predictor==pr & phase==ph]);setorder(d,condition,cycle)
+ d[,condition:=factor(condition,levels=c("control","treatment"))]
+ form <- if(spec=="categorical_cycle")score~factor(cycle)+condition+x else score~cycle+condition+x
+ nf <- if(spec=="categorical_cycle")x~factor(cycle)+condition else x~cycle+condition
+ yf <- if(spec=="categorical_cycle")score~factor(cycle)+condition else score~cycle+condition
+ fit <- lm(form,d);X <- model.matrix(fit);df <- df.residual(fit)
+ stopifnot(nrow(d)==6,fit$rank==ncol(X),df==if(spec=="categorical_cycle")1 else 2)
+ b <- unname(coef(fit)['x']);se <- sqrt(vcov(fit)['x','x']);tt <- b/se
+ h <- hatvalues(fit);V <- solve(crossprod(X))
+ stopifnot(all(h<1-1e-10))
+ hc3 <- V%*%crossprod(X,X*as.numeric((resid(fit)/(1-h))^2))%*%V
+ se3 <- sqrt(hc3['x','x'])
+ rx <- resid(lm(nf,d));ry <- resid(lm(yf,d))
+ fwl <- sum(rx*ry)/sum(rx^2)
+ stopifnot(abs(fwl-b)<1e-8*max(1,abs(b)))
+ key <- paste(spec,mag,pr,ph,sep="/");fits[[key]] <- fit
+ dl <- rbindlist(lapply(1:3,function(cy){
+  dd<-d[cycle!=cy];ff<-lm(form,dd);xx<-model.matrix(ff)
+  data.table(dropped_cycle=cy,beta=if(ff$rank==ncol(xx))unname(coef(ff)['x']) else NA_real_,
+             residual_df=df.residual(ff),full_rank=ff$rank==ncol(xx))
+ }))
+ dl[,`:=`(specification=spec,MAG_ID=mag,predictor=pr,phase=ph,same_sign=sign(beta)==sign(b))]
+ deletions[[key]] <- dl
+ results[[key]] <- data.table(specification=spec,MAG_ID=mag,genus=d$genus[1],predictor=pr,phase=ph,
+ n=6L,residual_df=df,beta=b,se=se,t=tt,p=2*pt(-abs(tt),df),
+ CI_low=b-qt(.975,df)*se,CI_high=b+qt(.975,df)*se,
+ HC3_se=se3,HC3_p=2*pt(-abs(b/se3),df),
+ HC3_low=b-qt(.975,df)*se3,HC3_high=b+qt(.975,df)*se3,
+ beta_per_predictor_SD=b*sd(d$x),partial_R2=tt^2/(tt^2+df),
+ predictor_VIF=1/(1-summary(lm(nf,d))$r.squared),max_leverage=max(h),
+ max_Cook=max(cooks.distance(fit)),design_kappa=kappa(X),
+ leave_cycle_same_sign=sum(dl$same_sign,na.rm=TRUE),leave_cycle_estimable=sum(dl$full_rank))
+ d[,`:=`(specification=spec,fitted=fitted(fit),residual=resid(fit),partial_x=rx,partial_score=ry)]
+ obs[[key]] <- d
+ if(pr=="DNA"){
+  sc <- data.table(suppression=c(0,.1,.25,.5,.75,.9,.95))
+  sc[,delta_x:=log2(1-suppression)]
+  sc[,`:=`(specification=spec,MAG_ID=mag,genus=d$genus[1],phase=ph,
+    delta_score=b*delta_x,low=(b+qt(.975,df)*se)*delta_x,high=(b-qt(.975,df)*se)*delta_x)]
+  sc[,treated_below_observed_range:=vapply(delta_x,function(dx)sum(d[condition=="treatment",x]+dx<min(d$x)),integer(1))]
+  scenarios[[key]] <- sc
+  changed <- copy(d);changed[,x:=x-1]
+  stopifnot(max(abs(predict(fit,changed)-predict(fit,d)+b))<1e-8*max(1,abs(b)))
+ }
+}
+a <- rbindlist(results);stopifnot(nrow(a)==112)
+a[,`:=`(FDR_56=p.adjust(p,"BH",n=56),HC3_FDR_56=p.adjust(HC3_p,"BH",n=56)),by=specification]
+a[,`:=`(FDR_112=p.adjust(p,"BH",n=112),HC3_FDR_112=p.adjust(HC3_p,"BH",n=112))]
+sc <- merge(rbindlist(scenarios),a[predictor=="DNA",.(specification,MAG_ID,phase,p,FDR_56,FDR_112)],
+            by=c("specification","MAG_ID","phase"))
+stopifnot(nrow(sc)==392,all(sc[suppression==0,delta_score]==0),all(sc$low<=sc$high))
+stopifnot(identical(before,vapply(paths,sha,character(1))))
+for(dir in c("tables","figures","source"))dir.create(file.path(out,dir),recursive=TRUE)
+fwrite(a,file.path(out,"tables/models.tsv"),sep="\t")
+fwrite(rbindlist(obs),file.path(out,"tables/model_observations.tsv"),sep="\t")
+fwrite(rbindlist(deletions),file.path(out,"tables/leave_cycle_out.tsv"),sep="\t")
+fwrite(sc,file.path(out,"tables/DNA_suppression_scenarios.tsv"),sep="\t")
+saveRDS(fits,file.path(out,"fitted_models.rds"))
+paths <- c(paths,notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(path=paths,sha256=vapply(paths,sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(paths['notebook'],file.path(out,"source",basename(paths['notebook'])))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS:112 full-rank six-observation models, primary df1 and sensitivity df2.",
+ "PASS:independent FWL slopes, raw/size-factor reconciliation, fixed candidate membership.",
+ "PASS:392 DNA scenarios, zero-suppression and independent predict contrasts, unchanged source hashes.",
+ "Inference conditional on Gaussian independent errors, selected candidates and fixed constructed score.",
+ "No calibrated repeated-membrane causal inference. No RNA percentage suppression."),file.path(out,"CHECKS.txt"))
+print(a[,.(tests=.N,nominal=sum(p<.05),BH56=sum(FDR_56<.05),BH112=sum(FDR_112<.05),
+ HC3_BH56=sum(HC3_FDR_56<.05),min_p=min(p),min_FDR=min(FDR_56)),by=specification])
+print(a[order(p),.(specification,MAG_ID,genus,predictor,phase,beta,p,FDR_56)][1:12])
+```
+
+```{r}
+#| label: diagnostic-preview
+aa <- copy(a[specification=="categorical_cycle"])
+aa[,label:=paste(genus,sub("_MAGScoT_cleanbin_","/",MAG_ID))]
+g <- ggplot(aa,aes(beta,label))+geom_vline(xintercept=0,colour="grey70")+
+ geom_segment(aes(x=CI_low,xend=CI_high,yend=label),linewidth=.4)+geom_point(size=1.8)+
+ facet_wrap(~predictor+phase,scales="free_x",ncol=2)+theme_bw(base_size=9)+
+ labs(x="Composite-score slope (DNA: per doubling; RNA: per expression-score unit)",y=NULL,
+ subtitle="Cycle-factor + condition adjusted; nominal OLS 95% intervals, 1 residual df",
+ caption="Exploratory conditional associations. Each panel uses six outcomes; phases are separate fits.")
+ggsave(file.path(out,"figures/primary_associations.png"),g,width=13,height=10,dpi=150,device=ragg::agg_png)
+```

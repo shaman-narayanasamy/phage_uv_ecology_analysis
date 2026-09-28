@@ -1,0 +1,132 @@
+---
+title: "Build the 16S phyloseq Object and Export Flat Tables"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/build_16s_phyloseq.qmd`. It joins the unrarefied ASV counts, the SILVA
+taxonomy, the canonical sample design, and the representative sequences into a
+single object, and exports every component as a flat, checksum-addressed file
+so the return package does not depend on anyone being able to load an RDS.
+
+```sh
+bash scripts/run_qmd.sh scripts/build_16s_phyloseq.qmd [dada2_dir] [taxonomy_dir] [output_dir] [sample_metadata.tsv]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: build-16s-phyloseq
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+dada2_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_DADA2_DIR")
+taxonomy_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_TAXONOMY_DIR")
+output_dir <- if (length(args) >= 3L) args[[3L]] else Sys.getenv("PHAGE_UV_16S_PHYLOSEQ_DIR")
+metadata_path <- if (length(args) >= 4L) args[[4L]] else "metadata/sample_metadata.tsv"
+if (!nzchar(dada2_dir) || !nzchar(taxonomy_dir) || !nzchar(output_dir)) {
+  abort("Provide dada2_dir, taxonomy_dir and output_dir, or source config/16s_analysis_paths.sh first.")
+}
+for (pkg in c("phyloseq", "Biostrings")) {
+  if (!requireNamespace(pkg, quietly = TRUE)) abort("Package %s is required.", pkg)
+}
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+seqtab <- readRDS(file.path(dada2_dir, "16s_seqtab_nochim.rds"))
+taxonomy <- readRDS(file.path(taxonomy_dir, "16s_taxonomy.rds"))
+asv_ids <- taxonomy$asv_ids
+silva <- taxonomy$silva
+
+sequences <- colnames(seqtab)
+if (!all(sequences %in% names(asv_ids))) {
+  abort("Sequence table and taxonomy were built from different ASV sets; rerun step 5.")
+}
+
+counts <- seqtab
+colnames(counts) <- unname(asv_ids[sequences])
+
+tax_matrix <- as.matrix(silva[sequences, , drop = FALSE])
+rownames(tax_matrix) <- unname(asv_ids[sequences])
+
+metadata <- read.delim(metadata_path, sep = "\t", header = TRUE, quote = "",
+                       comment.char = "", check.names = FALSE, stringsAsFactors = FALSE)
+required_columns <- c("sample_title", "condition", "phase", "cycle", "analysis_group")
+missing <- setdiff(required_columns, names(metadata))
+if (length(missing)) abort("sample_metadata.tsv is missing: %s", paste(missing, collapse = ", "))
+
+missing_samples <- setdiff(rownames(counts), metadata$sample_title)
+if (length(missing_samples)) {
+  abort("These sequenced samples are absent from sample_metadata.tsv: %s",
+        paste(missing_samples, collapse = ", "))
+}
+metadata <- metadata[match(rownames(counts), metadata$sample_title), , drop = FALSE]
+rownames(metadata) <- metadata$sample_title
+metadata$condition <- factor(metadata$condition, levels = c("control", "treatment"))
+metadata$phase <- factor(metadata$phase, levels = c("initial", "backflush"))
+metadata$cycle <- factor(metadata$cycle, levels = c("1", "2", "3"))
+metadata$cycle_phase <- factor(
+  paste0("c", as.character(metadata$cycle), "_", as.character(metadata$phase)),
+  levels = c("c1_initial", "c1_backflush", "c2_initial", "c2_backflush",
+             "c3_initial", "c3_backflush")
+)
+
+rep_seqs <- Biostrings::DNAStringSet(sequences)
+names(rep_seqs) <- unname(asv_ids[sequences])
+
+physeq <- phyloseq::phyloseq(
+  phyloseq::otu_table(counts, taxa_are_rows = FALSE),
+  phyloseq::tax_table(tax_matrix),
+  phyloseq::sample_data(metadata),
+  rep_seqs
+)
+
+counts_out <- data.frame(asv_id = colnames(counts), t(counts), check.names = FALSE,
+                         stringsAsFactors = FALSE)
+tax_out <- data.frame(asv_id = rownames(tax_matrix), tax_matrix, check.names = FALSE,
+                      stringsAsFactors = FALSE)
+sample_out <- data.frame(metadata, check.names = FALSE, stringsAsFactors = FALSE)
+
+counts_path <- file.path(output_dir, "16s_asv_counts_unrarefied.tsv")
+tax_path <- file.path(output_dir, "16s_asv_taxonomy_silva138.2.tsv")
+sample_path <- file.path(output_dir, "16s_sample_data.tsv")
+fasta_path <- file.path(output_dir, "16s_asv_representative_sequences.fasta")
+physeq_path <- file.path(output_dir, "16s_phyloseq.rds")
+
+write.table(counts_out, counts_path, sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+write.table(tax_out, tax_path, sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+write.table(sample_out, sample_path, sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+Biostrings::writeXStringSet(rep_seqs, fasta_path)
+saveRDS(physeq, physeq_path)
+
+summary_table <- data.frame(
+  quantity = c("samples", "asvs", "total_reads", "min_sample_depth", "median_sample_depth",
+               "max_sample_depth", "asvs_unassigned_at_phylum", "asvs_unassigned_at_genus"),
+  value = c(
+    phyloseq::nsamples(physeq), phyloseq::ntaxa(physeq), sum(counts),
+    min(rowSums(counts)), stats::median(rowSums(counts)), max(rowSums(counts)),
+    sum(is.na(tax_matrix[, "Phylum"])), sum(is.na(tax_matrix[, "Genus"]))
+  ),
+  stringsAsFactors = FALSE
+)
+write.table(summary_table, file.path(output_dir, "16s_object_summary.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+checksums <- tools::md5sum(c(counts_path, tax_path, sample_path, fasta_path, physeq_path))
+checksum_table <- data.frame(file = basename(names(checksums)), md5 = unname(checksums),
+                             stringsAsFactors = FALSE)
+write.table(checksum_table, file.path(output_dir, "16s_phyloseq_checksums.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+print(summary_table)
+cat(sprintf("\nWrote the phyloseq object and flat exports to %s\n", output_dir))
+cat("Counts stay unrarefied. Rarefaction, if used at all, belongs inside a single\n")
+cat("diversity estimate, never in the exported table.\n")
+```

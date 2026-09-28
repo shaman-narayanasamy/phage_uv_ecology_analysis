@@ -1,0 +1,701 @@
+---
+title: "Explore Taxonomic Resolution Figures"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This notebook evaluates how much MAG-mapped metagenomic abundance remains
+explicitly resolved when stacked community profiles move from family to genus
+and species. It builds top-25 longitudinal profiles using a microshades-style
+hierarchy: phylum owns hue, dominant named taxa receive darker shades, and the
+remaining or unresolved taxa within that phylum receive its palest shade. Only
+phyla outside the selected top-25 taxa remain globally grey.
+
+The notebook also creates an information-retention audit and a family-level
+heat-tree time-series diagnostic. These are exploratory candidates and do not
+replace the canonical manuscript figure automatically.
+
+Run individual lines or the analysis chunk for inline debugging. For exact
+command-line behaviour, use:
+
+```sh
+bash scripts/run_qmd.sh scripts/explore_taxonomic_resolution_figures.qmd [output-directory]
+```
+
+```{r}
+#| label: explore-taxonomic-resolution-figures
+#| echo: true
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+  library(colorspace)
+})
+
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+repo_root <- function() {
+  root <- normalizePath(getwd(), mustWork = TRUE)
+  if (!file.exists(file.path(root, "R", "figure_style.R"))) {
+    abort("Run this notebook from the phage_uv_ecology_analysis repository root")
+  }
+  root
+}
+
+promote_file <- function(source, destination) {
+  dir.create(dirname(destination), recursive = TRUE, showWarnings = FALSE)
+  incoming <- paste0(destination, ".incoming-", Sys.getpid())
+  if (!file.copy(source, incoming, overwrite = TRUE, copy.mode = TRUE)) {
+    abort("Failed to stage %s", basename(destination))
+  }
+  if (!file.rename(incoming, destination)) {
+    unlink(incoming)
+    abort("Failed to promote %s", basename(destination))
+  }
+}
+
+extract_prefixed_rank <- function(lineage, prefix) {
+  vapply(strsplit(as.character(lineage), ";", fixed = TRUE), function(parts) {
+    hit <- parts[startsWith(parts, prefix)]
+    if (!length(hit)) return(NA_character_)
+    sub(paste0("^", prefix), "", hit[[1L]])
+  }, character(1))
+}
+
+plural_rank <- function(rank) {
+  switch(rank, family = "families", genus = "genera", species = "species", paste0(rank, "s"))
+}
+
+microshades_cvd_reference <- c(
+  micro_cvd_gray_1 = "#F5F5F5", micro_cvd_gray_2 = "#D6D6D6",
+  micro_cvd_gray_3 = "#B7B7B7", micro_cvd_gray_4 = "#8B8B8B",
+  micro_cvd_gray_5 = "#616161", micro_cvd_green_1 = "#DDFFA0",
+  micro_cvd_green_2 = "#BDEC6F", micro_cvd_green_3 = "#97CE2F",
+  micro_cvd_green_4 = "#6D9F06", micro_cvd_green_5 = "#4E7705",
+  micro_cvd_orange_1 = "#FFD5AF", micro_cvd_orange_2 = "#FCB076",
+  micro_cvd_orange_3 = "#F09163", micro_cvd_orange_4 = "#C17754",
+  micro_cvd_orange_5 = "#9D654C", micro_cvd_blue_1 = "#E7F4FF",
+  micro_cvd_blue_2 = "#BCE1FF", micro_cvd_blue_3 = "#7DCCFF",
+  micro_cvd_blue_4 = "#56B4E9", micro_cvd_blue_5 = "#098BD9",
+  micro_cvd_turquoise_1 = "#A3E4D7", micro_cvd_turquoise_2 = "#48C9B0",
+  micro_cvd_turquoise_3 = "#43BA8F", micro_cvd_turquoise_4 = "#009E73",
+  micro_cvd_turquoise_5 = "#148F77", micro_cvd_purple_1 = "#EFB6D6",
+  micro_cvd_purple_2 = "#E794C1", micro_cvd_purple_3 = "#CC79A7",
+  micro_cvd_purple_4 = "#A1527F", micro_cvd_purple_5 = "#7D3560"
+)
+
+phylum_shades <- function(base_colour, n_named) {
+  if (n_named < 1L) abort("Each selected phylum requires at least one named taxon")
+  dark_amounts <- seq(0.38, 0.02, length.out = n_named)
+  c(
+    named = vapply(dark_amounts, function(x) darken(base_colour, amount = x), character(1)),
+    residual = lighten(base_colour, amount = 0.60)
+  )
+}
+
+write_checksums <- function(output_dir, staging) {
+  checksum_path <- file.path(output_dir, "output_checksums.md5.tsv")
+  files <- list.files(output_dir, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+  files <- files[file.info(files)$isdir %in% FALSE]
+  files <- files[normalizePath(files) != normalizePath(checksum_path, mustWork = FALSE)]
+  files <- sort(files)
+  checksum_table <- data.table(
+    path = sub(paste0("^", normalizePath(output_dir), "/?"), "", normalizePath(files)),
+    bytes = file.info(files)$size,
+    md5 = unname(tools::md5sum(files))
+  )
+  checksum_stage <- file.path(staging, "output_checksums.md5.tsv")
+  fwrite(checksum_table, checksum_stage, sep = "\t")
+  promote_file(checksum_stage, checksum_path)
+}
+
+rank_summary <- function(mag_relative, rank, top_n = 25L) {
+  assigned <- mag_relative[!is.na(get(rank)) & nzchar(get(rank))]
+  taxon_by_sample <- assigned[, .(relative_abundance = sum(relative_abundance)), by = .(
+    sample_title, taxon = get(rank)
+  )]
+  taxon_mean <- taxon_by_sample[, .(
+    mean_relative_abundance = mean(relative_abundance)
+  ), by = taxon][order(-mean_relative_abundance, taxon)]
+  top_taxa <- head(taxon_mean$taxon, top_n)
+  top_fraction <- taxon_mean[taxon %chin% top_taxa, sum(mean_relative_abundance)]
+  unclassified <- mag_relative[is.na(get(rank)) | !nzchar(get(rank)), .(
+    relative_abundance = sum(relative_abundance)
+  ), by = sample_title][, mean(relative_abundance)]
+  if (is.na(unclassified)) unclassified <- 0
+  parent_phyla <- unique(mag_relative[get(rank) %chin% top_taxa, phylum])
+  parent_phyla <- parent_phyla[!is.na(parent_phyla) & nzchar(parent_phyla)]
+  parent_coverage <- mag_relative[phylum %chin% parent_phyla, .(
+    relative_abundance = sum(relative_abundance)
+  ), by = sample_title][, mean(relative_abundance)]
+
+  list(
+    taxon_mean = taxon_mean,
+    top_taxa = top_taxa,
+    parent_phyla = parent_phyla,
+    metrics = data.table(
+      rank = rank,
+      classified_categories = nrow(taxon_mean),
+      unclassified_mean = unclassified,
+      top25_classified_mean = top_fraction,
+      other_classified_mean = 1 - unclassified - top_fraction,
+      unnamed_at_rank_mean = 1 - top_fraction,
+      top25_parent_phyla = length(parent_phyla),
+      hierarchical_global_gray_mean = 1 - parent_coverage
+    )
+  )
+}
+
+build_rank_profile <- function(mag_relative, summary, rank, phylum_colours) {
+  top_taxa <- summary$top_taxa
+  parent_phyla <- summary$parent_phyla
+  top_lookup <- mag_relative[get(rank) %chin% top_taxa, .(
+    abundance = sum(relative_abundance)
+  ), by = .(taxon = get(rank), phylum)][order(-abundance)]
+  top_lookup <- top_lookup[, .SD[1L], by = taxon]
+
+  profile <- mag_relative[, .(
+    relative_abundance = sum(relative_abundance)
+  ), by = .(
+    sample_title, condition, phase, cycle, phylum,
+    taxon = get(rank)
+  )]
+  profile[, display_category := fcase(
+    !is.na(taxon) & taxon %chin% top_taxa, taxon,
+    !is.na(phylum) & phylum %chin% parent_phyla,
+    paste0("Remaining/unclassified ", plural_rank(rank), " in ", phylum),
+    default = "Other phyla"
+  )]
+  profile[, display_phylum := fcase(
+    display_category == "Other phyla", "Other phyla",
+    !is.na(phylum) & nzchar(phylum), phylum,
+    default = "Other phyla"
+  )]
+  profile <- profile[, .(
+    relative_abundance = sum(relative_abundance)
+  ), by = .(
+    sample_title, condition, phase, cycle, display_category, display_phylum
+  )]
+
+  phylum_order <- mag_relative[phylum %chin% parent_phyla, .(
+    mean_relative_abundance = mean(relative_abundance)
+  ), by = phylum][order(-mean_relative_abundance)]$phylum
+  colour_rows <- list()
+  legend_rows <- list()
+  category_levels <- character()
+  for (current_phylum in phylum_order) {
+    taxa <- top_lookup[phylum == current_phylum]
+    taxa <- taxa[match(intersect(summary$top_taxa, taxa$taxon), taxon)]
+    if (!nrow(taxa)) next
+    base_colour <- unname(phylum_colours[current_phylum])
+    if (!length(base_colour) || is.na(base_colour)) abort("No fixed colour for %s", current_phylum)
+    shades <- phylum_shades(base_colour, nrow(taxa))
+    named_colours <- unname(shades[seq_len(nrow(taxa))])
+    residual_label <- paste0("Remaining/unclassified ", plural_rank(rank), " in ", current_phylum)
+    colour_rows[[length(colour_rows) + 1L]] <- data.table(
+      rank = rank,
+      display_category = c(taxa$taxon, residual_label),
+      phylum = current_phylum,
+      category_type = c(rep("top25 named", nrow(taxa)), "within-phylum remainder"),
+      colour = c(named_colours, unname(shades[[length(shades)]]))
+    )
+    legend_rows[[length(legend_rows) + 1L]] <- data.table(
+      display_category = taxa$taxon,
+      legend_label = paste(current_phylum, taxa$taxon, sep = " | ")
+    )
+    category_levels <- c(category_levels, taxa$taxon, residual_label)
+  }
+  colour_key <- rbindlist(colour_rows)
+  colour_key <- rbind(
+    colour_key,
+    data.table(
+      rank = rank, display_category = "Other phyla", phylum = "Other phyla",
+      category_type = "global remainder", colour = "#D9D9D9"
+    )
+  )
+  legend_key <- rbindlist(legend_rows)
+  legend_key <- rbind(
+    legend_key,
+    data.table(display_category = "Other phyla", legend_label = "Other phyla")
+  )
+  category_levels <- c(category_levels, "Other phyla")
+
+  sample_order <- c(
+    "C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B"
+  )
+  profile[, sample_label := paste0(
+    "C", cycle, "-", fifelse(phase == "initial", "I", "B")
+  )]
+  profile[, sample_label := factor(sample_label, levels = sample_order)]
+  profile[, condition_label := factor(
+    fifelse(condition == "control", "Control", "Phage-UV"),
+    levels = c("Control", "Phage-UV")
+  )]
+  profile[, display_category := factor(display_category, levels = rev(unique(category_levels)))]
+
+  colours <- setNames(colour_key$colour, colour_key$display_category)
+  breaks <- legend_key$display_category
+  labels <- setNames(legend_key$legend_label, legend_key$display_category)
+  rank_label <- tools::toTitleCase(rank)
+  p <- ggplot(profile, aes(x = sample_label, y = relative_abundance, fill = display_category)) +
+    geom_vline(xintercept = c(2.5, 4.5), colour = "#D8D8D8", linewidth = 0.35) +
+    geom_col(width = 0.82, colour = "white", linewidth = 0.08) +
+    facet_grid(condition_label ~ ., scales = "fixed") +
+    scale_fill_manual(
+      values = colours,
+      breaks = breaks,
+      labels = labels[breaks],
+      drop = FALSE,
+      name = paste0(rank_label, " (phylum | taxon)")
+    ) +
+    scale_y_continuous(labels = label_percent(accuracy = 1), expand = expansion(mult = c(0, 0.02))) +
+    labs(
+      x = "Cycle and phase in chronological order",
+      y = "Relative abundance among MAG-mapped metagenomic reads",
+      caption = paste0(
+        "Top 25 classified ", plural_rank(rank), " are named. Pale shades pool remaining or unresolved ",
+        plural_rank(rank), " within the same phylum; only phyla outside the selected set remain grey. " ,
+        "I, initial; B, backflush. Descriptive profiles; membrane identity is confounded with condition."
+      )
+    ) +
+    theme_phage_uv(base_size = 9) +
+    theme(
+      legend.position = "right",
+      legend.text = element_text(size = 6.2),
+      legend.title = element_text(size = 7.2),
+      legend.key.height = grid::unit(0.32, "cm"),
+      strip.text.y = element_text(angle = 0, face = "bold"),
+      axis.text.x = element_text(size = 8),
+      plot.caption = element_text(size = 6.5, hjust = 0),
+      plot.margin = margin(10, 10, 8, 10)
+    ) +
+    guides(fill = guide_legend(ncol = 1, byrow = TRUE, override.aes = list(colour = NA)))
+
+  list(profile = profile, colour_key = colour_key, plot = p)
+}
+
+build_taxonomy_layout <- function(taxonomy, top_families, family_order) {
+  lineages <- unique(taxonomy[family %chin% top_families, .(
+    phylum, class, order, family
+  )])
+  setorder(lineages, phylum, class, order, family, na.last = TRUE)
+  lineages <- lineages[!duplicated(family)]
+
+  nodes <- data.table(
+    node_id = "root", label = "MAG community", rank = "root", depth = 0L,
+    parent = NA_character_
+  )
+  edges <- data.table(parent = character(), child = character())
+  ranks <- c("phylum", "class", "order", "family")
+  for (i in seq_len(nrow(lineages))) {
+    parent <- "root"
+    path <- character()
+    for (rank in ranks) {
+      value <- lineages[[rank]][[i]]
+      if (is.na(value) || !nzchar(value)) next
+      path <- c(path, paste0(rank, "=", value))
+      key <- paste(path, collapse = "|")
+      if (!(key %chin% nodes$node_id)) {
+        nodes <- rbind(nodes, data.table(
+          node_id = key, label = value, rank = rank,
+          depth = match(rank, ranks), parent = parent
+        ))
+        edges <- rbind(edges, data.table(parent = parent, child = key))
+      }
+      parent <- key
+    }
+  }
+
+  nodes[, y := NA_real_]
+  tip_order <- rev(family_order[family_order %chin% nodes[rank == "family", label]])
+  nodes[rank == "family", y := match(label, tip_order)]
+  for (depth_value in rev(seq.int(0L, max(nodes$depth) - 1L))) {
+    for (key_value in nodes[depth == depth_value, node_id]) {
+      children <- edges[parent == key_value, child]
+      nodes[node_id == key_value, y := mean(nodes[node_id %chin% children, y], na.rm = TRUE)]
+    }
+  }
+  nodes[, x := depth]
+  edges <- merge(edges, nodes[, .(parent = node_id, x, y)], by = "parent", all.x = TRUE)
+  edges <- merge(
+    edges,
+    nodes[, .(child = node_id, xend = x, yend = y)],
+    by = "child", all.x = TRUE
+  )
+  list(nodes = nodes, edges = edges, lineages = lineages)
+}
+
+build_heat_tree <- function(mag_relative, family_summary, taxonomy, family_colours) {
+  family_order <- family_summary$top_taxa
+  layout <- build_taxonomy_layout(taxonomy, family_order, family_order)
+  nodes <- layout$nodes
+  edges <- layout$edges
+  sample_info <- unique(mag_relative[, .(sample_title, condition, phase, cycle)])
+  sample_info[, sample_label := factor(
+    paste0("C", cycle, "-", fifelse(phase == "initial", "I", "B")),
+    levels = c("C1-I", "C1-B", "C2-I", "C2-B", "C3-I", "C3-B")
+  )]
+  sample_info[, condition_label := factor(
+    fifelse(condition == "control", "Control", "Phage-UV"),
+    levels = c("Control", "Phage-UV")
+  )]
+  family_abundance <- mag_relative[family %chin% family_order, .(
+    relative_abundance = sum(relative_abundance)
+  ), by = .(sample_title, family)]
+
+  node_values <- rbindlist(lapply(seq_len(nrow(sample_info)), function(i) {
+    info <- sample_info[i]
+    values <- copy(nodes[, .(node_id, label, rank, depth, x, y)])
+    values[, relative_abundance := 0]
+    tip_values <- family_abundance[sample_title == info$sample_title]
+    values[rank == "family", relative_abundance := tip_values$relative_abundance[
+      match(label, tip_values$family)
+    ]]
+    values[is.na(relative_abundance), relative_abundance := 0]
+    for (depth_value in rev(seq.int(0L, max(values$depth) - 1L))) {
+      for (key_value in values[depth == depth_value, node_id]) {
+        children <- edges[parent == key_value, child]
+        values[node_id == key_value, relative_abundance := values[node_id %chin% children, sum(relative_abundance)]]
+      }
+    }
+    values[, `:=`(
+      sample_title = info$sample_title,
+      sample_label = info$sample_label,
+      condition_label = info$condition_label
+    )]
+    values
+  }))
+  edge_values <- merge(
+    CJ(sample_title = sample_info$sample_title, edge_row = seq_len(nrow(edges))),
+    data.table(edge_row = seq_len(nrow(edges)), edges),
+    by = "edge_row"
+  )
+  edge_values <- merge(edge_values, sample_info[, .(
+    sample_title, sample_label, condition_label
+  )], by = "sample_title", all.x = TRUE)
+
+  tip_phylum <- layout$lineages[, .(label = family, phylum)]
+  guide_nodes <- merge(nodes, tip_phylum, by = "label", all.x = TRUE)
+  guide_nodes[, node_colour := fifelse(
+    rank == "family",
+    family_colours[match(label, names(family_colours))],
+    "#7A7A7A"
+  )]
+  guide_nodes[is.na(node_colour), node_colour := "#7A7A7A"]
+  guide <- ggplot() +
+    geom_segment(
+      data = edges,
+      aes(x = x, y = y, xend = xend, yend = yend),
+      colour = "#C8C8C8", linewidth = 0.25
+    ) +
+    geom_point(
+      data = guide_nodes,
+      aes(x = x, y = y, colour = node_colour),
+      size = 1.1, show.legend = FALSE
+    ) +
+    geom_text(
+      data = guide_nodes[rank == "family"],
+      aes(x = x + 0.08, y = y, label = label),
+      hjust = 0, size = 2.1
+    ) +
+    scale_colour_identity() +
+    coord_cartesian(xlim = c(0, 7.3), clip = "off") +
+    labs(title = "Guide tree", subtitle = "Top 25 families") +
+    theme_void(base_size = 8) +
+    theme(
+      plot.title = element_text(size = 9, face = "bold"),
+      plot.subtitle = element_text(size = 7),
+      plot.margin = margin(8, 40, 8, 8)
+    )
+
+  heat_grid <- ggplot() +
+    geom_segment(
+      data = edge_values,
+      aes(x = x, y = y, xend = xend, yend = yend),
+      colour = "#D4D4D4", linewidth = 0.18
+    ) +
+    geom_point(
+      data = node_values,
+      aes(x = x, y = y, size = relative_abundance, colour = relative_abundance),
+      alpha = 0.92
+    ) +
+    facet_grid(condition_label ~ sample_label) +
+    scale_size_area(max_size = 5.2, labels = label_percent(accuracy = 1), name = "Displayed\nabundance") +
+    scale_colour_gradient(
+      low = microshades_cvd_reference[["micro_cvd_purple_1"]],
+      high = microshades_cvd_reference[["micro_cvd_purple_5"]],
+      labels = label_percent(accuracy = 1), name = "Displayed\nabundance"
+    ) +
+    coord_cartesian(xlim = c(-0.1, 4.1), clip = "off") +
+    labs(
+      title = "Family heat-tree time series",
+      subtitle = "Common layout across the six chronological cycle-phase positions",
+      caption = "Node area and colour encode abundance contributed by the displayed top-25 family descendants."
+    ) +
+    theme_void(base_size = 8) +
+    theme(
+      strip.text = element_text(size = 7, face = "bold"),
+      panel.spacing = grid::unit(0.45, "lines"),
+      legend.position = "bottom",
+      plot.title = element_text(size = 10, face = "bold"),
+      plot.subtitle = element_text(size = 8),
+      plot.caption = element_text(size = 6.5, hjust = 0),
+      plot.margin = margin(8, 8, 8, 8)
+    ) +
+    guides(
+      colour = guide_colourbar(order = 1, barwidth = grid::unit(2.2, "cm")),
+      size = guide_legend(order = 2)
+    )
+
+  list(
+    plot = guide + heat_grid + plot_layout(widths = c(0.29, 0.71)),
+    nodes = node_values,
+    edges = edge_values
+  )
+}
+
+build_resolution_exploration <- function(root, output_dir) {
+  source(file.path(root, "R", "figure_style.R"))
+  project_data <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+  paths <- list(
+    taxonomy = file.path(project_data, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
+    mag_mg_counts = file.path(project_data, "quantification", "mags_votu", "coverage", "metagenomics", "coverm", "output-Read_Count.tsv"),
+    sample_metadata = file.path(root, "metadata", "sample_metadata.tsv")
+  )
+  missing <- names(paths)[!file.exists(unlist(paths))]
+  if (length(missing)) abort("Missing inputs: %s", paste(missing, collapse = ", "))
+
+  staging <- file.path(dirname(output_dir), sprintf(".taxonomic-resolution-staging-%s", Sys.getpid()))
+  dir.create(file.path(staging, "figures"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(staging, "tables"), recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
+
+  taxonomy <- fread(paths$taxonomy)
+  setnames(taxonomy, "# bin", "MAG_ID")
+  taxonomy[, MAG_ID := sub("[.]fasta$", "", MAG_ID)]
+  rank_prefixes <- c(
+    domain = "d__", phylum = "p__", class = "c__", order = "o__",
+    family = "f__", genus = "g__", species = "s__"
+  )
+  for (rank in names(rank_prefixes)) {
+    taxonomy[, (rank) := extract_prefixed_rank(lineage, rank_prefixes[[rank]])]
+  }
+  if (nrow(taxonomy) != 348L || uniqueN(taxonomy$MAG_ID) != 348L) {
+    abort("Expected 348 unique MAG taxonomy records")
+  }
+
+  mag_counts <- fread(paths$mag_mg_counts)
+  mag_counts <- mag_counts[grepl("_MAGScoT_", Contig, fixed = TRUE)]
+  mag_counts[, MAG_ID := vapply(
+    strsplit(Contig, "_", fixed = TRUE),
+    function(parts) paste(parts[seq_len(4L)], collapse = "_"),
+    character(1)
+  )]
+  count_columns <- setdiff(names(mag_counts), c("Contig", "MAG_ID"))
+  mag_sample_counts <- mag_counts[, lapply(.SD, sum, na.rm = TRUE), by = MAG_ID, .SDcols = count_columns]
+  mag_sample_counts <- melt(
+    mag_sample_counts,
+    id.vars = "MAG_ID",
+    variable.name = "source_sample",
+    value.name = "reads"
+  )
+  mag_sample_counts[, metagenome_run_accession := sub(
+    ".*(ERR[0-9]+).*", "\\1", source_sample
+  )]
+  sample_metadata <- fread(paths$sample_metadata)[, .(
+    sample_title, condition, phase, cycle, metagenome_run_accession
+  )]
+  mag_relative <- merge(
+    mag_sample_counts,
+    sample_metadata,
+    by = "metagenome_run_accession",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  mag_relative <- merge(
+    mag_relative,
+    taxonomy[, c("MAG_ID", names(rank_prefixes)), with = FALSE],
+    by = "MAG_ID",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  if (anyNA(mag_relative$sample_title) || uniqueN(mag_relative$sample_title) != 12L) {
+    abort("MAG counts do not map uniquely to the 12 physical samples")
+  }
+  mag_relative[, relative_abundance := reads / sum(reads), by = sample_title]
+
+  plotted_ranks <- c("family", "genus", "species")
+  summaries <- setNames(lapply(plotted_ranks, function(rank) {
+    rank_summary(mag_relative, rank, top_n = 25L)
+  }), plotted_ranks)
+  required_phylum_colours <- unique(unlist(lapply(summaries, `[[`, "parent_phyla")))
+  missing_phylum_colours <- setdiff(required_phylum_colours, names(phage_uv_phylum_colours))
+  if (length(missing_phylum_colours)) {
+    abort("Missing fixed colours for: %s", paste(sort(missing_phylum_colours), collapse = ", "))
+  }
+  profiles <- setNames(lapply(plotted_ranks, function(rank) {
+    build_rank_profile(mag_relative, summaries[[rank]], rank, phage_uv_phylum_colours)
+  }), plotted_ranks)
+
+  all_rank_names <- c("phylum", "class", "order", "family", "genus", "species")
+  all_summaries <- setNames(lapply(all_rank_names, function(rank) {
+    rank_summary(mag_relative, rank, top_n = 25L)
+  }), all_rank_names)
+  retention <- rbindlist(lapply(all_summaries, `[[`, "metrics"))
+  retention[, rank := factor(rank, levels = all_rank_names)]
+  retention_long <- melt(
+    retention,
+    id.vars = "rank",
+    measure.vars = c("top25_classified_mean", "other_classified_mean", "unclassified_mean"),
+    variable.name = "component",
+    value.name = "relative_abundance"
+  )
+  retention_long[, component := factor(
+    component,
+    levels = c("unclassified_mean", "other_classified_mean", "top25_classified_mean"),
+    labels = c("Unclassified at rank", "Other classified taxa", "Top 25 named taxa")
+  )]
+
+  cumulative <- rbindlist(lapply(plotted_ranks, function(rank) {
+    x <- summaries[[rank]]$taxon_mean
+    x[, .(
+      rank = tools::toTitleCase(rank),
+      top_n = seq_len(.N),
+      cumulative_abundance = cumsum(mean_relative_abundance)
+    )]
+  }))
+  cumulative <- cumulative[top_n <= 100L]
+  p_retained <- ggplot(retention_long, aes(x = rank, y = relative_abundance, fill = component)) +
+    geom_col(width = 0.72, colour = "white", linewidth = 0.2) +
+    scale_fill_manual(values = c(
+      "Top 25 named taxa" = microshades_cvd_reference[["micro_cvd_turquoise_4"]],
+      "Other classified taxa" = microshades_cvd_reference[["micro_cvd_gray_2"]],
+      "Unclassified at rank" = microshades_cvd_reference[["micro_cvd_gray_5"]]
+    )) +
+    scale_y_continuous(labels = label_percent(accuracy = 1), expand = expansion(mult = c(0, 0.02))) +
+    labs(
+      x = NULL, y = "Mean relative abundance", fill = NULL,
+      title = "What remains explicit with a top-25 display?"
+    ) +
+    theme_phage_uv(base_size = 9) +
+    theme(
+      legend.position = "bottom",
+      axis.text.x = element_text(angle = 30, hjust = 1),
+      plot.title = element_text(size = 10, face = "bold")
+    )
+  p_cumulative <- ggplot(cumulative, aes(x = top_n, y = cumulative_abundance, colour = rank)) +
+    geom_hline(yintercept = c(0.7, 0.8, 0.9), colour = "#C8C8C8", linetype = "dashed", linewidth = 0.3) +
+    geom_line(linewidth = 0.8) +
+    scale_colour_manual(values = c(
+      Family = microshades_cvd_reference[["micro_cvd_green_5"]],
+      Genus = microshades_cvd_reference[["micro_cvd_blue_5"]],
+      Species = microshades_cvd_reference[["micro_cvd_purple_5"]]
+    )) +
+    scale_x_continuous(breaks = c(1, 10, 25, 50, 75, 100)) +
+    scale_y_continuous(labels = label_percent(accuracy = 1), limits = c(0, 0.92)) +
+    labs(
+      x = "Number of named classified taxa retained",
+      y = "Cumulative mean relative abundance",
+      colour = NULL,
+      title = "Finer ranks hit an assignment ceiling"
+    ) +
+    theme_phage_uv(base_size = 9) +
+    theme(
+      legend.position = "bottom",
+      plot.title = element_text(size = 10, face = "bold")
+    )
+  retention_plot <- p_retained | p_cumulative
+
+  family_colours <- setNames(
+    profiles$family$colour_key$colour,
+    profiles$family$colour_key$display_category
+  )
+  heat_tree <- build_heat_tree(
+    mag_relative, summaries$family, taxonomy, family_colours
+  )
+
+  figure_specs <- list(
+    family = list(plot = profiles$family$plot, file = "family-top25-stacked-microshades.pdf", width = 14, height = 7.5),
+    genus = list(plot = profiles$genus$plot, file = "genus-top25-stacked-microshades.pdf", width = 14, height = 7.5),
+    species = list(plot = profiles$species$plot, file = "species-top25-stacked-microshades.pdf", width = 14, height = 7.5),
+    retention = list(plot = retention_plot, file = "taxonomic-rank-retention.pdf", width = 12, height = 5.5),
+    heat_tree = list(plot = heat_tree$plot, file = "family-top25-heat-tree-timeseries.pdf", width = 20, height = 9)
+  )
+  for (spec in figure_specs) {
+    ggsave(
+      file.path(staging, "figures", spec$file),
+      spec$plot,
+      width = spec$width,
+      height = spec$height,
+      device = grDevices::pdf,
+      useDingbats = FALSE
+    )
+  }
+  expected_figures <- file.path(
+    staging, "figures", vapply(figure_specs, `[[`, character(1), "file")
+  )
+  if (any(!file.exists(expected_figures))) {
+    abort("Failed to create PDFs: %s", paste(basename(expected_figures[!file.exists(expected_figures)]), collapse = ", "))
+  }
+
+  fwrite(retention, file.path(staging, "tables", "rank_information_retention.tsv"), sep = "\t")
+  fwrite(cumulative, file.path(staging, "tables", "rank_cumulative_coverage.tsv"), sep = "\t")
+  for (rank in plotted_ranks) {
+    profile_out <- copy(profiles[[rank]]$profile)
+    profile_out[, display_category := as.character(display_category)]
+    profile_out[, sample_label := as.character(sample_label)]
+    profile_out[, condition_label := as.character(condition_label)]
+    fwrite(
+      profile_out,
+      file.path(staging, "tables", paste0(rank, "_top25_community_profile.tsv")),
+      sep = "\t"
+    )
+    fwrite(
+      profiles[[rank]]$colour_key,
+      file.path(staging, "tables", paste0(rank, "_microshades_colour_key.tsv")),
+      sep = "\t"
+    )
+  }
+  fwrite(
+    heat_tree$nodes,
+    file.path(staging, "tables", "family_top25_heat_tree_nodes.tsv"),
+    sep = "\t"
+  )
+  fwrite(
+    data.table(
+      method = c("microshades hierarchy", "heat-tree diagnostic"),
+      source = c(
+        "Dahl et al. 2022; doi:10.1128/mra.00795-22; microshades v1.13 palette and hierarchy adapted to fixed project phylum hues",
+        "Foster et al. 2017; doi:10.1371/journal.pcbi.1005404; common-layout time-series diagnostic"
+      )
+    ),
+    file.path(staging, "tables", "visualisation_method_registry.tsv"),
+    sep = "\t"
+  )
+
+  staged_files <- list.files(staging, recursive = TRUE, full.names = TRUE)
+  staged_files <- staged_files[file.info(staged_files)$isdir %in% FALSE]
+  for (source_file in staged_files) {
+    relative_path <- sub(paste0("^", staging, "/"), "", source_file)
+    promote_file(source_file, file.path(output_dir, relative_path))
+  }
+  write_checksums(output_dir, staging)
+  cat(sprintf("Created five taxonomic-resolution exploration PDFs in %s\n", output_dir))
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+root <- repo_root()
+output_dir <- if (length(args)) args[[1L]] else file.path(
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569",
+  "derived",
+  "taxonomic_resolution_exploration"
+)
+build_resolution_exploration(root, output_dir)
+
+```

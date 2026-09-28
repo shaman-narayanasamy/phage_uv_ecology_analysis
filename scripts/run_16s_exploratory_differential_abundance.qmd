@@ -1,0 +1,106 @@
+---
+title: "Exploratory 16S Differential Abundance"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/run_16s_exploratory_differential_abundance.qmd`. It is optional, and
+its output is exploratory by construction. With one membrane per condition
+there is no biological replication for a condition contrast, so any per-ASV
+difference is a property of these two systems. ALDEx2 is used because it works
+on unrarefied counts and treats the data as compositional. Every output file
+and column carries the exploratory label so it cannot be quoted later as a
+confirmatory result.
+
+```sh
+bash scripts/run_qmd.sh scripts/run_16s_exploratory_differential_abundance.qmd [phyloseq_dir] [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: run-16s-exploratory-differential-abundance
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+phyloseq_dir <- if (length(args) >= 1L) args[[1L]] else Sys.getenv("PHAGE_UV_16S_PHYLOSEQ_DIR")
+output_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_DA_DIR")
+if (!nzchar(phyloseq_dir) || !nzchar(output_dir)) {
+  abort("Provide phyloseq_dir and output_dir, or source config/16s_analysis_paths.sh first.")
+}
+if (!requireNamespace("phyloseq", quietly = TRUE)) abort("Package phyloseq is required.")
+if (!requireNamespace("ALDEx2", quietly = TRUE)) {
+  cat("ALDEx2 is not installed. This optional step is skipped by design.\n")
+  cat("Install with BiocManager::install(\"ALDEx2\") only if the exploratory view is wanted.\n")
+  quit(save = "no", status = 0)
+}
+set.seed(20260901L)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+physeq <- readRDS(file.path(phyloseq_dir, "16s_phyloseq.rds"))
+counts <- as(phyloseq::otu_table(physeq), "matrix")
+if (phyloseq::taxa_are_rows(physeq)) counts <- t(counts)
+design <- as.data.frame(as(phyloseq::sample_data(physeq), "data.frame"), stringsAsFactors = FALSE)
+design <- design[rownames(counts), , drop = FALSE]
+taxonomy <- as.data.frame(as(phyloseq::tax_table(physeq), "matrix"), stringsAsFactors = FALSE)
+
+# A prevalence filter keeps the CLR from being dominated by singletons. It is a
+# stated preprocessing choice, not a hidden default.
+min_count <- as.integer(Sys.getenv("PHAGE_UV_16S_DA_MIN_COUNT", "10"))
+min_samples <- as.integer(Sys.getenv("PHAGE_UV_16S_DA_MIN_SAMPLES", "3"))
+keep <- colSums(counts >= 1) >= min_samples & colSums(counts) >= min_count
+cat(sprintf("Testing %d of %d ASVs after the prevalence filter.\n", sum(keep), ncol(counts)))
+
+matrix_for_aldex <- t(counts[, keep, drop = FALSE])
+condition <- as.character(design$condition)
+
+result <- ALDEx2::aldex(
+  reads = as.data.frame(matrix_for_aldex),
+  conditions = condition,
+  mc.samples = as.integer(Sys.getenv("PHAGE_UV_16S_DA_MC_SAMPLES", "128")),
+  test = "t",
+  effect = TRUE,
+  denom = "all"
+)
+
+result$asv_id <- rownames(result)
+ranks <- intersect(c("Phylum", "Class", "Order", "Family", "Genus"), colnames(taxonomy))
+for (rank in ranks) {
+  result[[tolower(rank)]] <- taxonomy[result$asv_id, rank]
+}
+result$evidence_class <- "exploratory_only"
+result$experimental_unit_caveat <- "one membrane per condition; not a replicated treatment contrast"
+result <- result[order(result$wi.eBH, -abs(result$effect)), ]
+result <- result[, c("asv_id", tolower(ranks), setdiff(colnames(result),
+                     c("asv_id", tolower(ranks))))]
+
+output_path <- file.path(output_dir, "16s_exploratory_differential_abundance.tsv")
+write.table(result, output_path, sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+
+summary_table <- data.frame(
+  quantity = c("asvs_tested", "asvs_with_welch_ebh_below_0.05",
+               "asvs_with_absolute_effect_above_1", "asvs_meeting_both"),
+  value = c(
+    nrow(result),
+    sum(result$we.eBH < 0.05, na.rm = TRUE),
+    sum(abs(result$effect) > 1, na.rm = TRUE),
+    sum(result$we.eBH < 0.05 & abs(result$effect) > 1, na.rm = TRUE)
+  ),
+  stringsAsFactors = FALSE
+)
+write.table(summary_table, file.path(output_dir, "16s_exploratory_da_summary.tsv"),
+            sep = "\t", quote = FALSE, row.names = FALSE)
+
+print(summary_table)
+cat(sprintf("\nWrote exploratory results to %s\n", output_path))
+cat("These results may support a supplementary observation. They may not be written\n")
+cat("as a treatment effect, and they may not be used to select features for other analyses.\n")
+```

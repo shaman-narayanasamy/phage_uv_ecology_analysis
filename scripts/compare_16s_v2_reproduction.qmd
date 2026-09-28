@@ -1,0 +1,128 @@
+---
+title: "16S v2: reproduction versus the accepted v1 return"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+This Quarto notebook is the canonical executable source for
+`scripts/compare_16s_v2_reproduction.qmd`. It compares the v2 reproduction of
+the 12-sample analysis (same code, same executed parameters, rebuilt
+environment, freshly downloaded reads) against the read-only copy of the
+accepted v1 return, and writes a table of differences. It changes nothing in
+either tree.
+
+```sh
+source config/16s_v2_paths.sh
+bash scripts/run_qmd.sh scripts/compare_16s_v2_reproduction.qmd [v1_return_dir] [v2_derived_dir] [output_dir]
+```
+
+Automatic execution during rendering is disabled because this workflow writes
+project outputs.
+
+```{r}
+#| label: compare-16s-v2-reproduction
+#| echo: true
+abort <- function(...) stop(sprintf(...), call. = FALSE)
+
+args <- commandArgs(trailingOnly = TRUE)
+v2_inputs <- Sys.getenv("PHAGE_UV_16S_V2_INPUTS")
+v1_dir <- if (length(args) >= 1L) args[[1L]] else if (nzchar(v2_inputs)) file.path(v2_inputs, "v1_return_2026-09-03") else ""
+v2_dir <- if (length(args) >= 2L) args[[2L]] else Sys.getenv("PHAGE_UV_16S_DERIVED")
+output_dir <- if (length(args) >= 3L) args[[3L]] else file.path(Sys.getenv("PHAGE_UV_16S_DERIVED"), "13_reproduction_comparison")
+if (!nzchar(v1_dir) || !nzchar(v2_dir) || !nzchar(output_dir)) abort("Provide v1_return_dir, v2_derived_dir and output_dir.")
+protected <- c("derived/16s_analysis", "derived/16s_manuscript_integration", "phage_uv_treatment/PRJEB79569", "OneDrive-nium.io")
+for (p in protected) if (grepl(p, output_dir, fixed = TRUE)) abort("output_dir resolves into protected location %s", p)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+read_tsv <- function(path) {
+  if (!file.exists(path)) abort("Missing %s", path)
+  read.delim(path, sep = "\t", header = TRUE, quote = "", comment.char = "", check.names = FALSE, stringsAsFactors = FALSE)
+}
+write_tsv <- function(x, name) write.table(x, file.path(output_dir, name), sep = "\t", quote = FALSE, row.names = FALSE, na = "")
+read_fasta <- function(path) {
+  x <- Biostrings::readDNAStringSet(path)
+  setNames(as.character(x), names(x))
+}
+
+# ------------------------------------------------------------ parameters
+p1 <- read_tsv(file.path(v1_dir, "16s_dada2_parameters.tsv"))
+p2 <- read_tsv(file.path(v2_dir, "03_dada2", "16s_dada2_parameters.tsv"))
+params <- merge(p1, p2, by = "parameter", all = TRUE, suffixes = c("_v1", "_v2"))
+params$identical <- params$value_v1 == params$value_v2
+write_tsv(params, "16s_v2_reproduction_parameter_comparison.tsv")
+
+# --------------------------------------------------------- read retention
+r1 <- read_tsv(file.path(v1_dir, "16s_read_retention.tsv"))
+r2 <- read_tsv(file.path(v2_dir, "03_dada2", "16s_read_retention.tsv"))
+retention <- merge(r1, r2, by = "sample_title", suffixes = c("_v1", "_v2"))
+retention$nonchimeric_difference <- retention$nonchimeric_pairs_v2 - retention$nonchimeric_pairs_v1
+retention$nonchimeric_relative_difference <- round(retention$nonchimeric_difference / retention$nonchimeric_pairs_v1, 4)
+write_tsv(retention, "16s_v2_reproduction_read_retention_comparison.tsv")
+
+# ----------------------------------------------------------- ASV identity
+s1 <- read_fasta(file.path(v1_dir, "16s_asv_representative_sequences.fasta"))
+s2 <- read_fasta(file.path(v2_dir, "05_phyloseq", "16s_asv_representative_sequences.fasta"))
+c1 <- read_tsv(file.path(v1_dir, "16s_asv_counts_unrarefied.tsv"))
+c2 <- read_tsv(file.path(v2_dir, "05_phyloseq", "16s_asv_counts_unrarefied.tsv"))
+m1 <- as.matrix(c1[, -1L]); rownames(m1) <- s1[c1[[1L]]]
+m2 <- as.matrix(c2[, -1L]); rownames(m2) <- s2[c2[[1L]]]
+m2 <- m2[, colnames(m1), drop = FALSE]
+shared_seq <- intersect(rownames(m1), rownames(m2))
+asv_summary <- data.frame(
+  asvs_v1 = nrow(m1), asvs_v2 = nrow(m2), asvs_shared_by_sequence = length(shared_seq),
+  reads_v1_in_shared = round(sum(m1[shared_seq, ]) / sum(m1), 4),
+  reads_v2_in_shared = round(sum(m2[shared_seq, ]) / sum(m2), 4),
+  total_reads_v1 = sum(m1), total_reads_v2 = sum(m2),
+  count_matrix_identical = identical(m1[order(rownames(m1)), ], m2[order(rownames(m2)), ][rownames(m1)[order(rownames(m1))], , drop = FALSE]) && nrow(m1) == nrow(m2))
+# Per-sample correlation of shared-ASV counts and Bray-Curtis between the two
+# versions of the same sample.
+per_sample <- do.call(rbind, lapply(colnames(m1), function(s) {
+  a <- m1[shared_seq, s]; b <- m2[shared_seq, s]
+  ra <- m1[, s] / sum(m1[, s]); rb <- m2[, s] / sum(m2[, s])
+  all_seq <- union(rownames(m1), rownames(m2))
+  ra_full <- setNames(numeric(length(all_seq)), all_seq); ra_full[names(ra)] <- ra
+  rb_full <- setNames(numeric(length(all_seq)), all_seq); rb_full[names(rb)] <- rb
+  data.frame(sample_title = s, reads_v1 = sum(m1[, s]), reads_v2 = sum(m2[, s]),
+             spearman_shared_asvs = round(cor(a, b, method = "spearman"), 4),
+             bray_curtis_v1_vs_v2 = round(sum(abs(ra_full - rb_full)) / 2, 4), stringsAsFactors = FALSE)
+}))
+write_tsv(asv_summary, "16s_v2_reproduction_asv_summary.tsv")
+write_tsv(per_sample, "16s_v2_reproduction_per_sample_agreement.tsv")
+
+# ---------------------------------------------------------------- taxonomy
+t1 <- read_tsv(file.path(v1_dir, "16s_asv_taxonomy_silva138.2.tsv"))
+t2 <- read_tsv(file.path(v2_dir, "05_phyloseq", "16s_asv_taxonomy_silva138.2.tsv"))
+rate <- function(t, rank) round(mean(!is.na(t[[rank]]) & t[[rank]] != ""), 4)
+tax_rates <- data.frame(rank = c("Phylum", "Family", "Genus"),
+                        assigned_fraction_v1 = sapply(c("Phylum", "Family", "Genus"), rate, t = t1),
+                        assigned_fraction_v2 = sapply(c("Phylum", "Family", "Genus"), rate, t = t2))
+# Concordance for ASVs shared by sequence.
+t1$sequence <- s1[t1$asv_id]; t2$sequence <- s2[t2$asv_id]
+tt <- merge(t1, t2, by = "sequence", suffixes = c("_v1", "_v2"))
+for (rank in c("Phylum", "Family", "Genus")) {
+  a <- tt[[paste0(rank, "_v1")]]; b <- tt[[paste0(rank, "_v2")]]
+  a[is.na(a)] <- ""; b[is.na(b)] <- ""
+  tax_rates[tax_rates$rank == rank, "shared_asv_concordance"] <- round(mean(a == b), 4)
+}
+write_tsv(tax_rates, "16s_v2_reproduction_taxonomy_comparison.tsv")
+
+# ----------------------------------------------------------- alpha / beta
+a1 <- read_tsv(file.path(v1_dir, "16s_alpha_diversity.tsv"))
+a2 <- read_tsv(file.path(v2_dir, "06_ecology", "16s_alpha_diversity.tsv"))
+alpha <- merge(a1, a2, by = "sample_title", suffixes = c("_v1", "_v2"))
+write_tsv(alpha, "16s_v2_reproduction_alpha_comparison.tsv")
+b1 <- read_tsv(file.path(v1_dir, "16s_beta_permanova.tsv"))
+b2 <- read_tsv(file.path(v2_dir, "06_ecology", "16s_beta_permanova.tsv"))
+key <- intersect(names(b1), c("metric", "term"))
+beta <- merge(b1, b2, by = key, suffixes = c("_v1", "_v2"))
+write_tsv(beta, "16s_v2_reproduction_permanova_r2_comparison.tsv")
+
+print(params[!params$identical | is.na(params$identical), ])
+print(asv_summary)
+print(per_sample)
+print(tax_rates)
+```
