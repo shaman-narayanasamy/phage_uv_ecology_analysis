@@ -99,7 +99,7 @@ for(layer in c("mag","votu")){
  full<-base;design(full)<-~phase+cycle*condition
  full<-DESeq(full,fitType="local",test="LRT",reduced=~phase+cycle+condition,quiet=TRUE)
  stopifnot(isTRUE(all.equal(sizeFactors(main),sizeFactors(full))))
- # Save fitted objects so a later agent can inspect likelihoods and diagnostics.
+ # Save fitted objects for likelihood and diagnostic checks.
  saveRDS(main,file.path(out,"models",paste0(layer,"_main.rds")))
  saveRDS(full,file.path(out,"models",paste0(layer,"_interaction_lrt.rds")))
  a<-as.data.table(as.data.frame(results(main,contrast=c("condition","treatment","control"),alpha=.05)),keep.rownames="feature_id")

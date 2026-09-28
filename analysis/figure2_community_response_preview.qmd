@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Provisional author-review figure, not a live manuscript replacement. Existing
+Layout preview using existing
 DESeq2 results only; no model refits. Overview retains every tested feature.
 Trajectories show the union of main-condition and joint-interaction BH<0.05 hits,
 selected by an explicit rule rather than visual appearance. Points are actual

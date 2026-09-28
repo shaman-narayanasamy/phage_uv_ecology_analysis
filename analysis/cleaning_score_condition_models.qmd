@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Author-requested sensitivity analysis, specified after viewing cycle-adjusted
+Sensitivity analysis, specified after viewing cycle-adjusted
 results. The composite and its frozen reference parameters are unchanged.
 For each of 14 fixed candidates, DNA/RNA and Initial/Backflush are separate views:
 `lm(score ~ condition + x)`. Six observations, three residual degrees of freedom.

@@ -3,7 +3,7 @@ title: "Manuscript notation harmonisation"
 format: html
 ---
 
-Author-approved presentation change: R[k] denotes each initial-release fraction;
+R[k] denotes each initial-release fraction;
 bar(R) denotes their arithmetic mean. No numerical calculations change.
 Use bars for observed means, s for sample SD, hats for fitted quantities, and
 retain P for raw statistical P values. FDR (BH) denotes BH-adjusted P values.

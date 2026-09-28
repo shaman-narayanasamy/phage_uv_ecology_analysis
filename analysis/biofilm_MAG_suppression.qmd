@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Author-authorised what-if model. Suppress each candidate MAG's combined-list
+Sensitivity model: suppress each candidate MAG's combined-list
 RNA contribution by0-95%, holding other genes, effective library sizes, covariates
 and fitted coefficients fixed. No new p-value filtering or refitting. This is an
 effective transcriptional suppression axis, NOT phage dose, mortality or inferred

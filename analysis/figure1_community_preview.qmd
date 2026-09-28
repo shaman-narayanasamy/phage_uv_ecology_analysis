@@ -6,7 +6,7 @@ execute:
   enabled: false
 ---
 
-Author-review assembly, not a live manuscript replacement. Two saved native
+Layout preview. Two saved native
 metacoder plots are reused without changing their geometry or data. Panel C
 uses the frozen family profile and the same colour key as the circular MAG tree.
 No phage bars, ordinations, experimental schematic or statistical insets.

@@ -207,8 +207,7 @@ rownames(ordination) <- NULL
 rownames(permanova) <- NULL
 rownames(dispersion) <- NULL
 
-# Explicit phase check: the handoff prohibits collapsing initial and backflush
-# before their structure has been examined.
+# Check sampling-phase structure before pooling initial and backflush samples.
 phase_check <- permanova[permanova$term == "phase", c("metric", "r_squared", "p_value")]
 phase_check$collapsing_phases_supported <- phase_check$p_value > 0.05
 phase_check$note <- "Descriptive only; six observations per membrane, no biological replication."

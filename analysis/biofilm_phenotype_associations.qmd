@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Author-approved exploratory modelling of digitised published means.14 MAGs x3
+Exploratory modelling of digitised published means: 14 MAGs and three
 outcomes, one model per pair. This is conditional association, not phage efficacy.
 Model: transformed outcome ~ phase + factor(cycle) + condition + expression_score.
 Cells retain published log10 units; EPS endpoints are log10 transformed.

@@ -163,8 +163,7 @@ condition_values <- c(Control = phage_uv_condition_colours[["control"]],
 condition_lower_values <- c(control = phage_uv_condition_colours[["control"]],
                             treatment = phage_uv_condition_colours[["treatment"]])
 
-# The author removed the redundant sample-design panel on 2026-09-09.
-# The experimental design is documented in Methods and the workflow overview.
+# The experimental design is shown separately in the workflow overview.
 p_mds <- ggplot(mds_data, aes(MDS1, MDS2, colour = condition, shape = phase)) +
   geom_point(size = 3.0) +
   geom_text_repel(

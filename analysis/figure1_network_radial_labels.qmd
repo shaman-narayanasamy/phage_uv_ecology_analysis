@@ -4,9 +4,8 @@ format: html
 editor: source
 ---
 
-Author-review detail of panel D. All 80 hosts, 85 viral sequences and 86
+Enlarged panel D with outward-facing labels. All 80 hosts, 85 viral sequences and 86
 host-virus associations are retained. No abundance, inference or colour changes.
-This larger detail is reviewed before allocation in the complete figure.
 
 ```{r}
 suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid)})

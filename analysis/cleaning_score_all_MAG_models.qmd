@@ -22,7 +22,7 @@ The slope p-value is the same hypothesis as a nonzero scenario effect, so
 suppression fractions do not create independent tests. Pointwise intervals,
 extrapolation flags and leave-cycle-out slopes accompany every model.
 
-Expression labels are pending author clarification; they do not affect fitting.
+Expression labels are metadata and do not affect fitting.
 Taxonomy is metadata only. Existing 14-candidate DNA results must reproduce.
 
 ## Limitations
@@ -146,4 +146,3 @@ print(a[,.(tests=.N,nominal=sum(p<.05),BH696=sum(FDR_696<.05),BH2088=sum(FDR_208
  HC3_BH696=sum(HC3_FDR_696<.05),min_p=min(p),min_FDR=min(FDR_696)),by=specification])
 print(a[order(p),.(specification,MAG_ID,genus,predictor,phase,beta,p,FDR_696)][1:12])
 ```
-

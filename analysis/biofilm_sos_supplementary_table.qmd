@@ -6,7 +6,7 @@ editor: source
 
 Unnumbered table candidate. One row per gene/set; overlaps between biofilm and SOS
 are retained explicitly. Model statistics are original full-transcriptome values.
-Combined keyword definition is author-approved; annotation matches are not
+The combined keyword definition is used; annotation matches are not
 experimentally validated phenotypes. Historical flags record provenance only.
 
 ```{r}

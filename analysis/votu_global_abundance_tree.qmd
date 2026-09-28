@@ -9,7 +9,7 @@ execute:
   enabled: false
 ---
 
-Author-review candidate only. One global tree, not one tree per sample.
+One abundance-weighted taxonomy tree summarises all samples.
 Each of the 12 samples contributes equally: normalise the reads mapped to all
 634 high-quality, viral-gene-positive representative vOTUs within each sample,
 then average those proportions. Taxonomy and counts are from the independently

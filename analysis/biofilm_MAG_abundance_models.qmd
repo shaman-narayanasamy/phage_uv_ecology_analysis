@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Author-approved exploratory modelling of digitised published means.14 MAGs x3
+Exploratory modelling of digitised published means: 14 MAGs and three
 outcomes, one model per pair. This is conditional association, not phage efficacy.
 Model: transformed outcome ~ phase + factor(cycle) + condition + log2_MAG_abundance.
 Cells retain published log10 units; EPS endpoints are log10 transformed.
@@ -165,4 +165,3 @@ writeLines(c("PASS: DNA raw/size-factor reconciliation; positive candidate count
 files<-list.files(out,recursive=TRUE,full.names=TRUE)
 fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
 ```
-

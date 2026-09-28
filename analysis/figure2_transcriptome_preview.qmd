@@ -1,5 +1,5 @@
 ---
-title: "Figure 2: transcriptome author-review preview"
+title: "Figure 2: transcriptome layout preview"
 format: html
 editor: source
 execute:

@@ -1,13 +1,13 @@
 ---
-title: "Author-approved combined biofilm screening definition and provenance"
+title: "Combined biofilm screening definition and provenance"
 format: html
 editor: source
 ---
 
-Author decision 2026-09-13: retain the union of the historical annotation-keyword
+The screening definition combines the historical annotation-keyword
 sets and current six-category annotation matches. This is a broad screening set,
 not a curated database of experimentally validated biofilm genes. Historical
-exact-symbol sensitivity remains separate: it was not part of the agreed3905.
+exact-symbol sensitivity remains separate from the 3,905-gene combined set.
 No existing test p-values are transferred to this new definition.
 
 ```{r}

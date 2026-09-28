@@ -9,9 +9,7 @@ execute:
   enabled: false
 ---
 
-This notebook implements the corresponding author's decision that Figure 1
-describes the microbial and phage communities before the transcriptomic story.
-It combines the sampling design, aligned stacked compositions, Bray-Curtis
+This notebook combines the sampling design, aligned stacked compositions, Bray-Curtis
 ordinations, and the design-aware community tests. Taxonomic trees and detailed
 differential-abundance landscapes remain supplementary.
 

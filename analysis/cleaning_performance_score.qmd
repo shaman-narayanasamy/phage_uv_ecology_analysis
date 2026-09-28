@@ -4,7 +4,6 @@ format: html
 editor: source
 ---
 
-Canonical decision: `notes/handoff-2026-09-14-cleaning-performance-score.md`.
 Exact Table 1 lag days and Figure 2 digitised release means from Myshkevych
 et al. (2025), DOI:10.1016/j.ceja.2025.100796. One row per membrane and
 published cleaning round. Omics-cycle matching remains provisional.

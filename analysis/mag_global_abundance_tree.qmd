@@ -9,7 +9,7 @@ execute:
   enabled: false
 ---
 
-Figure 1 author-review candidate. Aggregate metagenomic contig read counts to
+Aggregate metagenomic contig read counts to
 the 348 dereplicated MAGs; normalise within each of the 12 samples; average
 the sample proportions with equal weights. This is the MAG-mapped read
 composition, not genome-copy abundance or all-community read composition.

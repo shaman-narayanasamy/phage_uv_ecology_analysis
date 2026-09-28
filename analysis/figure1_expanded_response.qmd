@@ -4,7 +4,7 @@ format: html
 editor: source
 ---
 
-Author-requested expansion of the frozen community figure. A-D are embedded as
+Expansion of the archived community figure. A-D are embedded as
 unchanged vector artwork; E-F show all six features passing either archived BH
 test. No refits or additional feature filtering. Supplementary Figure 1 remains
 reserved for experimental design and workflow.

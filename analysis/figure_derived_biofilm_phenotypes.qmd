@@ -4,7 +4,8 @@ format: html
 editor: source
 ---
 
-Author authorised digitisation because original assay records are unavailable.
+Measurements are digitised from the published figure; original assay records
+are unavailable.
 Source is Myshkevych2025 Figure2,page5. Bar means only; no synthetic replicates.
 Pixel envelope is extraction uncertainty, NOT biological error/SD/CI. Source
 technical-replicate error bars are not used as biological replication.

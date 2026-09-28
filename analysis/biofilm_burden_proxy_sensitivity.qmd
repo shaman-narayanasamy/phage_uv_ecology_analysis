@@ -4,8 +4,8 @@ format: html
 editor: source
 ---
 
-Author-approved interpretation of cells, protein and polysaccharides as SEPARATE
-biofilm-burden proxies. No composite, no contact with original authors.
+Cells, protein and polysaccharides are analysed as separate biofilm-burden
+proxies using the published measurements.
 Observation model: released material R = detachment fraction e * underlying
 component burden B. Therefore B1/B0 = (R1/R0)/(e1/e0). This is an imposed
 measurement model, not a fitted detachment mechanism. Each component has its own

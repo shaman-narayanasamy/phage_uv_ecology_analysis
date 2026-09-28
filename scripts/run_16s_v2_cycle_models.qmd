@@ -9,15 +9,12 @@ execute:
   enabled: false
 ---
 
-This Quarto notebook is the canonical executable source for
-`scripts/run_16s_v2_cycle_models.qmd`. It answers the 2026-09-13 request in
-`notes/handoff-2026-09-13-susana-16s-cycle-models.md`: on the accepted
-12-sample current-experiment ASV table, distinguish a persistent difference
+This notebook uses the 12-sample current-experiment ASV table to distinguish a persistent difference
 between the two observed membranes (the adjusted main condition term) from a
 condition difference that changes across cleaning cycles (the joint
 condition-by-cycle interaction).
 
-Binding boundaries carried into every output:
+Analysis specification:
 
 - One membrane per condition. Condition equals membrane identity; the six
   observations per condition are repeated temporal observations of one system,
@@ -115,7 +112,7 @@ if (nrow(metadata) != 12L) abort("Expected 12 physical samples, found %d", nrow(
 cells <- table(metadata$condition, metadata$phase, metadata$cycle)
 if (any(cells != 1L)) abort("Expected exactly one sample per condition x phase x cycle cell.")
 
-# Explicit coding, exactly as requested in the 2026-09-13 handoff.
+# Set the reference levels for condition and sampling phase.
 metadata$condition <- factor(metadata$condition, levels = c("control", "treatment"))
 metadata$phase <- factor(metadata$phase, levels = c("initial", "backflush"))
 metadata$cycle <- factor(as.character(metadata$cycle), levels = c("1", "2", "3"))

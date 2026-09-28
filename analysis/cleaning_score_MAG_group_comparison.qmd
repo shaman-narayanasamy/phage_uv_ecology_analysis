@@ -7,7 +7,7 @@ execute:
 
 ## Specification fixed before fitting
 
-Author decision 2026-09-21: primary grouping is original 14 up-hit candidates
+The primary grouping compares the original 14 up-hit candidates
 versus the remaining 334 MAGs. Secondary view distinguishes up-hit, down-only,
 no significant main response, and no tested active-list genes. A joint cycle
 interaction does not alter the main-effect label; retain it as a separate flag.
