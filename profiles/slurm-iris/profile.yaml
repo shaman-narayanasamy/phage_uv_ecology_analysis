@@ -1,0 +1,439 @@
+executor: slurm
+use-conda: true
+keep-going: true
+printshellcmds: true
+rerun-incomplete: true
+show-failed-logs: true
+latency-wait: 60
+slurm-logdir: /scratch/users/snarayanasamy/phage_uv_treatment/slurm
+slurm-keep-successful-logs: true
+default-resources:
+  slurm_account: "michael.heneka"
+  slurm_partition: "batch"
+  qos: "normal"
+  nodes: 1
+  tasks: 1
+  cpus_per_task: 1
+  mem: "4G"
+  runtime: 120
+  slurm_extra: "--mail-type=END,FAIL,TIME_LIMIT,OUT_OF_MEMORY"
+set-resources:
+  stage_mg_read_1:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mg_read_2:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mt_read_1:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  stage_mt_read_2:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 480
+  fastp_trimming:
+    cpus_per_task: 12
+    mem: "48G"
+    runtime: 1440
+  sortmerna_prepare_sequences:
+    cpus_per_task: 4
+    mem: "32G"
+    runtime: 720
+  sortmerna_index_database:
+    slurm_partition: "bigmem"
+    cpus_per_task: 12
+    mem: "250G"
+    runtime: 2880
+    qos: "normal"
+  sortmerna_rrna_paired:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 2880
+    qos: "normal"
+  sortmerna_rrna_single:
+    slurm_partition: "bigmem"
+    cpus_per_task: 12
+    mem: "150G"
+    runtime: 2880
+    qos: "normal"
+  megahit:
+    cpus_per_task: 24
+    mem: "100G"
+    runtime: 2880
+  penguin_assembly:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "1000G"
+    runtime: 2880
+    qos: "normal"
+  bwa_index_assembly:
+    slurm_partition: "bigmem"
+    cpus_per_task: 6
+    mem: "120G"
+    runtime: 2880
+    qos: "normal"
+  bwa_mapping_on_assembly:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 2880
+    qos: "normal"
+  bwa_mg_mapping_on_assembly:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 2880
+    qos: "normal"
+  bwa_mt_mapping_on_assembly:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 2880
+    qos: "normal"
+  index_assembly_bam:
+    cpus_per_task: 6
+    mem: "32G"
+    runtime: 720
+    qos: "normal"
+  index_mg_bam:
+    cpus_per_task: 6
+    mem: "32G"
+    runtime: 720
+    qos: "normal"
+  index_mt_bam:
+    cpus_per_task: 6
+    mem: "32G"
+    runtime: 720
+    qos: "normal"
+  flagstat_assembly_bam:
+    cpus_per_task: 2
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  flagstat_mg_bam:
+    cpus_per_task: 2
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  flagstat_mt_bam:
+    cpus_per_task: 2
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  coverm:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 2880
+    qos: "normal"
+  deepmicroclass_predict:
+    cpus_per_task: 2
+    mem: "16G"
+    runtime: 4320
+    qos: "iris-batch-long"
+  deepmicroclass_extract:
+    cpus_per_task: 16
+    mem: "64G"
+    runtime: 720
+    qos: "normal"
+  get_all_prokaryotic_seqs:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  concoct:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  metabat2:
+    cpus_per_task: 24
+    mem: "100G"
+    runtime: 4320
+    qos: "iris-batch-long"
+  maxbin2:
+    cpus_per_task: 24
+    mem: "100G"
+    runtime: 4320
+    qos: "iris-batch-long"
+  vamb:
+    cpus_per_task: 24
+    mem: "100G"
+    runtime: 4320
+    qos: "iris-batch-long"
+  semibin:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  magscot_marker_genes:
+    cpus_per_task: 12
+    mem: "80G"
+    runtime: 1440
+    qos: "normal"
+  magscot_bin_refinement:
+    cpus_per_task: 4
+    mem: "80G"
+    runtime: 1440
+    qos: "normal"
+  magscot_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  magscot_separate_bins:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  semibin_multi_sample_get_abundance:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  semibin_multi_sample_split_contigs:
+    cpus_per_task: 12
+    mem: "100G"
+    runtime: 4320
+    qos: "iris-batch-long"
+  semibin_multi_sample:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  drep_dereplication:
+    slurm_partition: "bigmem"
+    cpus_per_task: 36
+    mem: "500G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  bakta_annotation:
+    cpus_per_task: 12
+    mem: "48G"
+    runtime: 720
+    qos: "normal"
+  prepare_catbat_bins:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  catbat_classification:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  catbat_summary:
+    cpus_per_task: 4
+    mem: "16G"
+    runtime: 720
+    qos: "normal"
+  cenotetaker3:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  vcontact3:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 7200
+    qos: "iris-bigmem-long"
+  checkv:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  hmmsearch_neordrp:
+    cpus_per_task: 8
+    mem: "64G"
+    runtime: 1440
+    qos: "normal"
+  bwa_mapping_catalogue:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "250G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  coverm_contigs:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "500G"
+    runtime: 10080
+    qos: "iris-bigmem-long"
+  bedtools_gene_coverage:
+    slurm_partition: "bigmem"
+    cpus_per_task: 8
+    mem: "200G"
+    runtime: 4320
+    qos: "iris-bigmem-long"
+  split_coverm_by_metric:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 120
+    qos: "normal"
+  genomad:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 7200
+    qos: "iris-bigmem-long"
+  virsorter2:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 7200
+    qos: "iris-bigmem-long"
+  viralm:
+    slurm_partition: "bigmem"
+    cpus_per_task: 24
+    mem: "200G"
+    runtime: 7200
+    qos: "iris-bigmem-long"
+  get_virsorter2_viral_seqs:
+    cpus_per_task: 2
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  concatenate_votu_inputs:
+    cpus_per_task: 1
+    mem: "32G"
+    runtime: 240
+    qos: "normal"
+  vclust_prefilter:
+    slurm_partition: "bigmem"
+    cpus_per_task: 16
+    mem: "200G"
+    runtime: 2880
+    qos: "normal"
+  vclust_align:
+    slurm_partition: "bigmem"
+    cpus_per_task: 16
+    mem: "200G"
+    runtime: 2880
+    qos: "normal"
+  vclust_cluster_raw:
+    cpus_per_task: 4
+    mem: "64G"
+    runtime: 720
+    qos: "normal"
+  normalize_vclust_clusters:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
+  make_blast_db:
+    cpus_per_task: 8
+    mem: "64G"
+    runtime: 720
+    qos: "normal"
+  split_fasta_for_blast:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
+  blast_chunks:
+    cpus_per_task: 8
+    mem: "64G"
+    runtime: 2880
+    qos: "normal"
+  combine_blast_results:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
+  calculate_best_practice_ani:
+    cpus_per_task: 1
+    mem: "32G"
+    runtime: 720
+    qos: "normal"
+  cluster_best_practice_ani:
+    cpus_per_task: 1
+    mem: "32G"
+    runtime: 720
+    qos: "normal"
+  normalize_best_practice_clusters:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
+  extract_votus:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
+  soft_link_unique:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  semibin_multi_sample_concatenate_contigs:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  semibin_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  semibin_multi_sample_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  concoct_cut_contigs:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  concoct_coverage_table:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  concoct_merge_clusters:
+    cpus_per_task: 1
+    mem: "8G"
+    runtime: 240
+    qos: "normal"
+  concoct_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  get_depth_of_coverage:
+    cpus_per_task: 2
+    mem: "16G"
+    runtime: 720
+    qos: "normal"
+  metabat2_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  maxbin2_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  vamb_contig_to_bin:
+    cpus_per_task: 1
+    mem: "4G"
+    runtime: 120
+    qos: "normal"
+  drep_collect_all_bins:
+    cpus_per_task: 1
+    mem: "16G"
+    runtime: 240
+    qos: "normal"
