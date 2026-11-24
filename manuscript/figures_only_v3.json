@@ -1,0 +1,29 @@
+{
+  "title": "Phage treatment manuscript v3 figures and captions",
+  "figure3_caption_file": "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figure3_cleaning_candidates_2026-09-15-v3/FIGURE_CAPTION.txt",
+  "figure3_image": "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figures_only_doc_v3_assets_2026-09-15/figure3.png",
+  "figures": [
+    {
+      "label": "Figure 1",
+      "title": "Community composition and phage host associations across cleaning cycles.",
+      "image": "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figures_only_doc_v3_assets_2026-09-15/figure1.png",
+      "caption": [
+        {"label":"A, B,", "text":"Taxonomy-derived abundance trees for prokaryotic metagenome-assembled genomes (MAGs; A) and viral operational taxonomic units (vOTUs; B). Node area represents mean relative abundance within each community across the 12 samples. These trees represent taxonomic nesting, not sequence-based phylogenetic distances. MAG completeness and contamination are shown in the inner and outer rings, respectively. Labels are selectively displayed for readability; all 348 MAG tips are retained. Node sizes are scaled within each panel and are not directly comparable between panels."},
+        {"label":"C,", "text":"Prokaryotic relative abundances across the three cleaning cycles, shown separately for Control and Treatment. I denotes initial sampling and B denotes backflush. The 25 most abundant deepest-reported taxonomic groups are distinguished, with remaining groups pooled within phyla. Relative abundance is calculated among MAG-mapped reads. The same taxonomic colour assignments are used for MAG tips in A, abundance bars in C and MAG nodes in D."},
+        {"label":"D,", "text":"Circular phage host network comprising 80 MAGs, 85 viral sequences and 86 archived CRISPR-based links. Circles represent MAGs; diamonds and triangles represent viral sequences assigned to Duplodnaviria and unclassified at realm level, respectively. Viral colour denotes CheckV completeness (Nayfach et al., 2021; doi:10.1038/s41587-020-00774-7), with grey indicating unavailable estimates. Edge colour denotes the linked host's transcriptional direction, green for down in treatment, purple for up in treatment and grey for unsupported direction. Edge width represents the reported number of links, not a confidence probability. Node positions are determined by the layout, not ecological distance. The three highest-degree MAGs are labelled, with identifier used to break ties."},
+        {"label":"E, F,", "text":"Normalized sequencing counts for the two MAGs (E) and four vOTUs (F) meeting Benjamini-Hochberg q < 0.05 in the condition or condition-by-cycle test. Points represent individual samples; lines connect observations rather than fitted predictions. Green denotes Control and purple denotes Treatment. Circles and solid lines denote initial samples; triangles and dashed lines denote backflush samples. Each feature has an independent pseudo-logarithmic y axis. DESeq2 models (Love et al., 2014; doi:10.1186/s13059-014-0550-8) included sampling phase, cycle and condition; interaction tests compared a condition-by-cycle model with its additive counterpart. Counts are sequencing measures, not cell or particle counts. The displayed MAGs and vOTUs are not selected as linked host-phage pairs. Each condition comprises repeated observations from one membrane."}
+      ]
+    },
+    {
+      "label": "Figure 2",
+      "title": "Biofilm-associated and SOS transcriptional responses in MAG context.",
+      "image": "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figures_only_doc_v3_assets_2026-09-15/figure2.png",
+      "caption": [
+        {"label":"A,", "text":"Condition log2 fold-changes and original whole-transcriptome false discovery rates (FDRs) for 3,905 biofilm-associated genes in the combined annotation list and 523 SOS-associated genes. Purple and green denote genes up and down in treatment at FDR < 0.05; grey denotes genes not meeting this threshold. The horizontal dashed line marks FDR = 0.05. Gene sets were extracted after whole-transcriptome differential expression analysis, without fitting subset-specific models or recalculating FDRs within the sets."},
+        {"label":"B,", "text":"Numbers of biofilm-associated genes up in treatment in each of the 14 contributing MAGs, comprising 31 genes. The 148 genes down in treatment remain represented in A and in the complete contributor table."},
+        {"label":"C,", "text":"Numbers of SOS-associated genes up or down in treatment among the 11 contributing MAGs, comprising 13 upregulated genes and one downregulated gene. Bars in B and C count genes, not transcript abundance."},
+        {"label":"D,", "text":"Concentration of transcriptional responses among MAGs. Points show observed Simpson concentration relative to its expectation under 100,000 stratified random allocations, C_obs/E_0[C]. Each contig carrying at least one differentially expressed gene was counted once per gene set and endpoint; C = sum_m(h_m/H)^2, where h_m is the number of supported contigs in MAG m and H is their total. Randomisation preserved supported-contig counts within strata defined by eligible-gene count and mean expression. The dashed line marks random expectation (ratio = 1); values above 1 denote greater concentration among MAGs. Endpoints comprise all treatment-associated genes, genes up or down in treatment, and genes with a condition-by-cycle interaction. Filled circles indicate Benjamini-Hochberg-adjusted q < 0.05 across 24 planned tests, spanning two gene sets, four endpoints and three block scales; open circles indicate q >= 0.05. Endpoints with fewer than two supported contigs were not estimable."}
+      ]
+    }
+  ]
+}

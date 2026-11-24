@@ -1,0 +1,33 @@
+{
+  "document_id": "1tl6VL6Z1bYcTDuG67CHY4mOdkWuEIvzWOhBMqKneQbQ",
+  "status": "prepared_not_applied",
+  "source": "2026-09-20 manuscript DOCX snapshot; reread live document before application",
+  "replacements": [
+    {
+      "figure": "Figure 3",
+      "find": "C-E) Multiple Caudoviricetes viral operational taxonomic units (vOTUs).",
+      "replace": "C–F) Four Caudoviricetes viral operational taxonomic units (vOTUs)."
+    },
+    {
+      "figure": "Figure 3",
+      "find": "Statistical significance is based on Benjamini-Hochberg corrected p-values.",
+      "replace": "Statistical support is defined as Benjamini–Hochberg-adjusted P values, FDR (BH) ≤ 0.05, with separate correction families for each community and test."
+    },
+    {
+      "figure": "Figure 5",
+      "find": "Models included condition or condition interacting with cycle, with initial (I) and backflush (BF) predictors fitted separately (n = 6; residual degrees of freedom 3 and 1).",
+      "replace": "Models included condition alone or condition plus categorical cycle as additive covariates, with I and BF predictors fitted separately (n = 6; residual degrees of freedom 3 and 1)."
+    },
+    {
+      "figure": "Figure 5",
+      "find": "Crosses indicate p < 0.05.",
+      "replace": "Crosses indicate unadjusted P ≤ 0.05."
+    }
+  ],
+  "review_notes": [
+    "The redundant Figure 3 trajectory sentence is already absent from the snapshot's accepted text. Preserve that deletion; do not reintroduce it.",
+    "BF is defined in the figure. Avoid repeating the definition within panel C as requested.",
+    "Preserve the author's citation insertion requests and existing Zotero fields.",
+    "Supplementary work is paused until the main manuscript is stable."
+  ]
+}

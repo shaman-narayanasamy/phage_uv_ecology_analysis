@@ -41,25 +41,47 @@ sources <- c(
   `experimental-setup-reactor` = "manuscript/figure_sources/experimental_setup_reactor.svg",
   `experimental-setup-cleaning-event` = "manuscript/figure_sources/experimental_setup_cleaning-event.svg",
   `experimental-setup-sampling-design` = "manuscript/figure_sources/experimental_setup_sampling-design.svg",
-  `experimental-setup-tmp` = "manuscript/figure_sources/experimental_setup_tmp.svg"
+  `experimental-setup-tmp` = "manuscript/figure_sources/experimental_setup_tmp.svg",
+  `experimental-setup-sampling-tmp` = "manuscript/figure_sources/experimental_setup_sampling-tmp.svg"
 )
 
 render_svg <- function(svg, stem) {
   svg <- normalizePath(svg, mustWork = TRUE)
-  vb <- regmatches(readLines(svg, n = 3), regexpr('viewBox="[^"]+"', readLines(svg, n = 3)))
+  # Read the whole file: the root <svg> tag may span several lines (it carries the Inkscape
+  # namespaces and the mm print size), so a first-three-lines scan misses the viewBox and
+  # silently renders at the wrong size. The root tag precedes the marker defs, so the first
+  # viewBox in the file is the right one.
+  txt <- paste(readLines(svg, warn = FALSE), collapse = "\n")
+  vb <- regmatches(txt, regexpr('viewBox="[^"]+"', txt))
   dims <- as.numeric(strsplit(sub('viewBox="', "", sub('"$', "", vb[1])), " ")[[1]])[3:4]
-  wrap <- file.path(out, paste0(stem, "_wrap.html"))
-  writeLines(sprintf(
-    '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:%dpx %dpx;margin:0}html,body{margin:0;padding:0;background:#fff}img{display:block;width:%dpx;height:%dpx}</style></head><body><img src="file://%s"></body></html>',
-    dims[1], dims[2], dims[1], dims[2], svg), wrap)
+  stopifnot(length(dims) == 2L, all(is.finite(dims)), all(dims > 100))
+  # PNG preview: one user unit per pixel. PDF: the physical page equals the size the SVG
+  # declares in mm when it has one, so the vector PDF drops into the manuscript at its
+  # intended print size instead of a pixel-derived page several times too large.
+  html <- function(size, css) sprintf(
+    '<!doctype html><html><head><meta charset="utf-8"><style>@page{size:%s;margin:0}html,body{margin:0;padding:0;background:#fff}img{display:block;%s}</style></head><body><img src="file://%s"></body></html>',
+    size, css, svg)
+  wrap_px <- file.path(out, paste0(stem, "_wrap_px.html"))
+  writeLines(html(sprintf("%dpx %dpx", dims[1], dims[2]),
+                  sprintf("width:%dpx;height:%dpx", dims[1], dims[2])), wrap_px)
   system2(chrome, c("--headless=new", "--disable-gpu", "--hide-scrollbars",
     sprintf("--window-size=%d,%d", dims[1], dims[2]),
     paste0("--screenshot=", shQuote(file.path(out, paste0(stem, ".png")))),
-    shQuote(paste0("file://", wrap))), stdout = FALSE, stderr = FALSE)
+    shQuote(paste0("file://", wrap_px))), stdout = FALSE, stderr = FALSE)
+
+  mm <- regmatches(txt, regexpr('width="[0-9.]+mm"[^>]*height="[0-9.]+mm"', txt))
+  if (length(mm) == 1L) {
+    v <- as.numeric(regmatches(mm, gregexpr("[0-9.]+", mm))[[1]])
+    wrap_pdf <- file.path(out, paste0(stem, "_wrap_mm.html"))
+    writeLines(html(sprintf("%gmm %gmm", v[1], v[2]),
+                    sprintf("width:%gmm;height:%gmm", v[1], v[2])), wrap_pdf)
+  } else {
+    wrap_pdf <- wrap_px
+  }
   system2(chrome, c("--headless=new", "--disable-gpu", "--no-pdf-header-footer",
     paste0("--print-to-pdf=", shQuote(file.path(out, paste0(stem, ".pdf")))),
-    shQuote(paste0("file://", wrap))), stdout = FALSE, stderr = FALSE)
-  unlink(wrap)
+    shQuote(paste0("file://", wrap_pdf))), stdout = FALSE, stderr = FALSE)
+  unlink(c(wrap_px, wrap_pdf))
   target <- file.path(out, paste0(stem, ".svg"))
   if (normalizePath(target, mustWork = FALSE) != svg) invisible(file.copy(svg, target))
 }

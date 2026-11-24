@@ -1,0 +1,125 @@
+---
+title: "Single-workbook supplementary tables"
+format: html
+---
+
+Author decision, 22 September 2026: one Excel workbook with flat numbered
+tables, not Supplementary Data packages. Packaging does not recalculate tests.
+All tested transcriptome features are retained, including nonsignificant ones.
+Plot coordinates and duplicated diagnostic exports are omitted.
+
+```{python}
+import csv, hashlib, json, re
+from pathlib import Path
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_workbook_2026-09-22-v1'
+out.mkdir(exist_ok=True)
+tables=[]; provenance=[]
+def read(rel):
+ p=root/rel
+ provenance.append({'source':rel,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+ with p.open() as f:return list(csv.DictReader(f,delimiter='\t'))
+def add(name,title,rows,scope):
+ assert rows, name
+ headers=list(dict.fromkeys(k for row in rows for k in row))
+ # Convert only unambiguously numeric columns, never identifiers.
+ numeric=[]
+ for h in headers:
+  vals=[str(r.get(h,'')) for r in rows if r.get(h,'') not in ('','NA','NaN',None)]
+  numeric.append(bool(vals) and not re.search(r'(^id$|_id$|accession|sample|gene|contig)',h,re.I) and all(re.fullmatch(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?',v) for v in vals))
+ grid=[]
+ for r in rows:
+  row=[]
+  for h,n in zip(headers,numeric):
+   v=r.get(h,'NA')
+   if n and v not in ('','NA','NaN',None):v=float(v)
+   if v is None or v=='':v='NA'
+   row.append(v)
+  grid.append(row)
+ num=len(tables)+1; sheet=f'S{num} {name}'
+ assert len(sheet)<=31
+ payload={'sheet':sheet,'title':title,'scope':scope,'headers':headers,'rows':grid,'numeric':numeric}
+ (out/f'S{num}.json').write_text(json.dumps(payload,allow_nan=False))
+ tables.append({'Table':f'Supplementary Table S{num}','Sheet':sheet,'Title':title,'Rows':len(grid),'Scope':scope})
+q='catalogue_sample_supplement_2026-09-22-v1/'
+add('MAG quality','MAG quality and reference lengths',read(q+'MAG_quality.tsv'),'348 dereplicated MAGs. Completeness and contamination are percentages.')
+add('vOTU quality','vOTU quality and taxonomy',read(q+'vOTU_quality.tsv'),'634-vOTU abundance catalogue. Distinct from the CRISPR-linked viral sequences.')
+c='community_cycle_models_catalogue_aligned_2026-09-16-v1/tables/'
+rows=[]
+for community in ['mag','votu']:
+ for test in ['main_wald','interaction_lrt']:
+  rows += [dict(community=community,test=test,**r) for r in read(c+community+'_'+test+'.tsv')]
+add('Abundance tests','Complete MAG and vOTU differential-abundance tests',rows,'Separate main-condition Wald and joint cycle-interaction tests. Adjustment columns retain their original testing families.')
+add('Concordance','Cross-omics Bray-Curtis concordance',read('community_cross_omics_permutation_2026-09-16-v3/tables/bray_curtis_matrix_permutation_tests.tsv'),'Global and constrained permutation P values, with separate BH correction across three assay pairs.')
+add('Turnover','Successive-cycle community turnover',read('community_cross_omics_2026-09-15-v3/cycle_turnover.tsv'),'Descriptive Bray-Curtis dissimilarity within each condition and sampling phase.')
+add('MAG contributions','MAG genomic and transcriptional contributions',read('community_cross_omics_2026-09-15-v3/MAG_contributions.tsv'),'Mean MG and MT read shares and taxonomic assignments.')
+edges=read('figure1_shared_taxonomy_2026-09-14-v3/tables/plotted_network_edges.tsv')
+edges=[{k:v for k,v in r.items() if k not in ['host_y','phage_y','phage_degree']} for r in edges]
+viral={r['phage_id']:r for r in read('figure1_shared_taxonomy_2026-09-14-v3/tables/viral_node_quality.tsv')}
+for r in edges:
+ for k in ['completeness','completeness_method','checkv_quality','miuvig_quality','viral_genes','warnings']:r['viral_'+k]=viral[r['phage_id']][k]
+add('Host phage links','CRISPR-derived host-phage links',edges,'86 links involving 80 host MAGs and 85 viral sequences. These viral sequences are outside the 634-vOTU abundance catalogue.')
+d='full_transcriptome_de/tables/'
+main=read(d+'de_condition_adjusted.tsv'); inter=read(d+'de_condition_cycle_interaction_omnibus.tsv')
+assert len(main)==len(inter)==361907
+joint={r['feature_id']:r for r in inter};assert len(joint)==len(inter)
+rows=[]
+for r in main:
+ j=joint[r['feature_id']]
+ rows.append({**{k:r[k] for k in ['feature_id','gene_id','MAG_ID','gene_symbol','annotation']},'main_logFC':r['logFC'],'main_P':r['p_value'],'main_FDR_BH':r['FDR'],'interaction_P':j['p_value'],'interaction_FDR_BH':j['FDR'],'interaction_cycle2_logFC':j['logFC.cycle2.conditiontreatment'],'interaction_cycle3_logFC':j['logFC.cycle3.conditiontreatment']})
+lookup={r['feature_id']:r for r in rows}
+cp=root/d/'de_condition_cycle_interaction_coefficients.tsv'
+provenance.append({'source':str(cp.relative_to(root)),'sha256':hashlib.sha256(cp.read_bytes()).hexdigest()})
+with cp.open() as f:
+ for r in csv.DictReader(f,delimiter='\t'):
+  label=r['coefficient'].split(':')[0]
+  assert label in ['cycle2','cycle3']
+  for old,new in [('p_value','P'),('FDR','FDR_BH')]:lookup[r['feature_id']]['interaction_'+label+'_'+new]=r[old]
+assert all(len(r)==16 for r in rows)
+add('Transcriptome tests','Complete transcriptome-wide differential-expression results',rows,'All 361,907 tested features. Main model: phase + cycle + condition. Interaction model: phase + cycle * condition. Includes joint 2-df tests and both interaction coefficients. BH corrections retain their original endpoint-specific families.')
+del lookup
+del main,inter,joint,rows
+bio=read('biofilm_sos_supplementary_table_2026-09-13-v1/supplementary_biofilm_SOS_gene_evidence.tsv')
+bio=[{k:v for k,v in r.items() if k not in ['experimental_unit_caveat','annotation_source','annotation_match_status']} for r in bio]
+add('Biofilm SOS genes','Combined biofilm and SOS gene evidence',bio,'3,905 combined biofilm memberships and 523 SOS memberships. Includes annotation matching provenance, MAG assignments and full-transcriptome adjusted tests. Historical flags explain the combined union only.')
+add('Concentration','Gene concentration randomisation tests',read('mag_functional_concentration_combined_2026-09-13-v1/tables/global_concentration.tsv'),'Observed MAG concentration against the stated randomisation null; original Monte Carlo uncertainty and FDR columns.')
+add('Dependence','Block-level concentration sensitivity',read('mag_concentration_dependence_combined_2026-09-13-v1/tables/dependence_results.tsv'),'10-kb, 50-kb and contig-level dependence sensitivity. Unit, endpoint and multiple-testing scope remain explicit.')
+add('MAG gene contributors','MAG-resolved biofilm and SOS contributors',read('figure4_functional_notation_2026-09-20-v4/tables/all_MAG_contributors.tsv'),'All MAG contributors, not only displayed labels.')
+add('Genomic eligibility','Priority-MAG genomic comparison eligibility',read('priority20_supplement_audit_2026-09-22-v1/priority20_eligibility.tsv'),'All 20 priority MAGs. Missing audit records remain unavailable, not zero differences.')
+add('Genomic comparisons','Pairwise genomic comparisons and callable denominators',read('instrain_denominator_audit_2026-09-09/pair_denominator_sensitivity.tsv'),'191 audited pairs; qualification fields identify the 139 retained comparisons.')
+add('Population clusters','Qualified MAG population clusters',read('figure6_population_heterogeneity_2026-09-20-v1/tables/population_genomics_cluster_panel.tsv'),'Sample-level population-cluster assignments for the five qualified MAGs.')
+score=read('cleaning_performance_score_2026-09-14-v1/scores.tsv')
+components=read('cleaning_performance_score_2026-09-14-v1/release_components.tsv')
+ref=read('cleaning_performance_score_2026-09-14-v1/frozen_reference.tsv')
+for r in score:
+ for x in components:
+  if x['condition']==r['condition'] and x['cycle']==r['cycle']:
+   for k in ['initial','backflush']:r[x['outcome']+'_'+k]=x[k]
+ for x in ref:
+  for k in ['mean','sample_sd']:r[x['component']+'_reference_'+k]=x[k]
+add('Cleaning score','Cleaning-score readouts and fixed reference constants',score,'Initial/(initial+backflush) ratios averaged equally across three readouts. The standardized mean ratio and exact TMP lag each contribute 50% to the score.')
+add('Candidate models','All 14 candidate MAG model estimates',read('cleaning_score_condition_models_2026-09-14-v1/all_specifications.tsv'),'168 fits: 14 MAGs, DNA/RNA predictors, two phases and three specifications. FDR_56 and FDR_168 denote separate correction scopes; HC3 columns are robust-error sensitivities.')
+add('Suppression','Candidate 50-percent suppression scenarios',read('figure7_candidate_suppression_2026-09-15-v3/tables/50_percent_intervals.tsv'),'Modelled changes in the fixed cleaning-performance score, not percentages of biofilm reduction. Includes coefficient-derived uncertainty.')
+add('All MAG models','All-MAG abundance model context',read('cleaning_score_all_MAG_models_2026-09-21-v1/tables/models_annotated.tsv'),'2,088 fits. FDR_696 is within specification; FDR_2088 is across all fits. Candidate membership and gene-response categories remain explicit.')
+add('Samples','Physical sample metadata',read(q+'Samples.tsv'),'12 physical samples; sequencing runs are not additional biological samples.')
+add('Sequencing runs','ENA sequencing-run crosswalk',read(q+'Sequencing_runs.tsv'),'47 sequencing runs mapped to 12 physical samples.')
+p=root/'supplementary_mapping_table_2026-09-22-v1/Supplementary_Table_S2.md'
+provenance.append({'source':str(p.relative_to(root)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+blocks=[];current=[]
+for line in p.read_text().splitlines()+['']:
+ if line.startswith('|'):current.append([v.strip() for v in line.strip('|').split('|')])
+ elif current:blocks.append(current);current=[]
+a,b=blocks
+mapping=[dict(zip(a[0],r)) for r in a[2:]]
+second={(r[0],r[1]):dict(zip(b[0],r)) for r in b[2:]}
+for r in mapping:r.update({k:v for k,v in second[(r['Sample'],r['Assay'])].items() if k not in ['Sample','Assay']})
+add('Mapping','Coassembly alignment records and catalogue counts',mapping,'Coassembly mapped fractions include secondary/supplementary alignment records. Catalogue-assigned counts are separate unnormalised CoverM totals and are not divided by coassembly totals.')
+s='16s_analysis/09_return_package/'
+add('16S diversity','Retained 16S v1 alpha diversity',read(s+'16s_alpha_diversity.tsv'),'Returned v1 analysis of 12 samples. No v2 differential-abundance results.')
+add('16S PERMANOVA','Retained 16S v1 community tests',read(s+'16s_beta_permanova.tsv'),'Returned permutation P values; do not interpret them as BH-adjusted values.')
+add('Functional categories','Competitive functional-category tests',read('full_de_interpretation/tables/functional_category_enrichment.tsv'),'Eight categories tested downstream of complete-transcriptome DE. BH correction separately for each coefficient.')
+add('Recurrence','Recurrent-gene condition differences',read('recurrence_figure_publication_2026-09-09-v2/tables/recurrent_gene_heatmap_cells.tsv'),'24 displayed recurrent genes across six phase-cycle combinations. log2cpm_difference is treatment minus control; descriptive recurrence is not an independent differential-expression test.')
+(out/'INDEX.json').write_text(json.dumps(tables,indent=2))
+(out/'PROVENANCE.json').write_text(json.dumps(provenance,indent=2))
+print(json.dumps(tables,indent=2))
+```

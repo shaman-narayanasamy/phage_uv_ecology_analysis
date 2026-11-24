@@ -1,0 +1,63 @@
+---
+title: "Results-first supplementary reference reconciliation"
+format: html
+---
+
+Read the live Google Doc preview and author-edited workbook first. This notebook
+only prepares review plans. Manuscript changes require native Suggestions.
+S27 recurrence is reserved at the end pending the author's retain/remove decision.
+
+```{python}
+import json,re
+from pathlib import Path
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplement_placement_audit_2026-09-23')
+text=(out/'main_accepted.txt').read_text()
+order=[22,23,1,2,3,25,26,4,5,6,7,8,9,10,11,12,13,14,15,16,17,28,18,19,20,21,24,27]
+mapping={old:i+1 for i,old in enumerate(order)}
+figmap={1:1,2:2,4:3,5:4,7:5,10:6,8:7,9:8}
+pre=[
+('Selected gene-level recurrence profiles are provided in Supplementary Table S27. ',''),
+('BH-adjusted p = 0.0021; Supplementary Figure S10','BH-adjusted p = 0.0021; Supplementary Figure S10; Supplementary Table S28'),
+('MAGs (n = 14) carrying at least one statistically significant (BH p-value) biofilm-associated gene upregulated in treatment','MAGs carrying at least one biofilm-associated gene upregulated in treatment at FDR (BH) ≤ 0.05'),
+('within each of the 348 dereplicated MAGs','within each dereplicated MAG'),
+('~ phase + condition*cycle for to model the interaction with different cycle.','~ phase + condition*cycle to test whether treatment–control differences changed across cycles.')]
+plan=[]
+for old,new in pre:
+ assert text.count(old)==1,(old,text.count(old))
+ plan.append({'old':old,'new':new,'kind':'placement_or_methods'})
+ text=text.replace(old,new,1)
+pat=r'(?:Supplementary )?Tables? S\d+(?:(?:[–-]|, | and )S?\d+)*'
+def nums(s):
+ result=[]
+ for token in re.findall(r'S?\d+(?:[–-]S?\d+)?',s):
+  a=[int(v) for v in re.findall(r'\d+',token)];result.extend(range(a[0],a[-1]+1))
+ return result
+def label(ns,prefix='Supplementary '):
+ ns=sorted(ns);labels=[f'S{x}' for x in ns]
+ return prefix+('Table ' if len(ns)==1 else 'Tables ')+(labels[0] if len(labels)==1 else ', '.join(labels[:-1])+' and '+labels[-1])
+def make_plan(text,pattern,convert,kind):
+ edits=[];matches=list(re.finditer(pattern,text))
+ for i,m in enumerate(matches):
+  replacement=convert(m.group())
+  if replacement==m.group():continue
+  a=max(text.rfind('\n',0,m.start())+1,m.start()-45);b=m.end()
+  if i:a=max(a,(matches[i-1].end()+m.start()+1)//2)
+  old=text[a:b];new=text[a:m.start()]+replacement
+  assert text.count(old)==1,(old,text.count(old))
+  edits.append({'old':old,'new':new,'kind':kind})
+ for e in edits:
+  assert text.count(e['old'])==1,e
+  text=text.replace(e['old'],e['new'],1)
+ return edits,text
+edits,text=make_plan(text,pat,lambda s:label([mapping[n] for n in nums(s)],'Supplementary ' if s.startswith('Supplementary') else ''),'table_reference');plan+=edits
+edits,text=make_plan(text,r'Supplementary Figure S\d+',lambda s:'Supplementary Figure S'+str(figmap[int(re.search(r'S(\d+)',s)[1])]),'figure_reference');plan+=edits
+(out/'main_browser_plan.json').write_text(json.dumps(plan,ensure_ascii=False,indent=2))
+(out/'planned_main.txt').write_text(text)
+(out/'new_mapping.json').write_text(json.dumps({'old_to_new':mapping,'figure_old_to_new':figmap,'pending_decision':'Old S27 recurrence remains reserved at new S28 until author response'},indent=2))
+supp=(out/'supp_accepted.txt').read_text()
+sp,supp=make_plan(supp,pat,lambda s:label([mapping[n] for n in nums(s)],'Supplementary ' if s.startswith('Supplementary') else ''),'table_reference')
+fp,supp=make_plan(supp,r'Figure S\d+:',lambda s:'Figure S'+str(figmap[int(re.search(r'S(\d+)',s)[1])])+':','figure_title');sp+=fp
+(out/'supp_browser_plan.json').write_text(json.dumps(sp,ensure_ascii=False,indent=2))
+assert all('Supplementary Table' not in p or ('S1 and S2' in p or 'S27.' in p) for p in text.split('Methods\n')[1].split('Author contributions')[0].split('\n')), 'Unexpected Methods table reference'
+print('Main edits:',len(plan),'supplement caption edits:',len(sp))
+```

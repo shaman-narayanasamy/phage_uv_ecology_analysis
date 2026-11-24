@@ -1,0 +1,86 @@
+---
+title: "Figure 6: population-genomic heterogeneity"
+format: html
+editor: source
+---
+
+Presentation-only rebuild of the frozen five-MAG population figure. No new
+pair filtering, cluster assignment, distance calculation or statistical fitting.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+old<-file.path(root,"population_figure_publication_2026-09-09-v2/tables")
+paths<-c(clusters=file.path(old,"population_genomics_cluster_panel.tsv"),
+ summary=file.path(old,"population_genomics_summary_panel.tsv"),
+ matrix=file.path(old,"population_genomics_propionicimonas_panel.tsv"),
+ colours=file.path(root,"figure1_shared_taxonomy_2026-09-14-v3/tables/MAG_colour_alignment.tsv"))
+hash<-function(p)digest::digest(file=p,algo="sha256");before<-vapply(paths,hash,character(1))
+cl<-fread(paths['clusters']);su<-fread(paths['summary']);ma<-fread(paths['matrix']);co<-fread(paths['colours'])
+stopifnot(nrow(su)==5,sum(su$valid_pairs)==139,nrow(cl)==60,nrow(ma)==64)
+ids<-c("TI3_MAGScoT_cleanbin_000001","CBF3_MAGScoT_cleanbin_000031","TBF2_MAGScoT_cleanbin_000085","CBF2_MAGScoT_cleanbin_000015","TBF3_MAGScoT_cleanbin_000022")
+su[,short_id:=sub("_MAGScoT_cleanbin_0*","/",MAG_ID)]
+su[,taxon:=fifelse(nzchar(species),species,fifelse(nzchar(genus),genus,paste0("p__",phylum))) ]
+su[,display:=paste(taxon,short_id,sep="\n")]
+lev<-su[match(ids,MAG_ID),display]
+su[,display:=factor(display,levels=rev(lev))]
+su[,colour:=co$colour[match(MAG_ID,co$MAG_ID)]];stopifnot(!anyNA(su$colour))
+cl[,display:=factor(su$display[match(panel_label,su$panel_label)],levels=rev(lev))]
+sample_order<-c(paste("C",c(paste0("I",1:3),paste0("BF",1:3))),paste("P",c(paste0("I",1:3),paste0("BF",1:3))))
+sample_display<-function(x)sub("^P ","T ",x)
+cl[,sample_label:=factor(sample_label,levels=sample_order)]
+cl[,condition:=factor(fifelse(is.na(condition)|condition=="","unavailable",condition),levels=c("control","treatment","unavailable"))]
+base<-theme_classic(base_size=7)+theme(axis.text=element_text(size=7),axis.title=element_text(size=7),
+ legend.title=element_text(size=7),legend.text=element_text(size=7),plot.margin=margin(5,6,5,5))
+A<-ggplot(cl,aes(sample_label,display))+geom_tile(aes(fill=condition),colour="white",linewidth=.4)+
+ geom_text(aes(label=strain_cluster),size=7/ggplot2::.pt,na.rm=TRUE)+
+ scale_fill_manual(values=c(control="#8FCB8A",treatment="#7E57C2",unavailable="#ECECEC"),labels=c(control="Control",treatment="Treatment",unavailable="Unavailable"),name=NULL)+
+ scale_x_discrete(labels=sample_display)+labs(x=NULL,y=NULL,
+ subtitle="S1–S3: strain clusters within each MAG; labels are not shared across MAGs")+base+
+ theme(axis.ticks=element_blank(),axis.line=element_blank(),legend.position="bottom")
+B<-ggplot(su,aes(median_consensus_differences_per_mbp,display))+
+ geom_errorbar(aes(xmin=minimum_consensus_differences_per_mbp,xmax=maximum_consensus_differences_per_mbp,colour=colour),orientation="y",width=.15,linewidth=.5)+
+ geom_point(aes(size=observed_samples,fill=colour),shape=21,stroke=.4)+scale_colour_identity()+scale_fill_identity()+
+ scale_size_continuous(range=c(2,3.5),breaks=c(6,8,10),name="Observed samples")+
+ scale_x_log10(breaks=c(3,10,30,100,300,1000,3000))+
+ labs(x="Consensus differences per callable Mbp",y=NULL)+base+theme(legend.position="bottom")
+samples<-sample_order[sample_order%in%ma$sample_x]
+ma[,sample_x:=factor(sample_x,levels=samples)];ma[,sample_y:=factor(sample_y,levels=rev(samples))]
+C<-ggplot(ma,aes(sample_x,sample_y))+geom_tile(aes(fill=consensus_differences_per_mbp),colour="white",linewidth=.3)+
+ geom_tile(data=ma[diagonal==TRUE],fill="white",colour="#BDBDBD",linewidth=.3)+
+ scale_fill_gradientn(colours=c("#F7FBFF","#9ECAE1","#4292C6","#084594"),trans="log10",na.value="#ECECEC",name="Consensus differences\nper callable Mbp")+
+ scale_x_discrete(labels=sample_display)+scale_y_discrete(labels=sample_display)+coord_equal()+
+ labs(title="Propionicimonas sp023458095 TI3/1",x=NULL,y=NULL)+base+
+ theme(axis.ticks=element_blank(),axis.line=element_blank(),plot.title=element_text(size=7),legend.position="right")
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+draw_figure <- function() {
+grid.newpage();draw<-function(p,x,y,w,h)print(p,vp=viewport(x=x,y=y,width=w,height=h),newpage=FALSE)
+draw(A,.5,.855,.98,.265);draw(B,.5,.54,.98,.315);draw(C,.50,.19,.94,.35)
+for(i in 1:3)grid.text(LETTERS[i],x=.01,y=c(.988,.706,.366)[i],just="left",gp=gpar(fontsize=9,fontface="bold"))
+grid.rect(x=.025,y=.017,width=unit(2,"mm"),height=unit(2,"mm"),gp=gpar(fill="#ECECEC",col=NA))
+grid.text("Unavailable",x=.041,y=.017,just="left",gp=gpar(fontsize=7))
+grid.text("C: Control   T: Treatment   I: Initial   BF: Backflush",x=.65,y=.017,gp=gpar(fontsize=7))
+}
+pdf(file.path(out,"figures/figure6-population-heterogeneity.pdf"),width=180/25.4,height=240/25.4,useDingbats=FALSE)
+draw_figure()
+dev.off()
+ragg::agg_png(file.path(out,"figures/preview.png"),width=180,height=240,units="mm",res=180,background="white")
+draw_figure()
+dev.off()
+# Preserve original plotted data byte-for-byte alongside presentation-only tables.
+for(n in c("clusters","summary","matrix"))file.copy(paths[n],file.path(out,"tables",basename(paths[n])))
+fwrite(su,file.path(out,"tables/display_MAG_labels_colours.tsv"),sep="\t")
+caption<-c("Figure 6: Population-genomic heterogeneity across cleaning cycles.",
+ "A) Archived inStrain strain-cluster assignments for five MAGs across control and treatment samples. S1–S3 identify clusters within each MAG; the same label in different MAGs does not denote a shared strain. I: initial sampling; BF: backflush sampling; numbers in sample labels denote cleaning cycles. Grey cells indicate unavailable assignments.",
+ "B) Median pairwise consensus differences per callable Mbp for each MAG, with whiskers spanning the minimum and maximum across 139 quality-qualified sample pairs. Point size represents the number of observed samples. Taxonomic colours follow the shared community-figure palette.",
+ "C) Pairwise consensus differences for Propionicimonas sp023458095 TI3/1. The colour scale is logarithmic; grey cells indicate unavailable or non-qualifying pairs and white diagonal cells denote self-comparisons. Distances and archived cluster assignments were obtained with inStrain (Olm et al., 2021; doi:10.1038/s41587-020-00797-0).",
+ "Eligible pairs shared at least 1 Mbp and 50% of the reference MAG; MAGs had at least ten qualifying pairs and six observed samples.")
+writeLines(caption,file.path(out,"FIGURE_CAPTION.txt"))
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/figure4_population_heterogeneity.qmd"))
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+fwrite(data.table(path=paths,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,hash,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+cat("PASS: five MAGs; 139 pairs; original tables preserved; shared colours; no refits\n")
+```

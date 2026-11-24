@@ -1,0 +1,226 @@
+---
+title: "Biofilm-associated transcription across repeated cleaning"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Run from the code repo with `bash scripts/run_qmd.sh analysis/biofilm_full_transcriptome_review.qmd NEW_OUTPUT`.
+This restores the omitted post-model biofilm interpretation. No subset-first DE,
+model refit, renormalization or manuscript replacement. All gene-level p/FDR
+values retain their original transcriptome-wide correction. Membership is based
+on annotations, not significant-gene selection. The operational rules are in
+`resources/biofilm_review_sets.tsv`; six modules, their union and three historical
+sensitivities are fixed before testing. Sets can overlap.
+
+Gene-set tests reuse cameraPR rank tests against all 361,907 tested genes.
+BH is reported within coefficient and, conservatively, across the entire expanded
+biofilm plus eight existing stress-set by four-coefficient family. Minimum set
+size is 10; smaller sets remain visible as untested, never negative. Correlation
+0.01 matches the existing workflow; 0.05 and 0.1 are sensitivity checks.
+Cycle interactions are changes in the condition contrast relative to cycle 1,
+not separate cycle-specific treatment tests. Trajectories are descriptive.
+
+```{r}
+#| label: inputs-and-membership
+suppressPackageStartupMessages({library(data.table);library(edgeR);library(limma);library(ggplot2);library(patchwork)})
+out <- commandArgs(trailingOnly=TRUE)[[1]]
+stopifnot(!dir.exists(out))
+repo <- normalizePath(getwd())
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+de_root <- file.path(root,"full_transcriptome_de/tables")
+sources <- c(condition=file.path(de_root,"de_condition_adjusted.tsv"),
+ interaction=file.path(de_root,"de_condition_cycle_interaction_coefficients.tsv"),
+ omnibus=file.path(de_root,"de_condition_cycle_interaction_omnibus.tsv"),
+ counts=file.path(de_root,"collapsed_raw_count_matrix.tsv"),
+ libraries=file.path(de_root,"library_sizes_and_normalization.tsv"),
+ old_membership=file.path(root,"full_de_interpretation/tables/tested_feature_category_membership.tsv"),
+ taxonomy=file.path(root,"full_de_interpretation/tables/full_de_gene_annotation_taxonomy.tsv.gz"),
+ registry=file.path(repo,"resources/biofilm_review_sets.tsv"),
+ source_original="/Users/shaman.narayanasamy/Work/repositories/membrane_cleaning/scripts/MAG_metatranscriptomics_analysis.qmd",
+ source_combined="/Users/shaman.narayanasamy/Work/repositories/membrane_cleaning/scripts/MAG_combined_cycle_metatranscriptomics_analysis.qmd",
+ notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+stopifnot(all(file.exists(sources)))
+sha <- function(p)digest::digest(file=p,algo="sha256")
+hashes<-vapply(sources,sha,character(1))
+for(sub in c("tables","figures","source"))dir.create(file.path(out,sub),recursive=TRUE)
+fwrite(data.table(input=names(sources),path=sources,sha256=hashes),file.path(out,"input_sha256.tsv"),sep="\t")
+registry<-fread(sources[["registry"]])
+cnd<-fread(sources[["condition"]])
+stopifnot(nrow(cnd)==361907L,!anyDuplicated(cnd$feature_id))
+members<-rbindlist(lapply(seq_len(nrow(registry)),function(i){
+ r<-registry[i];if(r$field=="union")return(NULL)
+ x<-cnd[!is.na(MAG_ID) & grepl(r$pattern,get(r$field),ignore.case=r$field=="annotation",perl=TRUE)]
+ x[,.(feature_id,set_id=r$set_id,annotation,gene_symbol,MAG_ID,match_rule=r$pattern)]
+}))
+union_ids<-unique(members[set_id %in% registry[role=="module",set_id],feature_id])
+members<-rbind(members,cnd[feature_id %in% union_ids,.(feature_id,set_id="biofilm_union",annotation,gene_symbol,MAG_ID,match_rule="union of six modules")])
+stopifnot(!anyDuplicated(members[,.(feature_id,set_id)]))
+sizes<-merge(registry,members[,.(NGenes=.N),by=set_id],by="set_id",all.x=TRUE)
+sizes[is.na(NGenes),NGenes:=0L];sizes[,test_status:=ifelse(NGenes>=10,"eligible","not_tested_fewer_than_10_genes")]
+fwrite(members,file.path(out,"tables/gene_set_membership.tsv"),sep="\t")
+fwrite(sizes,file.path(out,"tables/set_registry_and_eligibility.tsv"),sep="\t")
+old<-fread(sources[["old_membership"]])[,.(feature_id,set_id=category)]
+all_members<-unique(rbind(members[,.(feature_id,set_id)],old))
+indices<-split(match(all_members$feature_id,cnd$feature_id),all_members$set_id)
+stopifnot(!anyNA(unlist(indices)))
+indices<-indices[lengths(indices)>=10]
+ints<-fread(sources[["interaction"]],select=c("feature_id","coefficient","F","logFC","FDR","p_value"))
+omni<-fread(sources[["omnibus"]],select=c("feature_id","F","FDR","p_value"))
+results<-list(condition=cnd,cycle2=ints[coefficient=="cycle2:conditiontreatment"],
+ cycle3=ints[coefficient=="cycle3:conditiontreatment"],trajectory=omni)
+for(n in names(results)){
+ z<-results[[n]];stopifnot(nrow(z)==nrow(cnd),!anyDuplicated(z$feature_id),setequal(z$feature_id,cnd$feature_id))
+ results[[n]]<-z[match(cnd$feature_id,z$feature_id)]
+}
+```
+
+```{r}
+#| label: full-universe-post-model-tests
+negative_f<-rbindlist(lapply(names(results),function(n){
+ z<-results[[n]][F<0,.(feature_id,F,p_value,FDR)]
+ z[,coefficient:=n];z
+}))
+stopifnot(all(negative_f$p_value==1),all(negative_f$FDR==1))
+fwrite(negative_f,file.path(out,"tables/upstream_negative_F_audit.tsv"),sep="\t")
+# The established rank convention floors negative F at zero. Preserve all raw
+# gene statistics; never reinterpret negative F as positive evidence. Their
+# upstream origin remains a separate model-diagnostics follow-up.
+tests<-rbindlist(lapply(c(.01,.05,.1),function(rho)rbindlist(lapply(names(results),function(n){
+ z<-results[[n]];directional<-n!="trajectory"
+ stat<-if(directional)sign(z$logFC)*sqrt(pmax(z$F,0)) else sqrt(pmax(z$F,0))
+ stopifnot(all(is.finite(stat)))
+ x<-as.data.table(cameraPR(stat,indices,use.ranks=TRUE,inter.gene.cor=rho,
+                          directional=directional,sort=FALSE),keep.rownames="set_id")
+ if(!"Direction" %in% names(x))x[,Direction:="Non-directional"]
+ x[,`:=`(coefficient=n,correlation=rho)]
+ x
+}),use.names=TRUE,fill=TRUE)),use.names=TRUE,fill=TRUE)
+stopifnot(all(tests$Direction %in% c("Up","Down","Non-directional")),
+          is.numeric(tests$PValue),all(is.finite(tests$PValue)),
+          all(tests$PValue>=0 & tests$PValue<=1))
+setnames(tests,"FDR","FDR_within_coefficient")
+tests[,FDR_all_sets_coefficients:=p.adjust(PValue,"BH"),by=correlation]
+tests<-merge(tests,registry[,.(set_id,label,role)],by="set_id",all.x=TRUE)
+tests[is.na(role),`:=`(role="existing_stress",label=set_id)]
+fwrite(tests,file.path(out,"tables/expanded_gene_set_tests.tsv"),sep="\t")
+bio_ids<-unique(members$feature_id)
+gene_tests<-rbindlist(lapply(names(results),function(n){
+ z<-copy(results[[n]][feature_id %in% bio_ids]);z[,analysis_coefficient:=n];z
+}),fill=TRUE)
+gene_tests<-merge(gene_tests,cnd[,.(feature_id,source_MAG=MAG_ID,source_symbol=gene_symbol,source_annotation=annotation)],by="feature_id")
+fwrite(gene_tests,file.path(out,"tables/biofilm_gene_results_all_coefficients.tsv.gz"),sep="\t",compress="gzip")
+rollup<-rbindlist(lapply(names(results),function(n){
+ z<-merge(members[,.(feature_id,set_id)],results[[n]],by="feature_id",allow.cartesian=TRUE)
+ if(n=="trajectory")z[,logFC:=NA_real_]
+ z[,.(genes=.N,gene_FDR_below_005=sum(FDR<.05),
+      higher=sum(FDR<.05 & logFC>0,na.rm=TRUE),lower=sum(FDR<.05 & logFC<0,na.rm=TRUE),
+      median_logFC=if(n=="trajectory")NA_real_ else median(logFC)),by=set_id][,coefficient:=n]
+}))
+fwrite(rollup,file.path(out,"tables/gene_level_support_by_set.tsv"),sep="\t")
+```
+
+```{r}
+#| label: observed-trajectories-and-contributors
+libs<-fread(sources[["libraries"]]);samples<-libs$sample_title
+stopifnot(nrow(libs)==12L,all(libs$effective_library_size>0),
+          all(table(libs$condition,libs$phase,libs$cycle)==1L))
+raw<-fread(sources[["counts"]],select=c("feature_id",samples))
+raw<-raw[match(bio_ids,feature_id)]
+stopifnot(identical(raw$feature_id,bio_ids))
+mat<-as.matrix(raw[,..samples]);rownames(mat)<-bio_ids
+logcpm<-edgeR::cpm(mat,lib.size=libs$effective_library_size,log=TRUE,prior.count=.5)
+centered<-logcpm-apply(logcpm,1,median)
+long<-as.data.table(centered,keep.rownames="feature_id")
+long<-melt(long,id.vars="feature_id",variable.name="sample_title",value.name="centered_log2CPM")
+long<-merge(long,libs[,.(sample_title,condition,phase,cycle)],by="sample_title")
+setlong<-merge(long,members[,.(feature_id,set_id)],by="feature_id",allow.cartesian=TRUE)
+trajectories<-setlong[,.(median_centered_log2CPM=median(centered_log2CPM),genes=.N),
+                     by=.(set_id,sample_title,condition,phase,cycle)]
+fwrite(trajectories,file.path(out,"tables/set_trajectories.tsv"),sep="\t")
+fwrite(long,file.path(out,"tables/gene_centered_expression.tsv.gz"),sep="\t",compress="gzip")
+taxonomy<-fread(sources[["taxonomy"]],select=c("feature_id","phylum","family","genus"))
+contributors<-merge(cnd[feature_id %in% union_ids],taxonomy,by="feature_id")
+mag_summary<-contributors[,.(biofilm_associated_genes=.N,upregulated=sum(FDR<.05 & logFC>0),
+ downregulated=sum(FDR<.05 & logFC<0),median_logFC=median(logFC)),by=.(MAG_ID,phylum,family,genus)]
+fwrite(mag_summary[order(-upregulated-downregulated)],file.path(out,"tables/MAG_contributors.tsv"),sep="\t")
+priority<-merge(cnd[feature_id %in% union_ids,.(feature_id,FDR,logFC)],
+               omni[,.(feature_id,trajectory_FDR=FDR)],by="feature_id")
+# Two complementary rankings, fixed top 12 each; no subset-specific p adjustment.
+ids<-unique(c(priority[order(FDR,feature_id),head(feature_id,12)],
+              priority[order(trajectory_FDR,feature_id),head(feature_id,12)]))
+sel<-cnd[match(ids,feature_id),.(feature_id,gene_symbol,annotation,MAG_ID,FDR,logFC)]
+sel<-merge(sel,taxonomy,by="feature_id",sort=FALSE)
+sel[,gene_tag:=sprintf("G%02d",seq_len(.N))]
+sel[,row_label:=paste(gene_tag,ifelse(nchar(annotation)>58,paste0(substr(annotation,1,55),"..."),annotation),sep="  ")]
+fwrite(sel,file.path(out,"tables/displayed_gene_key.tsv"),sep="\t")
+```
+
+```{r}
+#| label: vector-figure-previews
+source(file.path(repo,"R/figure_style.R"))
+theme_review<-theme_classic(base_size=9)+theme(legend.position="bottom",strip.background=element_blank(),
+ strip.text=element_text(face="bold",size=9),plot.tag=element_text(size=13),axis.text=element_text(colour="#222222"))
+shown<-sizes[role %in% c("primary","module") & NGenes>0]
+tt<-merge(trajectories,shown[,.(set_id,label,NGenes)],by="set_id")
+tt[,panel:=paste0(label," (",NGenes,ifelse(NGenes==1," gene)"," genes)"))]
+p_traj<-ggplot(tt,aes(cycle,median_centered_log2CPM,colour=condition,linetype=phase,
+                     group=interaction(condition,phase)))+
+ geom_hline(yintercept=0,colour="grey85",linewidth=.3)+geom_line(linewidth=.55)+geom_point(aes(shape=phase),size=1.8)+
+ scale_colour_manual(values=phage_uv_condition_colours[c("control","treatment")],labels=c("Control","Phage-UV"),name=NULL)+
+ scale_shape_manual(values=phage_uv_phase_shapes,name="Phase")+scale_linetype_manual(values=c(initial="solid",backflush="dashed"),name="Phase")+
+ scale_x_continuous(breaks=1:3)+facet_wrap(~panel,ncol=3)+
+ labs(x="Cleaning cycle",y="Median gene-centred log2 CPM",tag="A")+theme_review
+plot_tests<-merge(tests[correlation==.01 & set_id %in% shown$set_id],rollup,by=c("set_id","coefficient"))
+plot_tests[,coefficient:=factor(coefficient,levels=c("condition","cycle2","cycle3","trajectory"),
+ labels=c("Phage-UV/control","C2 contrast change","C3 contrast change","Joint trajectory"))]
+plot_tests[,label:=factor(label,levels=rev(shown$label))]
+plot_tests[,support:=ifelse(FDR_all_sets_coefficients<.05,"FDR < 0.05","Not significant")]
+p_sets<-ggplot(plot_tests,aes(coefficient,label))+
+ geom_point(aes(size=-log10(pmax(FDR_all_sets_coefficients,1e-16)),shape=support,colour=Direction))+
+ scale_shape_manual(values=c("FDR < 0.05"=16,"Not significant"=1),name=NULL)+
+ scale_colour_manual(values=c(Up="#7E57C2",Down="#8FCB8A","Non-directional"="#444444"),name="Rank direction")+
+ scale_size_continuous(range=c(1.5,5),name="-log10 adjusted P")+
+ scale_y_discrete(drop=FALSE)+
+ annotate("text",x=1:4,y="Quorum sensing",label="Not tested\n(n = 1)",size=2.4,colour="#777777")+
+ labs(x=NULL,y=NULL,tag="B")+theme_review+theme(axis.text.x=element_text(size=8))
+overview<-(p_traj / p_sets)+plot_layout(heights=c(2,1))
+hlong<-merge(long,sel[,.(feature_id,row_label,gene_tag)],by="feature_id")
+hlong[,row_label:=factor(row_label,levels=rev(sel$row_label))]
+hlong[,sample:=factor(paste0("C",cycle,"-",ifelse(phase=="initial","I","B")),
+ levels=c("C1-I","C1-B","C2-I","C2-B","C3-I","C3-B"))]
+hlong[,condition:=factor(condition,levels=c("control","treatment"),labels=c("Control","Phage-UV"))]
+p_genes<-ggplot(hlong,aes(sample,row_label,fill=centered_log2CPM))+geom_tile()+facet_grid(~condition)+
+ scale_fill_gradient2(low="#2166AC",mid="white",high="#B2182B",midpoint=0,name="Gene-centred\nlog2 CPM")+
+ labs(x="Cleaning cycle and phase",y=NULL)+theme_review+theme(axis.text.y=element_text(size=7),legend.position="right")
+device<-function(filename,width,height,...)grDevices::quartz(type="pdf",file=filename,width=width,height=height,...)
+save_plot<-function(p,name,w,h){
+ ggsave(file.path(out,"figures",paste0(name,".pdf")),p,width=w,height=h,device=device,bg="white")
+ ggsave(file.path(out,"figures",paste0(name,".png")),p,width=w,height=h,dpi=220,device=ragg::agg_png,bg="white")
+}
+save_plot(overview,"biofilm-functional-trajectories",11,10)
+save_plot(p_genes,"biofilm-gene-trajectories",12,9)
+```
+
+```{r}
+#| label: checks-and-provenance
+stopifnot(all(vapply(sources,sha,character(1))==hashes),
+ all(trajectories$genes==sizes$NGenes[match(trajectories$set_id,sizes$set_id)]),
+ all(table(trajectories$set_id)==12),
+ all(tests$FDR_all_sets_coefficients>=0 & tests$FDR_all_sets_coefficients<=1))
+for(rho in unique(tests$correlation)){
+ z<-tests[correlation==rho];stopifnot(isTRUE(all.equal(z$FDR_all_sets_coefficients,p.adjust(z$PValue,"BH"))))
+}
+writeLines(c("PASS: full 361907-gene universe in every test; annotation-only membership",
+ "PASS: gene FDR unchanged; BH across expanded sets and coefficients verified",
+ "PASS: 12 samples and frozen effective libraries; no subset normalization",
+ "PASS: source SHA256 unchanged; no model refit"),file.path(out,"CHECKS.txt"))
+writeLines(capture.output(sessionInfo()),file.path(out,"sessionInfo.txt"))
+file.copy(sources[["registry"]],file.path(out,"source/biofilm_review_sets.tsv"))
+file.copy(sources[["notebook"]],file.path(out,"source/biofilm_full_transcriptome_review.qmd"))
+payload<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(payload,nchar(out)+2),sha256=vapply(payload,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+print(sizes[,.(set_id,NGenes,test_status)])
+print(tests[correlation==.01 & role!="existing_stress",.(set_id,coefficient,Direction,PValue,FDR_all_sets_coefficients)])
+```

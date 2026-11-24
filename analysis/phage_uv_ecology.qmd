@@ -10,6 +10,15 @@ execute:
   message: false
 ---
 
+## Biofilm review addendum
+
+The restored biofilm-associated transcription analysis is maintained in
+[biofilm_full_transcriptome_review.qmd](biofilm_full_transcriptome_review.qmd).
+Its versioned v4 output is registered as `biofilm_postmodel_review_v4` in the data
+manifest. See [the review handoff](../notes/biofilm-review-2026-09-13.md) for results,
+figure legends, sensitivity checks and the remaining upstream numerical QC gate.
+This is a local author-review candidate, not an adopted manuscript replacement.
+
 ```{r}
 library(data.table)
 library(knitr)

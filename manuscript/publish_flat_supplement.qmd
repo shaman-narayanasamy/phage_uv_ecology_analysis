@@ -1,0 +1,35 @@
+---
+title: "Publish consolidated supplementary workbook"
+format: html
+---
+
+Upload a new versioned Excel file to the existing private Manuscript folder.
+Do not overwrite the author's files or change permissions.
+
+```{python}
+from pathlib import Path
+import json,sys,hashlib,urllib.request,urllib.parse
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+from manuscript_identity import assistant_access_token,verified_editor,guarded_urlopen
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplementary_workbook_2026-09-22-v1')
+src=out/'Supplementary_Tables.xlsx'
+checks=json.loads((out/'CHECKS.json').read_text())
+assert hashlib.sha256(src.read_bytes()).hexdigest()==checks['sha256']
+assert all(x['all_cells_match'] for x in checks['tables'])
+t=assistant_access_token();editor=verified_editor(t);h={'Authorization':'Bearer '+t}
+folder='1ajfSU0gAgrMPBsuhXQ4QSIrXWwrnRchy'
+name='Supplementary_Tables_2026-09-22_v1.xlsx'
+q=urllib.parse.urlencode({'q':f"'{folder}' in parents and trashed=false and name='{name}'",'fields':'files(id,name,parents,webViewLink,md5Checksum,size)'})
+with guarded_urlopen(urllib.request.Request('https://www.googleapis.com/drive/v3/files?'+q,headers=h)) as r:found=json.load(r)['files']
+if found:
+ assert len(found)==1;result=found[0]
+else:
+ b='flat-supplement-20260922'
+ meta={'name':name,'parents':[folder],'description':'Consolidated supplementary tables, one numbered worksheet per scientific table, with reader index. Supersedes separate Data packages. Review version.'}
+ body=(('--'+b+'\r\nContent-Type: application/json\r\n\r\n'+json.dumps(meta)+'\r\n--'+b+'\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n').encode()+src.read_bytes()+('\r\n--'+b+'--\r\n').encode())
+ with guarded_urlopen(urllib.request.Request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents,webViewLink,md5Checksum,size',headers={**h,'Content-Type':'multipart/related; boundary='+b},data=body)) as r:result=json.load(r)
+assert result['md5Checksum']==hashlib.md5(src.read_bytes()).hexdigest()
+assert int(result['size'])==src.stat().st_size and folder in result['parents']
+(out/'drive_receipt.json').write_text(json.dumps({'editor':editor,'file':result,'checksum_verified':True},indent=2))
+print(result['webViewLink'])
+```

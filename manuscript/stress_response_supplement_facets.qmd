@@ -1,0 +1,44 @@
+---
+title: "Supplementary stress-response enrichment: left facet strips"
+format: html
+execute:
+  enabled: false
+---
+
+Layout-only rebuild of Supplementary Figure S10. No tests are refitted.
+Run from the repository root using scripts/run_qmd.sh and a new output directory.
+The underlying 32 results are Supplementary Table S28, Functional categories.
+
+```{r}
+suppressPackageStartupMessages({library(data.table); library(ggplot2)})
+source("R/figure_style.R")
+out <- commandArgs(trailingOnly=TRUE)[[1]]
+stopifnot(!dir.exists(out))
+dir.create(out, recursive=TRUE)
+src <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_figure_candidates/tables/supplementary_functional_coefficients.tsv"
+d <- fread(src)
+stopifnot(nrow(d)==32L, uniqueN(d$set_id)==8L, uniqueN(d$coefficient)==4L)
+stopifnot(all(d$supported == (d$FDR <= .05)))
+file.copy(src,file.path(out,"source_results.tsv"))
+d[, coefficient_label := factor(coefficient_label, levels=c("Adjusted condition", "Cycle 2 interaction", "Cycle 3 interaction", "Interaction omnibus"))]
+d[, label := factor(label, levels=rev(unique(d[order(tier,set_id),label])))]
+p <- ggplot(d,aes(signed_log10_fdr,label)) +
+  geom_vline(xintercept=0,colour="#777777",linewidth=.3) +
+  geom_point(data=d[supported==FALSE],aes(colour=set_id),shape=21,fill="white",size=2.5,stroke=.7) +
+  geom_point(data=d[supported==TRUE],aes(fill=set_id,colour=set_id),shape=21,size=2.7) +
+  geom_text(data=d[supported==TRUE],aes(label=sprintf("BH-adjusted p = %.2g",FDR)),hjust=-.15,size=2.6) +
+  facet_wrap(~coefficient_label,ncol=1,scales="free_x",strip.position="left") +
+  scale_colour_manual(values=phage_uv_signature_colours,guide="none") +
+  scale_fill_manual(values=phage_uv_signature_colours,guide="none") +
+  scale_x_continuous(expand=expansion(mult=c(.08,.55))) +
+  labs(x=expression(paste("Signed ", -log[10], "(BH-adjusted ", italic(p), ")")),y=NULL) +
+  theme_phage_uv(base_size=9) + theme(
+    strip.placement="outside",strip.background=element_rect(fill="#EFEFEF",colour=NA),
+    strip.text.y.left=element_text(angle=90,size=9,margin=margin(7,7,7,7)),
+    axis.text=element_text(size=8),axis.title=element_text(size=9),
+    panel.spacing.y=grid::unit(4,"mm"),plot.margin=margin(7,8,7,5))
+ggsave(file.path(out,"Supplementary_Figure_S10.png"),p,width=180,height=240,units="mm",dpi=300,bg="white")
+pdf_device <- function(filename,width,height,...) grDevices::quartz(type="pdf",file=filename,width=width,height=height,...)
+ggsave(file.path(out,"Supplementary_Figure_S10.pdf"),p,width=180,height=240,units="mm",device=pdf_device)
+writeLines(c("Supplementary Table S28: Functional categories",paste("source_md5",tools::md5sum(src)),"32 results; eight sets across four comparisons; no refitting; free x scales retained; omnibus non-directional"),file.path(out,"provenance.txt"))
+```

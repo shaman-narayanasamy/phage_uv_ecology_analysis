@@ -27,6 +27,7 @@ import ast
 import hashlib
 import io
 import json
+import os
 import re
 import sys
 import tarfile
@@ -99,7 +100,7 @@ for relative, source in sources.items():
 
 ```{python}
 repo = Path.cwd()
-data = repo.parent.parent/"PRJEB79569"
+data = Path(os.environ.get("PHAGE_UV_DATA_ROOT", "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569")).resolve(strict=True)
 log = data/"community_uv_response/variant_analysis/instrain_priority_20/compare/all_samples/log/log.log"
 raw_log = log.read_bytes()
 lines = raw_log.decode().splitlines()

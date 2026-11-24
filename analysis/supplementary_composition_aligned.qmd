@@ -1,0 +1,57 @@
+---
+title: "Aligned faceted supplementary composition panels"
+format: html
+---
+
+Display-only revision. Retained 16S return and approved viral composition values;
+no abundance filtering or statistical reanalysis. Family palette transcribed
+from the retained PDF legend, in the archived table's family order.
+
+```{r}
+library(data.table);library(ggplot2);library(cowplot);library(grid)
+source("R/figure_style.R")
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out));dir.create(out,recursive=TRUE)
+fpath<-file.path(root,"16s_analysis/09_return_package/16s_family_profile_long.tsv")
+vpath<-file.path(root,"supplementary_votu_compact_2026-09-23-v1/plotted_values.tsv")
+f<-fread(fpath);v<-fread(vpath)
+families<-unique(f$family)
+cols<-c("#4E79A7","#9C7560","#E15759","#76B7B2","#59A14F","#17BECF","#B07AA1","#FF9DA7","#9C7560","#17BECF","#1B9E77","#D95F02","#7570B3","#F28E2B","#66A61E","#A6761D","#8DA0CB","#E78AC3","#A6D854","#FFD92F","#BC80BD","#80B1D3","#FB8072","#B3DE69","#FCCDE5","#D9D9D9","#969696")
+stopifnot(length(families)==length(cols),uniqueN(f$sample_title)==12,uniqueN(v$sample)==12)
+cols[cols=="#9C7560"]<-"#9C755F"
+f[,family:=factor(family,levels=families)]
+f[,condition:=factor(condition,levels=c("control","treatment"),labels=c("Control","Treatment"))]
+positions<-as.vector(rbind(paste0("C",1:3,"-I"),paste0("C",1:3,"-BF")))
+f[,position:=factor(paste0("C",cycle,"-",ifelse(phase=="initial","I","BF")),levels=positions)]
+v[,position:=factor(position,levels=positions)]
+v[,condition:=factor(condition,levels=c("Control","Treatment"))]
+stopifnot(all(abs(f[,sum(relative_abundance),by=sample_title]$V1-1)<1e-5),all(abs(v[,sum(proportion),by=sample]$V1-1)<1e-10))
+base<-function(d,y,fill,ylab,tag){
+ ggplot(d,aes(x=position,y=.data[[y]],fill=.data[[fill]]))+geom_col(width=.68)+
+ facet_grid(condition~.)+scale_x_discrete(drop=FALSE,expand=expansion(add=.5))+
+ scale_y_continuous(breaks=seq(0,1,.25),labels=scales::label_percent(),expand=expansion(mult=0))+coord_cartesian(ylim=c(0,1))+
+ labs(x="Cleaning cycle and sampling phase",y=ylab,tag=tag)+
+ theme_classic(base_size=10)+theme(strip.background=element_rect(fill="#F3F3F3",colour=NA),
+ strip.text.y=element_text(size=10),panel.spacing.y=unit(10,"pt"),
+ plot.tag=element_text(face="bold",size=12),legend.position="right",legend.text=element_text(size=9),
+ legend.title=element_text(size=10),legend.key.size=unit(11,"pt"),legend.spacing.y=unit(1,"pt"),
+ plot.margin=margin(7,8,7,7))
+}
+p1<-base(f,"relative_abundance","family","Relative abundance\n(16S reads)","A")+
+ scale_fill_manual(values=setNames(cols,families),name="Family",drop=FALSE)+guides(fill=guide_legend(ncol=1))
+p2<-base(v,"proportion","realm","Relative abundance\n(vOTU-mapped MG reads)","B")+
+ scale_fill_manual(values=phage_uv_viral_realm_colours,name="Viral realm",drop=FALSE)+guides(fill=guide_legend(ncol=1))
+l1<-get_legend(p1);l2<-get_legend(p2)
+g<-align_plots(p1+theme(legend.position="none"),p2+theme(legend.position="none"),align="v",axis="lr")
+stopifnot(length(g[[1]]$widths)==length(g[[2]]$widths))
+shared_widths<-unit.pmax(g[[1]]$widths,g[[2]]$widths)
+g[[1]]$widths<-shared_widths;g[[2]]$widths<-shared_widths
+stopifnot(identical(g[[1]]$widths,g[[2]]$widths))
+draw<-function(){grid.newpage();pushViewport(viewport(layout=grid.layout(2,2,widths=unit(c(.70,.30),"null"),heights=unit(c(.60,.40),"null"))))
+ for(i in 1:2){pushViewport(viewport(layout.pos.row=i,layout.pos.col=1));grid.draw(g[[i]]);popViewport();pushViewport(viewport(layout.pos.row=i,layout.pos.col=2));grid.draw(if(i==1)l1 else l2);popViewport()};popViewport()}
+pdf(file.path(out,"aligned-composition.pdf"),width=8.5,height=9,useDingbats=FALSE);draw();dev.off()
+ragg::agg_png(file.path(out,"preview.png"),width=1530,height=1620,res=180);draw();dev.off()
+fwrite(f,file.path(out,"16s_plotted_values.tsv"),sep="\t");fwrite(v,file.path(out,"viral_plotted_values.tsv"),sep="\t")
+fwrite(data.table(family=families,colour=cols),file.path(out,"family_palette.tsv"),sep="\t")
+writeLines(c("PASS: unchanged archived abundance values; 12 samples per assay; sums verified.","PASS: identical aligned gtable widths, x-axis levels, expansion and bar widths; both use condition facets.",vapply(c(fpath,vpath),function(x)paste(x,digest::digest(file=x,algo="sha256")),character(1))),file.path(out,"CHECKS.txt"))
+```

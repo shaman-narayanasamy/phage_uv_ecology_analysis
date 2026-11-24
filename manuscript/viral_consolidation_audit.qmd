@@ -1,0 +1,44 @@
+---
+title: "Read-only viral consolidation provenance audit"
+format: html
+execute:
+  eval: false
+---
+
+Inspect bounded archived consolidation metadata and preserved upstream code.
+No sequence processing or remote writes. Run with the project Python QMD runner.
+
+```{python}
+import json, subprocess, sys, hashlib
+from pathlib import Path
+out=Path(sys.argv[1]);assert not out.exists()
+remote=r'''
+import json,hashlib,subprocess
+from pathlib import Path
+repo=Path('/home/users/snarayanasamy/repositories/viromics_pipeline')
+archive=Path('/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569/viromics')
+files={}
+for rel in ['rules/identification/consolidate_preds.smk','workflows/consolidate_preds.smk','workflows/votu_clustering.smk']:
+ raw=(repo/rel).read_bytes();files[rel]={'sha256':hashlib.sha256(raw).hexdigest(),'text':raw.decode()}
+records=[]
+for work in ['consolidated_seqs','votu_clustering']:
+ p=archive/work/'.snakemake/metadata'
+ if not p.is_dir():continue
+ for f in p.iterdir():
+  if not f.is_file():continue
+  try:d=json.loads(f.read_text())
+  except (ValueError,UnicodeError):continue
+  if d.get('rule') in ['get_non_redundant','concatenate_non_redundant'] or (work=='votu_clustering' and 'all_pred.viral_seqs.fasta' in str(d.get('input',[]))):
+   records.append({'path':str(f),'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'metadata':d})
+old=subprocess.check_output(['git','-C',str(repo),'show','a7cd105:rules/identification/consolidate_preds.smk'],universal_newlines=True)
+print(json.dumps({'repository':str(repo),'head':subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],universal_newlines=True).strip(),'files':files,'historical_a7cd105_rule':old,'records':records}))
+'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','iris-cluster','python3','-'],input=remote,text=True,capture_output=True,timeout=90)
+if r.returncode:raise RuntimeError(r.stderr)
+d=json.loads(r.stdout);out.mkdir(parents=True)
+(out/'evidence.json').write_text(json.dumps(d,indent=2))
+from collections import Counter
+print(Counter(x['metadata']['rule'] for x in d['records']))
+for x in d['records'][:3]:print(x['metadata']['rule'],x['metadata'].get('shellcmd'),x['metadata'].get('input'))
+print('Saved read-only evidence:',out)
+```

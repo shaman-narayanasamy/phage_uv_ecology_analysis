@@ -1,0 +1,78 @@
+---
+title: "Phage-UV ecology and strain-level adaptation"
+author: "Shaman Narayanasamy"
+format:
+  html:
+    toc: true
+execute:
+  echo: true
+  warning: false
+  message: false
+params:
+  sample_metadata: "../metadata/sample_metadata.tsv"
+  data_manifest: "../manifests/data_manifest.tsv"
+  code_manifest: "../manifests/code_manifest.tsv"
+  uv_signatures: "../resources/uv_resistance_signatures.tsv"
+---
+
+## Purpose
+
+This Quarto document is the downstream manuscript scaffold. It is intentionally manifest-first: heavy upstream outputs are staged on Isilon/HPC and consumed here only after they are listed in `manifests/data_manifest.tsv`.
+
+```{r setup}
+library(tidyverse)
+```
+
+## Load project metadata
+
+```{r load_metadata}
+sample_metadata <- read_tsv(params$sample_metadata, show_col_types = FALSE)
+data_manifest <- read_tsv(params$data_manifest, show_col_types = FALSE)
+code_manifest <- read_tsv(params$code_manifest, show_col_types = FALSE)
+uv_signatures <- read_tsv(params$uv_signatures, show_col_types = FALSE)
+
+sample_metadata %>%
+  count(condition, phase, cycle, analysis_group)
+```
+
+## Analysis grouping
+
+Downstream manuscript figures use `analysis_group = condition_cycle`. Initial and backflush samples remain traceable through `phase`, but are not treated as separate biological axes in the main figures.
+
+```{r grouping_summary}
+sample_metadata %>%
+  group_by(analysis_group, condition, cycle) %>%
+  summarise(
+    phases = paste(sort(unique(phase)), collapse = ";"),
+    metagenome_runs = paste(metagenome_run_accession, collapse = ";"),
+    n_physical_samples = n(),
+    .groups = "drop"
+  )
+```
+
+## UV signature resource
+
+```{r uv_signature_summary}
+uv_signatures %>%
+  count(tier, category, specificity)
+```
+
+## Staging checklist
+
+```{r staging_checklist}
+data_manifest %>%
+  count(status, storage_tier) %>%
+  arrange(status, storage_tier)
+```
+
+## Next executable sections
+
+Add sections here once the staged files exist:
+
+- MAG/rMAG abundance and taxonomy overview.
+- UV/DNA-damage signature genome-potential mapping.
+- UV/DNA-damage metatranscriptomic activity by `analysis_group`.
+- vOTU and CRISPR phage-host link integration.
+- inStrain SNV divergence summaries.
+- MGnify concordance, only if MGnify analyses are available and mappable.
+

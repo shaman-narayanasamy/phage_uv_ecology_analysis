@@ -2,9 +2,18 @@
 
 Active manuscript-analysis workspace for the PRJEB79569 anaerobic membrane
 biofilm experiment (ENA secondary accession `ERP163720`). This repository owns
-analysis code, metadata contracts, provenance manifests, figures, and
+analysis code, metadata contracts, provenance manifests, figure-generating code, and
 manuscript scaffolding; large primary and derived data remain in managed
 project storage.
+
+## Local locations
+
+Code: `/Users/shaman.narayanasamy/Work/repositories/phage_uv_ecology_analysis`.
+Data and generated figures: `/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569`.
+Set `PHAGE_UV_DATA_ROOT` to that study directory when running elsewhere.
+Figure source assets may remain locally in `manuscript/figure_sources/`, but
+figure files are excluded from Git. See `notes/handoff-2026-09-10-code-data-separation.md`
+and `manifests/local_repository_locations.tsv` for the relocation map.
 
 ## Current analysis state
 

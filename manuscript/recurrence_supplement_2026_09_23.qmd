@@ -1,0 +1,70 @@
+---
+title: "Recurrent transcription: complete supplementary evidence"
+format: html
+execute:
+  enabled: false
+---
+
+Reuses frozen whole-transcriptome tests. No refitting or new significance test.
+All 6,985 eligible genes are reported; 24 examples are selected by ascending BH
+FDR, then descending absolute log2 fold-change and feature ID within direction.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(patchwork)})
+source('R/figure_style.R')
+root <- '/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived'
+out <- file.path(root,'recurrence_supplement_2026-09-23')
+dir.create(out,showWarnings=FALSE,recursive=TRUE)
+cand <- fread(file.path(root,'full_de_interpretation/tables/predeclared_gene_candidates.tsv'))
+rec <- fread(file.path(root,'full_de_interpretation/tables/gene_six_cell_recurrence.tsv.gz'))
+stopifnot(nrow(cand)==6985L,uniqueN(cand$feature_id)==6985L)
+stopifnot(all(cand$FDR<.05),all(abs(cand$logFC)>=1),all(cand$n_samples_detected>=6))
+cells <- paste0('log2cpm_difference_',c('initial_cycle1','initial_cycle2','initial_cycle3','backflush_cycle1','backflush_cycle2','backflush_cycle3'))
+d <- merge(cand,rec[,c('feature_id',cells),with=FALSE],by='feature_id',sort=FALSE)
+d[,direction:=fifelse(recurrence_class=='recurrent_treatment_higher','Up in treatment','Down in treatment')]
+d[,absFC:=abs(logFC)]
+setorder(d,direction,FDR,-absFC,feature_id)
+d[,example_rank:=seq_len(.N),by=direction]
+d[,displayed_example:=example_rank<=12L]
+d[,example_rank:=fifelse(displayed_example,example_rank,NA_integer_)]
+old <- fread(file.path(root,'recurrence_figure_publication_2026-09-09-v2/tables/recurrent_gene_heatmap_cells.tsv'))
+stopifnot(setequal(d[displayed_example==TRUE,feature_id],old$feature_id))
+effects <- as.matrix(d[,..cells])
+stopifnot(all(pmax(rowSums(effects>0),rowSums(effects<0))==d$dominant_direction_cells))
+stopifnot(all(d$dominant_direction_cells>=5),all(abs(apply(effects,1,median))>=1))
+counts <- d[,.(Genes=.N),by=.(direction,Consistent_comparisons=dominant_direction_cells)]
+setorder(counts,direction,Consistent_comparisons)
+fwrite(counts,file.path(out,'recurrence_counts.tsv'),sep='\t')
+cols <- c('feature_id','gene_symbol','annotation','MAG_ID','species','genus','family','phylum','direction','logFC','p_value','FDR','n_samples_detected','dominant_direction_cells','median_cell_log2cpm_difference',cells,'displayed_example','example_rank')
+fwrite(d[,..cols],file.path(out,'recurrence_all_genes.tsv'),sep='\t',na='NA')
+colours <- c('Down in treatment'=phage_uv_condition_colours[['control']], 'Up in treatment'=phage_uv_condition_colours[['treatment']])
+counts[,Consistency:=factor(paste0(Consistent_comparisons,' of 6'),levels=c('6 of 6','5 of 6'))]
+counts[,direction:=factor(direction,levels=c('Down in treatment','Up in treatment'))]
+p1 <- ggplot(counts,aes(Genes,direction,fill=Consistency))+geom_col(width=.62)+
+ geom_text(aes(label=format(Genes,big.mark=',')),position=position_stack(vjust=.5),size=3)+
+ scale_fill_manual(values=c('6 of 6'='#8FA9B8','5 of 6'='#DDE5EA'),name='Consistent comparisons')+
+ scale_x_continuous(expand=expansion(mult=c(0,.03)),labels=scales::label_comma())+
+ labs(x='Recurrently differentially expressed genes',y=NULL,tag='A')+theme_phage_uv(base_size=10)+
+ theme(legend.position='bottom',plot.tag=element_text(face='bold'),axis.text.y=element_text(size=10))
+selected <- d[displayed_example==TRUE]
+selected[,label:=paste0(fifelse(!is.na(gene_symbol)&nzchar(gene_symbol),paste0(gene_symbol,': '),''),annotation,' [',sub('^([^_]+)_MAGScoT_cleanbin_0*','\\1/',MAG_ID),']')]
+selected[,label:=vapply(label,function(s)paste(strwrap(s,width=56),collapse='\n'),character(1))]
+heat <- melt(selected,id.vars=c('feature_id','label','direction','example_rank'),measure.vars=cells,variable.name='comparison',value.name='difference')
+heat[,comparison:=factor(comparison,levels=cells)]
+heat[,label:=factor(label,levels=rev(selected$label))]
+heat[,direction:=factor(direction,levels=c('Down in treatment','Up in treatment'))]
+lim <- ceiling(max(abs(heat$difference)))
+p2 <- ggplot(heat,aes(comparison,label,fill=difference))+geom_tile(colour='white',linewidth=.25)+
+ geom_vline(xintercept=3.5,linewidth=.35)+
+ facet_grid(rows=vars(direction),scales='free_y',space='free_y',switch='y')+
+ scale_x_discrete(labels=rep(c('C1','C2','C3'),2))+
+ scale_fill_gradient2(low=colours[1],mid='white',high=colours[2],limits=c(-lim,lim),name='Treatment − control\n(log₂ CPM)')+
+ labs(x='Initial                              Backflush',y=NULL,tag='B')+theme_phage_uv(base_size=9)+
+ theme(axis.text.y=element_text(size=7.5),strip.placement='outside',strip.text.y.left=element_text(angle=90),
+       strip.background=element_rect(fill='#EEEEEE',colour=NA),legend.position='bottom',plot.tag=element_text(face='bold'))
+fig <- wrap_elements(full=p1)/p2+plot_layout(heights=c(.8,3.1))
+ggsave(file.path(out,'Supplementary_Figure_S5_recurrence.png'),fig,width=195,height=245,units='mm',dpi=300,bg='white')
+device <- function(filename,width,height,...)grDevices::quartz(type='pdf',file=filename,width=width,height=height,...)
+ggsave(file.path(out,'Supplementary_Figure_S5_recurrence.pdf'),fig,width=195,height=245,units='mm',device=device)
+print(counts)
+```

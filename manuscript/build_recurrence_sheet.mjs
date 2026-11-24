@@ -1,0 +1,22 @@
+import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';
+const require=createRequire('/private/tmp/phage-supplement-artifact/package.json');
+const {Workbook,SpreadsheetFile}=await import(require.resolve('@oai/artifact-tool'));
+const out='/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/recurrence_supplement_2026-09-23';
+const d=JSON.parse(await fs.readFile(`${out}/recurrence_sheet.json`,'utf8'));
+const w=Workbook.create(),s=w.worksheets.add('S14 Recurrence');
+s.getRangeByIndexes(0,0,d.rows.length+1,d.headers.length).values=[d.headers,...d.rows];
+const head=s.getRangeByIndexes(0,0,1,d.headers.length);
+head.format={fill:'#304659',font:{name:'Arial',size:10,bold:true,color:'#FFFFFF'},wrapText:true,rowHeight:58};
+s.showGridLines=false;s.freezePanes.freezeRows(1);
+d.headers.forEach((h,j)=>{
+ s.getRangeByIndexes(0,j,1,1).format.columnWidth=/feature_id/.test(h)?105:/annotation/.test(h)?70:/MAG_ID/.test(h)?44:24;
+ if(/p_value|FDR/.test(h))s.getRangeByIndexes(1,j,d.rows.length,1).setNumberFormat('0.00E+00');
+ else if(/logFC|difference/.test(h))s.getRangeByIndexes(1,j,d.rows.length,1).setNumberFormat('0.000');
+});
+w.recalculate();
+console.log((await w.inspect({kind:'table',range:"'S14 Recurrence'!B1:F5",include:'values',tableMaxRows:5,tableMaxCols:5})).ndjson);
+const preview=await w.render({sheetName:'S14 Recurrence',range:'B1:F8',scale:1,format:'png'});
+await fs.writeFile(`${out}/recurrence_table_preview.png`,new Uint8Array(await preview.arrayBuffer()));
+await (await SpreadsheetFile.exportXlsx(w)).save(`${out}/recurrence_sheet.xlsx`);
+console.log('All 6985 rows exported');

@@ -1,0 +1,54 @@
+---
+title: "Streaming completion of the large static Excel table"
+format: html
+---
+
+The artifact runtime authored the workbook, all styles and the rendered opening
+view of every table. Two large-range attempts did not complete in practical time
+(the first exceeded nine minutes). This streaming OOXML step supplies only the
+large static table body. It preserves every other workbook entry unchanged.
+No spreadsheet formulas or statistical calculations are introduced.
+
+```{python}
+from pathlib import Path
+import json,zipfile,xml.etree.ElementTree as ET
+from xml.sax.saxutils import escape
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplementary_workbook_2026-09-22-v1')
+ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+ET.register_namespace('',ns)
+d=json.loads((out/'S8.json').read_text())
+with zipfile.ZipFile(out/'workbook_template.xlsx') as z:
+ wb=ET.fromstring(z.read('xl/workbook.xml'))
+ sh=next(x for x in wb.find('{'+ns+'}sheets') if x.attrib['name']==d['sheet'])
+ rid=sh.attrib['{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id']
+ rels=ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
+ target=next(x.attrib['Target'] for x in rels if x.attrib['Id']==rid)
+ member=target.lstrip('/') if target.startswith('/') else 'xl/'+target
+ root=ET.fromstring(z.read(member));sd=root.find('{'+ns+'}sheetData')
+ header=ET.tostring(sd[0],encoding='utf-8')
+ styles={c.attrib['r'].rstrip('0123456789'):c.attrib.get('s') for c in sd[1]}
+ sd.clear()
+ dim=root.find('{'+ns+'}dimension')
+ if dim is not None:dim.attrib['ref']=f'A1:P{len(d["rows"])+1}'
+ template=ET.tostring(root,encoding='utf-8')
+ before,after=template.split(b'<sheetData />')
+ with zipfile.ZipFile(out/'Supplementary_Tables.xlsx','w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as dest:
+  for info in z.infolist():
+   if info.filename!=member:dest.writestr(info,z.read(info.filename))
+  with dest.open(member,'w',force_zip64=True) as f:
+   f.write(before+b'<sheetData>'+header)
+   for i,row in enumerate(d['rows'],2):
+    cells=[]
+    for j,v in enumerate(row):
+     col=chr(65+j);ref=f'{col}{i}';style=f' s="{styles[col]}"' if styles.get(col) else ''
+     if isinstance(v,(int,float)) and not isinstance(v,bool):cell=f'<c r="{ref}"{style}><v>{v!r}</v></c>'
+     elif isinstance(v,bool):cell=f'<c r="{ref}"{style} t="b"><v>{int(v)}</v></c>'
+     else:
+      assert all(ord(c)>=32 or c in '\t\n\r' for c in v)
+      cell=f'<c r="{ref}"{style} t="inlineStr"><is><t xml:space="preserve">{escape(v)}</t></is></c>'
+     cells.append(cell)
+    f.write((f'<row r="{i}">'+''.join(cells)+'</row>').encode())
+   f.write(b'</sheetData>'+after)
+with zipfile.ZipFile(out/'Supplementary_Tables.xlsx') as z:assert z.testzip() is None
+print('Streaming completion and ZIP integrity check passed')
+```

@@ -1,0 +1,78 @@
+---
+title: "Recurrence supplement integration and reader PDF"
+format: html
+---
+
+Historical builder, superseded for submission on 2026-09-25 by
+`manuscript/supplementary_information_accepted.qmd`, which retains the author's
+accepted captions, front matter and current table references. Do not regenerate
+the submission supplement from the September 23 snapshot below.
+
+Build the historical reader PDF from a verified preview of the live supplementary document.
+The preview renders suggestions without accepting them. Preserve the author's
+caption wording, use one figure per page, and keep titles and panel letters bold.
+No statistical analysis is rerun. The JSON snapshot and all outputs live outside Git.
+
+```{python}
+import json,re,html,hashlib,urllib.request
+raise RuntimeError('Historical snapshot blocked: use manuscript/supplementary_information_accepted.qmd')
+from pathlib import Path
+from PIL import Image
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from pypdf import PdfReader
+
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/recurrence_supplement_2026-09-23')
+d=json.loads((out/'supp_after_preview.json').read_text())
+pdfmetrics.registerFont(TTFont('SuppArial','/System/Library/Fonts/Supplemental/Arial.ttf'))
+pdfmetrics.registerFont(TTFont('SuppBold','/System/Library/Fonts/Supplemental/Arial Bold.ttf'))
+pdfmetrics.registerFontFamily('SuppArial',normal='SuppArial',bold='SuppBold',italic='SuppArial',boldItalic='SuppBold')
+style=ParagraphStyle('Caption',fontName='SuppArial',fontSize=10,leading=13)
+items=[];pending=[];refs=[];inrefs=False
+for b in d['body']['content']:
+ elements=b.get('paragraph',{}).get('elements',[])
+ pending += [e['inlineObjectElement']['inlineObjectId'] for e in elements if 'inlineObjectElement' in e]
+ text=''.join(e.get('textRun',{}).get('content','') for e in elements).strip()
+ if text.startswith('Figure S'):
+  assert len(pending)==1,(text[:50],pending)
+  items.append((int(re.match(r'Figure S(\d+):',text)[1]),text,pending.pop()))
+ elif text=='References':inrefs=True
+ elif inrefs and text:refs.append(text)
+assert [x[0] for x in items]==list(range(1,10)),items
+assert not pending,pending
+W,H=595.28,841.89
+c=canvas.Canvas(str(out/'Supplementary_Figures.pdf'),pagesize=(W,H))
+manifest=[]
+for n,caption,oid in items:
+ uri=d['inlineObjects'][oid]['inlineObjectProperties']['embeddedObject']['imageProperties']['contentUri']
+ path=out/f'Supplementary_Figure_S{n}_live.png'
+ if not path.exists():
+  with urllib.request.urlopen(uri,timeout=60) as r:path.write_bytes(r.read())
+ iw,ih=Image.open(path).size
+ title_end=caption.index('.')+1
+ body=html.escape(caption[title_end:].strip()).replace('₂','<sub>2</sub>')
+ body=re.sub(r'\b([A-Z])\)',r'<b>\1)</b>',body)
+ p=Paragraph('<b>'+html.escape(caption[:title_end])+'</b> '+body,style)
+ _,ch=p.wrap(W-72,H-72)
+ avail=H-72-ch-14
+ scale=min((W-72)/iw,avail/ih)
+ pw,ph=iw*scale,ih*scale
+ c.drawImage(str(path),(W-pw)/2,H-36-ph,width=pw,height=ph)
+ p.drawOn(c,36,H-36-ph-14-ch)
+ c.setFont('SuppArial',8);c.drawString(36,22,'Supplementary figures');c.drawRightString(W-36,22,str(n));c.showPage()
+ manifest.append({'figure':f'S{n}','caption':caption,'image':str(path),'image_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'display_width_pt':pw,'display_height_pt':ph,'caption_height_pt':ch})
+if refs:
+ c.setFont('SuppBold',12);c.drawString(36,H-40,'References');y=H-65
+ for ref in refs:
+  p=Paragraph(html.escape(ref),style);_,rh=p.wrap(W-72,H-72);assert y-rh>36
+  p.drawOn(c,36,y-rh);y-=rh+14
+ c.setFont('SuppArial',8);c.drawString(36,22,'Supplementary figures');c.drawRightString(W-36,22,'10');c.showPage()
+c.save()
+reader=PdfReader(out/'Supplementary_Figures.pdf');assert len(reader.pages)==9+bool(refs)
+for i,p in enumerate(reader.pages[:9]):assert f'Figure S{i+1}:' in p.extract_text()
+(out/'figure_manifest.json').write_text(json.dumps({'figures':manifest,'references':refs,'source':'live supplementary Google Doc, suggestions-preview snapshot','pdf_sha256':hashlib.sha256((out/'Supplementary_Figures.pdf').read_bytes()).hexdigest()},indent=2))
+print('Built',len(reader.pages),'pages: S1-S9 plus references.')
+```

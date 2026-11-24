@@ -1,0 +1,41 @@
+---
+title: "Biofilm candidate MAGs and existing phage links"
+format: html
+editor: source
+---
+
+Exact-ID crosswalk, not new host prediction. Preserve all raw supporting rows;
+scores and n_hits are source fields, not calibrated probabilities or necessarily
+independent spacers. No p-value filtering of the fixed14candidate MAGs.
+Missing links do not establish absence of a phage. CRISPR evidence does not prove
+infection or therapeutic suitability. Existing network catalogue audit is reused.
+
+```{r}
+suppressPackageStartupMessages(library(data.table))
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+paths<-c(models=file.path(root,"derived/cleaning_score_condition_models_2026-09-14-v1/all_specifications.tsv"),
+ links=file.path(root,"host_phage_linking/full/summary_data/host_phage_links.tsv"),
+ audit=file.path(root,"derived/host_phage_network_review/tables/linked_phage_catalogue_audit.tsv"))
+m<-fread(paths['models']);l<-fread(paths['links']);v<-fread(paths['audit'])
+candidates<-unique(m[,.(MAG_ID,genus)])
+stopifnot(nrow(candidates)==14,!anyDuplicated(candidates$MAG_ID),!anyDuplicated(v$phage_id))
+raw<-l[MAG_ID %in% candidates$MAG_ID]
+pairs<-unique(raw[,.(MAG_ID,phage_id=phage_id_or_vOTU_id,link_method)])
+cross<-merge(pairs,v,by="phage_id",all.x=TRUE)
+stopifnot(nrow(cross)==nrow(pairs),!anyNA(cross$representative))
+cross<-merge(cross,candidates,by="MAG_ID",all.x=TRUE)
+s<-cross[,.(linked_contigs=uniqueN(phage_id),linked_representatives=uniqueN(representative),
+ annotated=sum(!is.na(organism)&nzchar(organism)),
+ passes_manuscript_filter=sum(passes_manuscript_filter %in% TRUE)),by=MAG_ID]
+s<-merge(candidates,s,by="MAG_ID",all.x=TRUE)
+for(col in c("linked_contigs","linked_representatives","annotated","passes_manuscript_filter"))set(s,which(is.na(s[[col]])),col,0L)
+dir.create(out,recursive=TRUE)
+fwrite(s,file.path(out,"candidate_summary.tsv"),sep="\t")
+fwrite(cross,file.path(out,"candidate_phage_catalogue_crosswalk.tsv"),sep="\t")
+fwrite(raw,file.path(out,"raw_supporting_link_rows.tsv"),sep="\t")
+fwrite(m,file.path(out,"all_candidate_model_results.tsv"),sep="\t")
+paths<-c(paths,notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+fwrite(data.table(path=paths,sha256=vapply(paths,function(p)digest::digest(file=p,algo="sha256"),character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+print(s)
+```

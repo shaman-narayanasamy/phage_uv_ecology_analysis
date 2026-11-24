@@ -1,0 +1,201 @@
+---
+title: "MAG expression groups and hypothetical abundance reduction"
+format: html
+execute:
+  enabled: false
+---
+
+## Specification fixed before fitting
+
+Author decision 2026-09-21: primary grouping is original 14 up-hit candidates
+versus the remaining 334 MAGs. Secondary view distinguishes up-hit, down-only,
+no significant main response, and no tested active-list genes. A joint cycle
+interaction does not alter the main-effect label; retain it as a separate flag.
+
+Display all individual-MAG 50% reduction estimates across the three existing
+adjustments and both phases. Distribution summaries describe this finite
+catalogue, not independent replicates. Do not compare 14 and 334 fitted slopes
+with a naive t-test, Wilcoxon test, or independent bootstrap.
+
+For a direct model contrast, define each group's abundance as the geometric
+mean of member MAG normalized DNA counts (mean log2 counts). This gives each
+MAG equal weight. A coordinated fractional reduction f in every member shifts
+the group's predictor by log2(1-f), while other groups stay fixed. Fit group
+predictors jointly to the six outcomes, separately for each phase. No summation
+of coefficients from separate single-MAG models.
+
+Binary joint model: score ~ condition + x_up + x_rest (df2); sensitivity adds
+linear cycle (df1). Adding categorical cycle makes this saturated (df0), so
+report that design audit without p-values or fitted intervention claims.
+Directional joint model: score ~ condition + x_up + x_down + x_ns (df1), using
+14/22/248 members, respectively. The 64 MAGs without tested genes are excluded
+from these three predictors and remain a displayed fourth evidence category.
+Adding cycle is saturated and unsupported for inferential fitting.
+
+Primary comparison statistic: at 50% coordinated reduction, score change for
+rest minus score change for up = beta_up - beta_rest. Two-sided t contrast from
+the joint model covariance. Secondary directional comparisons: down minus up,
+ns minus up, ns minus down. Ten planned contrasts total: binary 2 phases x 2
+adjustments plus directional 2 phases x 3 comparisons. BH over all ten. Also
+report HC3 sensitivity with separate BH10. All tests assume independent Gaussian
+errors conditional on the fixed predictors. This is an explicitly exploratory
+extension after the single-MAG results, not a preregistered analysis.
+
+Export pointwise scenario intervals over 0%,10%,25%,50%,75%,90%,95%, leave-cycle-
+out contrast estimates where full rank, joint predictor VIFs, leverage, condition
+number and extrapolation flags. The 50% comparison is the same linear contrast
+at other nonzero fractions, not seven independent tests. Equal percentages do
+not mean equal numbers of taxa or equal biomass removed.
+
+## Limitations
+
+Only two membranes and three cycles inform these models. Group aggregation
+changes the estimand from reducing one MAG to coordinated suppression of a group.
+The geometric mean is an equal-MAG abundance index, not total community biomass.
+Normalisation stays fixed. There is no calibrated repeated-membrane treatment
+inference; one or two residual degrees of freedom yield fragile intervals.
+Group membership was selected from expression in the same experiment. Counts,
+score-source alignment and uncertainty limitations from the original models apply.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+out <- commandArgs(TRUE)[1];stopifnot(length(out)==1,!is.na(out),!dir.exists(out))
+paths <- c(evidence=file.path(root,"cleaning_score_all_MAG_models_2026-09-21-v1/tables/MAG_expression_evidence.tsv"),
+ single=file.path(root,"cleaning_score_all_MAG_models_2026-09-21-v1/tables/50_percent_reduction_annotated.tsv"),
+ dna=file.path(root,"community_cycle_models_2026-09-13-v1/tables/mag_normalized_counts.tsv"),
+ meta=file.path(root,"community_cycle_models_2026-09-13-v1/tables/sample_metadata.tsv"),
+ score=file.path(root,"cleaning_performance_score_2026-09-14-v1/scores.tsv"))
+sha <- function(p)digest::digest(file=p,algo="sha256")
+before <- vapply(paths,sha,character(1))
+e <- fread(paths['evidence'])
+e[,binary:=ifelse(existing_14_candidate,"up14","rest334")]
+e[,direction:=fcase(upregulated_genes>0,"up",downregulated_genes>0,"down",tested_biofilm_genes>0,"ns",default="not_tested")]
+stopifnot(nrow(e)==348,sum(e$direction=="up")==14,sum(e$direction=="down")==22,
+ sum(e$direction=="ns")==248,sum(e$direction=="not_tested")==64,
+ !any(e$upregulated_genes>0 & e$downregulated_genes>0))
+for(dr in c("tables","figures","source"))dir.create(file.path(out,dr),recursive=TRUE)
+fwrite(e,file.path(out,"tables/MAG_group_membership.tsv"),sep="\t")
+s <- merge(fread(paths['single']),e[,.(MAG_ID,binary,direction)],by="MAG_ID")
+summary <- rbindlist(lapply(c("binary","direction"),function(g){
+ ans <- s[,.(MAGs=.N,median_gain=median(delta_score),mean_gain=mean(delta_score),
+ q25=quantile(delta_score,.25),q75=quantile(delta_score,.75),minimum=min(delta_score),maximum=max(delta_score),
+ positive_estimates=sum(delta_score>0),nominal_positive_interval=sum(low>0),BH_positive=sum(low>0 & FDR_696<.05),
+ below_range_any=sum(treated_below_observed_range>0)),by=c("specification","phase",g)]
+ setnames(ans,g,"group");ans[,grouping:=g];ans
+}))
+fwrite(summary,file.path(out,"tables/individual_MAG_group_summary.tsv"),sep="\t")
+fwrite(s,file.path(out,"tables/individual_MAG_50_percent_by_group.tsv"),sep="\t")
+dna <- fread(paths['dna']); long <- melt(dna,id.vars="feature_id",variable.name="sample_title",value.name="count")
+setnames(long,"feature_id","MAG_ID");long <- merge(long,e[,.(MAG_ID,binary,direction)],by="MAG_ID")
+stopifnot(all(long$count>0))
+long[,log_count:=log2(count)]
+aggregates <- rbindlist(lapply(c("binary","direction"),function(g){
+ d <- long[,.(x=mean(log_count),members=.N),by=c("sample_title",g)];setnames(d,g,"group");d[,grouping:=g];d
+}))
+meta <- fread(paths['meta']);score <- fread(paths['score'])
+aggregates <- merge(aggregates,meta[,.(sample_title,condition,phase,cycle)],by="sample_title")
+aggregates <- merge(aggregates,score[,.(condition,cycle,score)],by=c("condition","cycle"))
+fwrite(aggregates,file.path(out,"tables/group_abundance_observations.tsv"),sep="\t")
+# Per-group contrast from a single joint covariance matrix.
+contrast <- function(fit,L,V=vcov(fit)){
+ b <- sum(L*coef(fit)); se <- sqrt(drop(t(L)%*%V%*%L)); df <- df.residual(fit)
+ data.table(estimate=b,se=se,t=b/se,df=df,p=2*pt(-abs(b/se),df),low=b-qt(.975,df)*se,high=b+qt(.975,df)*se)
+}
+audit <- list();fits <- list();contrasts <- list();scenarios <- list();deletions <- list();diagnostics <- list();observations <- list()
+for(g in c("binary","direction"))for(ph in c("initial","backflush")){
+ d <- dcast(aggregates[grouping==g & phase==ph],sample_title+condition+cycle+score~group,value.var="x")
+ d[,condition:=factor(condition,levels=c("control","treatment"))];setorder(d,condition,cycle)
+ predictors <- if(g=="binary")c("up14","rest334") else c("up","down","ns")
+ comparisons <- if(g=="binary")list(c("rest334","up14")) else list(c("down","up"),c("ns","up"),c("ns","down"))
+ specs <- if(g=="binary")c("condition_only","linear_cycle","categorical_cycle") else c("condition_only","linear_cycle","categorical_cycle")
+ for(spec in specs){
+  nuisance <- switch(spec,condition_only="condition",linear_cycle="condition + cycle",categorical_cycle="condition + factor(cycle)")
+  form <- as.formula(paste("score ~",nuisance,"+",paste(predictors,collapse=" + ")))
+  fit <- lm(form,d);X <- model.matrix(fit);df <- df.residual(fit);key <- paste(g,ph,spec,sep="/")
+  valid <- fit$rank==ncol(X) && df>0
+  audit[[key]] <- data.table(grouping=g,phase=ph,specification=spec,n=6,parameters=ncol(X),rank=fit$rank,residual_df=df,inference_available=valid)
+  if(!valid)next
+  fits[[key]] <- fit; V <- vcov(fit);h <- hatvalues(fit);B <- solve(crossprod(X))
+  V3 <- B%*%crossprod(X,X*as.numeric((resid(fit)/(1-h))^2))%*%B
+  observations[[key]] <- cbind(data.table(grouping=g,phase=ph,specification=spec),d,fitted=fitted(fit),residual=resid(fit))
+  for(pr in predictors){
+   xf <- as.formula(paste(pr,"~",nuisance,"+",paste(setdiff(predictors,pr),collapse=" + ")))
+   diagnostics[[paste(key,pr)]] <- data.table(grouping=g,phase=ph,specification=spec,group=pr,
+    beta=coef(fit)[pr],VIF=1/(1-summary(lm(xf,d))$r.squared),max_leverage=max(h),design_kappa=kappa(X))
+   for(f in c(0,.1,.25,.5,.75,.9,.95)){
+    L <- setNames(rep(0,length(coef(fit))),names(coef(fit)));L[pr] <- log2(1-f)
+    ct <- if(f==0)data.table(estimate=0,se=0,t=NA_real_,df=df,p=NA_real_,low=0,high=0) else contrast(fit,L)
+    nd <- copy(d);nd[[pr]] <- nd[[pr]]+log2(1-f)
+    stopifnot(max(abs(predict(fit,nd)-predict(fit,d)-ct$estimate))<1e-8)
+    scenarios[[paste(key,pr,f)]] <- cbind(data.table(grouping=g,phase=ph,specification=spec,group=pr,reduction=f,
+      treated_below_range=sum(d[condition=="treatment"][[pr]]+log2(1-f)<min(d[[pr]]))),ct)
+   }
+  }
+  for(pair in comparisons){
+   # At 50% reduction, improvement A minus improvement B = beta_B - beta_A.
+   L <- setNames(rep(0,length(coef(fit))),names(coef(fit)));L[pair[1]] <- -1;L[pair[2]] <- 1
+   ct <- contrast(fit,L);ct3 <- contrast(fit,L,V3)
+   ct[,`:=`(grouping=g,phase=ph,specification=spec,comparison=paste(pair,collapse="_minus_"),
+     HC3_se=ct3$se,HC3_p=ct3$p,HC3_low=ct3$low,HC3_high=ct3$high)]
+   contrasts[[paste(key,paste(pair,collapse="/"))]] <- ct
+   # Independent prediction-based contrast.
+   da <- copy(d);db <- copy(d);da[[pair[1]]] <- da[[pair[1]]]-1;db[[pair[2]]] <- db[[pair[2]]]-1
+   stopifnot(max(abs(predict(fit,da)-predict(fit,db)-ct$estimate))<1e-8)
+   for(cy in 1:3){
+    ff <- lm(form,d[cycle!=cy]);xx <- model.matrix(ff);ok <- ff$rank==ncol(xx)
+    deletions[[paste(key,paste(pair,collapse="/"),cy)]] <- data.table(grouping=g,phase=ph,specification=spec,
+      comparison=paste(pair,collapse="_minus_"),dropped_cycle=cy,full_rank=ok,residual_df=df.residual(ff),
+      estimate=if(ok)sum(L*coef(ff)) else NA_real_)
+   }
+  }
+ }
+}
+c <- rbindlist(contrasts);stopifnot(nrow(c)==10)
+c[,`:=`(BH10=p.adjust(p,"BH",n=10),HC3_BH10=p.adjust(HC3_p,"BH",n=10))]
+fwrite(c,file.path(out,"tables/joint_group_50_percent_contrasts.tsv"),sep="\t")
+fwrite(rbindlist(audit),file.path(out,"tables/joint_design_audit.tsv"),sep="\t")
+fwrite(rbindlist(scenarios),file.path(out,"tables/coordinated_group_reduction_scenarios.tsv"),sep="\t")
+fwrite(rbindlist(deletions),file.path(out,"tables/leave_cycle_out_group_contrasts.tsv"),sep="\t")
+fwrite(rbindlist(diagnostics),file.path(out,"tables/joint_diagnostics.tsv"),sep="\t")
+fwrite(rbindlist(observations,fill=TRUE),file.path(out,"tables/joint_model_observations.tsv"),sep="\t")
+saveRDS(fits,file.path(out,"joint_fits.rds"))
+print(c[,.(grouping,phase,specification,comparison,estimate,low,high,p,BH10)])
+```
+
+```{r}
+# All observations retained; asinh scale shows unstable tails without truncating them.
+s[,specification:=factor(specification,levels=c("categorical_cycle","linear_cycle","condition_only"),
+ labels=c("Categorical cycle + condition","Linear cycle + condition","Condition only"))]
+labels <- c(up14="Original 14",rest334="Remaining 334",up="Up (14)",down="Down only (22)",ns="No main-effect hit (248)",not_tested="No tested genes (64)")
+colours <- c(up14="#C55A36",rest334="#477CA8",up="#C55A36",down="#477CA8",ns="#8573A8",not_tested="#8A8A8A")
+for(g in c("binary","direction")){
+ dt <- copy(s);dt[,group:=get(g)]
+ lev <- if(g=="binary")c("up14","rest334") else c("up","down","ns","not_tested")
+ dt[,group:=factor(group,levels=lev)]
+ p <- ggplot(dt,aes(delta_score,colour=group))+stat_ecdf(geom="step",linewidth=.65)+
+  geom_vline(xintercept=0,colour="grey60",linetype=2)+
+  facet_grid(phase~specification)+scale_colour_manual(values=colours,labels=labels,drop=FALSE)+
+  scale_x_continuous(transform="asinh",breaks=c(-20,-5,-1,0,1,5,20))+
+  theme_bw(base_size=9)+theme(legend.position="bottom",legend.title=element_blank())+
+  labs(x="Predicted score change at 50% lower abundance of one MAG (asinh axis)",y="Cumulative fraction of MAGs")
+ for(ext in c("pdf","png"))ggsave(file.path(out,"figures",paste0("individual_MAG_",g,".",ext)),p,width=10,height=5,
+    device=if(ext=="pdf")grDevices::pdf else ragg::agg_png,dpi=180)
+}
+cc <- copy(c);cc[,label:=paste(phase,specification,comparison,sep=" / ")]
+p <- ggplot(cc,aes(estimate,reorder(label,estimate)))+geom_vline(xintercept=0,colour="grey60",linetype=2)+
+ geom_segment(aes(x=low,xend=high,yend=label),linewidth=.5)+geom_point(size=2)+
+ scale_x_continuous(transform="asinh",breaks=c(-100,-20,-5,-1,0,1,5,20,100))+
+ theme_bw(base_size=9)+labs(x="Difference in predicted gain at 50% coordinated group reduction (asinh axis)",y=NULL)
+for(ext in c("pdf","png"))ggsave(file.path(out,"figures",paste0("joint_group_contrasts.",ext)),p,width=11,height=5,
+ device=if(ext=="pdf")grDevices::pdf else ragg::agg_png,dpi=180)
+stopifnot(identical(before,vapply(paths,sha,character(1))))
+nb <- Sys.getenv("PHAGE_UV_NOTEBOOK_PATH");file.copy(nb,file.path(out,"source",basename(nb)))
+fwrite(data.table(path=c(paths,nb),sha256=vapply(c(paths,nb),sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS: complete 348-MAG partition, 14/334 binary and 14/22/248/64 directional evidence.",
+ "PASS: six unique outcomes per joint fit; saturated designs excluded from inference.",
+ "PASS: ten planned joint contrasts; BH10 and HC3 BH10; independent prediction contrasts.",
+ "PASS: zero-reduction and graded-scenario prediction contrasts; input hashes unchanged.",
+ "Individual-MAG distribution summaries are descriptive, not independent-replicate group tests."),file.path(out,"CHECKS.txt"))
+```

@@ -1,0 +1,134 @@
+---
+title: "Accepted supplementary information source"
+format: html
+execute:
+  enabled: false
+---
+
+<!-- Canonical caption/front-matter source synced from the accepted live supplement
+on 2026-09-25. Do not use the September 23 preview for submission.
+The frozen DOCX supplies only layout and nine unchanged artwork objects.
+Run the Python chunk with this QMD path and a NEW output DOCX path.
+The live Google Doc is never overwritten by this build. -->
+
+::: {#accepted-text-0}
+Supplementary Information
+:::
+
+::: {#accepted-text-1}
+Genome-resolved integrated-omics reveals biofilm-associated responses to hybrid mechanical, phage and UV-C biocontrol
+:::
+
+::: {#accepted-text-2}
+Susana Martinez Arbas¹†, Shaman Narayanasamy²†*
+:::
+
+::: {#accepted-text-3}
+¹ NIUM S.A.
+² Luxembourg Centre for Systems Biomedicine (LCSB), University of Luxembourg
+:::
+
+::: {#accepted-text-4}
+† These authors contributed equally.
+:::
+
+::: {#accepted-text-5}
+* Correspondence: the corresponding author (address on the journal title page)
+:::
+
+::: {#accepted-text-6}
+Supplementary Figures S1–S9
+ Supplementary Tables S1–S28 are supplied in the accompanying workbook.
+:::
+
+::: {#accepted-text-7}
+Figure S1: Experimental system, cleaning sequence and sampling design. A) Anaerobic membrane bioreactor with parallel control and treatment membrane modules. Mixed liquor recirculates through the modules, while permeate is collected separately. B) Original treatment cleaning sequence and collection of initial and backflush fractions. Control membranes underwent corresponding handling with Milli-Q water. C) Sampling across three cleaning cycles produced 12 samples, with 12 16S rRNA-derived cDNA amplicon runs (hereafter, 16S amplicons), 12 metagenomic runs and 23 metatranscriptomic runs. Circles denote initial samples and triangles denote backflush samples. D) Original transmembrane-pressure (TMP) trajectories; dashed lines mark cleaning events. All schematics were adapted from the original experiments of Scarascia et al. [1] and Myshkevych et al. [2]. 
+:::
+
+::: {#accepted-text-8}
+Figure S2: Amplicon and viral community composition across cleaning cycles. A) Family-level relative abundances from 16S amplicons across 12 samples. Other classified families and sequences unclassified at family level remain separate. B) Viral realm composition of all 634 abundance-eligible viral operational taxonomic units (vOTUs), expressed as shares of vOTU-mapped metagenomic reads. Control and treatment are aligned by cycle (denoted by C) and sampling phase (I, initial; BF, backflush). The vOTU catalogue quality and taxonomy are reported in Supplementary Table S6. 
+:::
+
+::: {#accepted-text-9}
+Figure S3: Cross-omics community comparison. A) Correspondence between Bray-Curtis dissimilarities for metagenomic (MG), metatranscriptomic (MT) and 16S amplicon profiles. Points represent all 66 pairwise comparisons among the 12 matched samples, including both initial and backflush phases, both conditions and all three cycles; ρ denotes Spearman correlation. B) Bray-Curtis dissimilarities between consecutive cleaning cycles within each condition and sampling phase. Colours identify control and treatment; symbols identify initial and backflush samples. C) Mean within-assay MG and MT read shares for selected MAGs, averaged across all 12 samples, including both initial and backflush phases, both conditions and all three cycles. Concordance permutation tests and Benjamini-Hochberg-adjusted p-values (BH p-values) are reported in Supplementary Table S10; turnover and MAG read shares are in Tables S11 and S12. 
+:::
+
+::: {#accepted-text-10}
+Figure S4: 16S amplicon community structure under two distance measures. Principal-coordinate analyses of 16S amplicon sequence variant profiles from 12 samples using A) Bray-Curtis dissimilarities and B) Aitchison distances. Numbers identify cleaning cycles. PERMANOVA results are reported in Supplementary Table S8. 
+:::
+
+::: {#accepted-text-11}
+Figure S5: Recurrent treatment-associated transcription across cleaning cycles and sampling phases. A) Numbers of qualifying genes with higher or lower expression in treatment, partitioned by directional agreement in five or all six initial/backflush-by-cycle comparisons. Recurrence required an absolute median treatment–control difference ≥1 log₂ CPM. Genes additionally met whole-transcriptome BH p-value < 0.05, absolute model log₂ fold-change ≥1, detection in ≥6 samples and a non-empty annotation. B) The 12 genes with the lowest BH p-values in each direction, breaking ties by descending absolute model log₂ fold-change and then feature identifier. Tiles show treatment-minus-control log₂ CPM differences. Labels give gene annotations and abbreviated MAG identifiers. All 24 examples had the same direction in all six comparisons. Complete results for all 6,985 genes, including the displayed-example flag, are provided in Supplementary Table S15.
+:::
+
+::: {#accepted-text-12}
+Figure S6: MAG contributions to treatment-downregulated biofilm-associated gene expression. Distribution of 148 treatment-downregulated biofilm-associated genes across 22 MAGs. Bars indicate gene counts at whole-transcriptome BH p-value ≤ 0.05 and negative treatment log2 fold-change. Labels identify taxonomy and MAG identifiers. Gene membership and differential-expression results are reported in Supplementary Table S17; MAG-level gene counts are in Table S20. 
+:::
+
+::: {#accepted-text-13}
+Figure S7: Competitive enrichment of stress-response and DNA-repair gene sets. Eight predefined gene sets were assessed against the full-transcriptome background using rank-based competitive tests (limma cameraPR; inter-gene correlation 0.01). Panels show the phase- and cycle-adjusted treatment comparison, cycle-2 and cycle-3 treatment interactions relative to cycle 1, and the joint interaction test. Signed −log10(BH p-value) indicates higher (positive) or lower (negative) ranks for each coefficient; omnibus values are non-directional. Filled points denote BH p-value ≤ 0.05. Adjustment was across the eight sets separately for each comparison. SOS enrichment was supported for the adjusted treatment comparison and redox stress for the cycle-2 interaction. Point positions represent statistical evidence, not effect sizes. Complete test results are reported in Supplementary Table S25.
+:::
+
+::: {#accepted-text-14}
+Figure S8: Modelled cleaning-score responses to suppression of 14 candidate MAGs. Model-implied changes in cleaning-performance score at 50% lower whole-MAG DNA abundance. Columns compare models adjusted for condition alone, condition and categorical cycle, or condition and linear cycle. Colours distinguish initial and backflush predictors. Points and whiskers show estimated changes and coefficient-based 95% confidence intervals for 14 MAGs carrying treatment-upregulated biofilm-associated genes. Each model contains six observations. Positive values indicate higher predicted cleaning scores, with other model terms held fixed. Model coefficients and suppression estimates are reported in Supplementary Tables S26 and S27. 
+:::
+
+::: {#accepted-text-15}
+Figure S9: Distribution of modelled cleaning-score responses across all MAGs. Empirical cumulative distributions of predicted cleaning-score changes following a 50% reduction in the whole-MAG DNA abundance of each of 348 MAGs separately. Columns compare condition and categorical-cycle, condition-only, and condition and linear-cycle models. Rows distinguish backflush and initial predictors; each model contains six observations. Positive values indicate higher predicted cleaning scores. The vertical reference marks zero change. Individual-MAG model results are reported in Supplementary Table S28. 
+:::
+
+::: {#accepted-text-16}
+References
+:::
+
+::: {#accepted-text-17}
+1. Scarascia G, Fortunato L, Myshkevych Y et al. UV and bacteriophages as a chemical-free approach for cleaning membranes from anaerobic bioreactors. Proc Natl Acad Sci USA 2021;118:e2016529118. https://doi.org/10.1073/pnas.2016529118 
+:::
+
+::: {#accepted-text-18}
+2. Myshkevych Y, Scarascia G, Medina JS et al. Effectiveness of combined UV-C and bacteriophage approach over repeated cleaning cycles to alleviate membrane fouling of anaerobic bioreactors. Chem Eng J Adv 2025;24:100796. https://doi.org/10.1016/j.ceja.2025.100796 
+:::
+
+## Rebuild
+
+```{python}
+import sys,re,hashlib,json
+from pathlib import Path
+from zipfile import ZipFile
+from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.oxml.ns import qn
+
+source=Path(sys.argv[1]); output=Path(sys.argv[2])
+if output.exists():raise RuntimeError("Refusing to overwrite existing output")
+base=Path("/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/submission_check_2026-09-25/accepted_supplement/Supplementary_Information.docx")
+assert hashlib.sha256(base.read_bytes()).hexdigest()=="c374e0d79444e73fb78b7189f661fcd8633bef55ba037241efb63a39ae09f77d", "Frozen layout changed"
+text=source.read_text()
+blocks=re.findall(r"::: \{#accepted-text-\d+\}\n(.*?)\n:::",text,re.S)
+doc=Document(base); paragraphs=[p for p in doc.paragraphs if p.text.strip()]
+assert len(blocks)==len(paragraphs)
+assert sum(t.startswith("Figure S") for t in blocks)==9
+for i,(p,t) in enumerate(zip(paragraphs,blocks)):
+ if p.text!=t:
+  p.clear()
+  if t.startswith("Figure S"):
+   title,body=t.split(".",1);p.add_run(title+".").bold=True
+   for piece in re.split(r"(\b[A-Z]\))",body):p.add_run(piece).bold=bool(re.fullmatch(r"[A-Z]\)",piece))
+  else:p.add_run(t)
+ for run in p.runs:
+  run.font.name="Arial"
+  if i<7:
+   run.font.color.rgb=RGBColor(0,0,0);run.font.size=Pt(20 if i==0 else 15 if i==1 else 11)
+   run.bold=i<2
+ if i<7 and p._p.pPr is not None:
+  for el in list(p._p.pPr):
+   if el.tag in [qn("w:numPr"),qn("w:ind")]:p._p.pPr.remove(el)
+doc.save(output)
+check=Document(output)
+assert [p.text for p in check.paragraphs if p.text.strip()]==blocks
+def media(path):
+ with ZipFile(path) as z:return {n:hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist() if n.startswith("word/media/")}
+assert media(base)==media(output)
+output.with_suffix(".audit.json").write_text(json.dumps({"source_qmd":str(source),"source_sha256":hashlib.sha256(source.read_bytes()).hexdigest(),"paragraphs":len(blocks),"figures":9,"all_text_matches_source":True,"artwork_bytes_preserved":True},indent=2))
+print(output)
+```

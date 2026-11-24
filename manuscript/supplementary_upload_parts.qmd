@@ -1,0 +1,86 @@
+---
+title: "Lossless supplementary archive partitioning"
+format: html
+---
+
+Repackage the verified archive without recalculating or reformatting any values.
+Large TSVs are divided at logical CSV-record boundaries, each with its original
+header. Joining the data records in part order reproduces the original bytes.
+
+```{python}
+from pathlib import Path
+import csv, hashlib, io, json, sys, zipfile
+src=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplementary_source_data_2026-09-22-v3/supplementary-source-data-review.zip')
+out=Path(sys.argv[1]); assert not out.exists(); out.mkdir(parents=True)
+limit=45_000_000
+manifest=[]; pending=[]; estimated=0; part_number=0
+def flush():
+    global pending,estimated,part_number
+    if not pending:return
+    part_number+=1
+    p=out/f'supplementary-data-part-{part_number:02d}.zip'
+    with zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+        for name,b in pending:z.writestr(name,b)
+    assert p.stat().st_size<limit,(p,p.stat().st_size)
+    with zipfile.ZipFile(p) as z:
+        assert z.testzip() is None
+        for name,b in pending:
+            digest=hashlib.sha256(b).hexdigest()
+            assert hashlib.sha256(z.read(name)).hexdigest()==digest
+            manifest.append(dict(zip=p.name,member=name,bytes=len(b),sha256=digest))
+    pending=[];estimated=0
+def push(name,b):
+    global estimated
+    import zlib
+    size=len(zlib.compress(b,6))+len(name)*2+256
+    assert size<limit,(name,size)
+    if estimated+size>limit-100_000:flush()
+    pending.append((name,b));estimated+=size
+class RawRecords:
+    def __init__(self,b):self.stream=io.BytesIO(b);self.consumed=[]
+    def __iter__(self):return self
+    def __next__(self):
+        b=self.stream.readline()
+        if not b:raise StopIteration
+        self.consumed.append(b);return b.decode('utf-8')
+    def take(self):
+        b=b''.join(self.consumed);self.consumed=[];return b
+splits=[]
+with zipfile.ZipFile(src) as z:
+    assert z.testzip() is None
+    for info in z.infolist():
+        b=z.read(info.filename)
+        if info.compress_size<limit-100_000:
+            push(info.filename,b);continue
+        assert info.filename.endswith('.tsv'),info.filename
+        raw=RawRecords(b);reader=csv.reader(raw,delimiter='\t')
+        next(reader);header=raw.take(); chunks=[];acc=[];count=0;size=0
+        for row in reader:
+            record=raw.take()
+            if size+len(record)>100_000_000 and acc:
+                chunks.append((b''.join(acc),count));acc=[];size=0;count=0
+            acc.append(record);size+=len(record);count+=1
+        if acc:chunks.append((b''.join(acc),count))
+        assert header+b''.join(c[0] for c in chunks)==b
+        names=[]
+        for i,(data,n) in enumerate(chunks,1):
+            name=info.filename[:-4]+f'.part-{i:02d}.tsv'
+            names.append(dict(member=name,rows=n));push(name,header+data)
+        splits.append(dict(original_member=info.filename,original_sha256=hashlib.sha256(b).hexdigest(),header_bytes=len(header),parts=names,exact_reconstruction_verified=True))
+flush()
+# Independently reconstruct from finished ZIPs, not in-memory pre-export chunks.
+locations={r['member']:r['zip'] for r in manifest}
+for split in splits:
+    digest=hashlib.sha256()
+    for i,part in enumerate(split['parts']):
+        with zipfile.ZipFile(out/locations[part['member']]) as z:blob=z.read(part['member'])
+        digest.update(blob if i==0 else blob[split['header_bytes']:])
+    assert digest.hexdigest()==split['original_sha256']
+checks=dict(source_archive_sha256=hashlib.sha256(src.read_bytes()).hexdigest(),source_files=135,
+            zip_files=part_number,max_zip_bytes=max(p.stat().st_size for p in out.glob('*.zip')),
+            every_exported_member_verified=True,split_reconstruction_verified=True,
+            splits=splits,members=manifest)
+(out/'UPLOAD_MANIFEST.json').write_text(json.dumps(checks,indent=2))
+(out/'README.md').write_text('# Supplementary data upload parts\n\nAll ZIP files are below 45,000,000 bytes. Upload together; each opens independently. These are lossless partitions of the reviewed source-data archive, not new analyses.\n\nThe large interaction-coefficient table is split into numbered TSV parts, each with its original header. Read them in numeric order and concatenate data rows (retain one header). Exported parts reconstruct the original SHA256 exactly. Other source files are unchanged. UPLOAD_MANIFEST.json maps each file to its ZIP and records hashes.\n\nScientific review status remains unchanged: column definitions, software provenance and final manuscript citations still need completion.\n')
+print(json.dumps({k:v for k,v in checks.items() if k not in ('members','splits')},indent=2))
+```

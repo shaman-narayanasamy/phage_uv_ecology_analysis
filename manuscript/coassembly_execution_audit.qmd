@@ -1,0 +1,40 @@
+---
+title: "Separate assembly and co-assembly execution provenance"
+format: html
+execute:
+  eval: false
+---
+
+Read-only archived Snakemake metadata audit. Records distinguish actual execution
+from available workflow code. This does not rerun assembly or modify remote data.
+
+```{python}
+import json, subprocess, sys
+from pathlib import Path
+out=Path(sys.argv[1]); assert not out.exists()
+remote=r'''
+import json, hashlib
+from pathlib import Path
+root=Path('/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569')
+records=[]
+for area in ['coassembly','metagenomics/assembly','metatranscriptomics/assembly']:
+ for f in (root/area/'.snakemake/metadata').iterdir():
+  if not f.is_file():continue
+  try:d=json.loads(f.read_text())
+  except (ValueError,UnicodeError):continue
+  if d.get('rule') in ['megahit','get_mt_assembly','penguin_assembly']:
+   records.append({'area':area,'path':str(f),'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'metadata':d})
+print(json.dumps(records))
+'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','iris-cluster','python3','-'],input=remote,text=True,capture_output=True,timeout=90)
+if r.returncode:raise RuntimeError(r.stderr)
+records=json.loads(r.stdout)
+assert all(not x['metadata'].get('incomplete') and x['metadata'].get('endtime') for x in records)
+from collections import Counter
+counts=Counter((x['area'],x['metadata']['rule']) for x in records)
+assert len(counts)==5 and all(n==12 for n in counts.values())
+assert all('/megahit_assembly/final.contigs.fa' in x['metadata']['shellcmd'] for x in records if x['metadata']['rule']=='get_mt_assembly')
+out.mkdir(parents=True)
+(out/'evidence.json').write_text(json.dumps(records,indent=2))
+print(counts)
+```

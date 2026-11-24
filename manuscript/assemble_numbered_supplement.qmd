@@ -1,0 +1,143 @@
+---
+title: "Numbered supplementary data and reader index"
+format: html
+---
+
+Repackages verified scientific outputs without recalculation. Data-file numbering
+is separate from supplementary figure and table numbering. Large TSV splits retain
+their original headers and reconstruct the original file exactly.
+
+```{python}
+from pathlib import Path
+import csv,hashlib,io,json,zipfile,zlib,shutil
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_numbered_data_2026-09-22-v3';out.mkdir(exist_ok=False)
+old=root/'supplementary_source_data_2026-09-22-v3'
+parts=root/'supplementary_upload_parts_2026-09-22-v1'
+manifest=json.loads((old/'MANIFEST.json').read_text())
+schema={x['archive_path']:x for x in json.loads((old/'COLUMN_INDEX.json').read_text())}
+extras={
+ 'population_genomics': [('priority20_supplement_audit_2026-09-22-v1',n) for n in ['priority20_eligibility.tsv','PROVENANCE.json']],
+ 'biofilm_SOS': [('mag_functional_concentration_combined_2026-09-13-v1/tables',n) for n in ['global_concentration.tsv','MAG_specificity_baselines.tsv','matching_strata.tsv','membership_and_original_statistics.tsv.gz','universe_audit.tsv']],
+ 'community': [('community_cross_omics_2026-09-15-v3',n) for n in ['cycle_turnover.tsv','MAG_contributions.tsv','MAG_assignment.tsv','MG_phylum_profile.tsv','MT_phylum_profile.tsv','MT_MAG_assignment_coverage.tsv','matched_samples.tsv']]}
+for group,pairs in extras.items():
+ for folder,name in pairs:
+  rel=folder+'/'+name;p=root/rel;dest=group+'/'+rel;b=p.read_bytes()
+  manifest.append(dict(group=group,archive_path=dest,source_derived_relative=rel,bytes=len(b),sha256=hashlib.sha256(b).hexdigest()))
+  if name.endswith('.tsv'):
+   with p.open() as f:
+    rd=csv.reader(f,delimiter='\t');cols=next(rd);count=sum(1 for _ in rd)
+   schema[dest]={'rows':count,'columns':cols}
+pm=json.loads((parts/'UPLOAD_MANIFEST.json').read_text())
+split={x['original_member']:x for x in pm['splits']}
+loc={x['member']:x for x in pm['members']}
+groups={
+2:('Community composition and abundance',['community','16S_v1','concordance'],'Figures 2 and 3; Figure S2; Table S1','Current MAG/vOTU abundance tests, count matrices, retained 16S v1 profiles and community tests, plus cross-omics concordance. Main condition and cycle-interaction endpoints remain separate. The historical taxonomy table included flag is not the current catalogue eligibility rule: unassigned vOTUs remain in the 634-vOTU universe.'),
+3:('Phage host links and catalogue reconciliation',['host_phage'],'Figure 2D; Table 1','All 86 CRISPR-derived links, 80 host MAGs and 85 viral contigs. The network viral scope is distinct from the 634-vOTU abundance catalogue; the reconciliation records preserve that distinction.'),
+4:('Full transcriptome differential expression',['transcriptome'],'Biofilm and SOS Results; DE Methods','Complete 361,907-feature main-condition and omnibus results, and 723,814 coefficient-specific interaction rows. Functional selections are downstream of these global tests. Split TSVs must be read in part order, retaining one header.'),
+5:('Biofilm SOS and functional gene evidence',['biofilm_SOS','functional_recurrence'],'Figure 4; functional and recurrence Methods','Active combined 3,905-gene biofilm definition, 523 SOS genes, annotation-match provenance, MAG assignments, concentration and dependence tests. Eight-category competitive tests and descriptive recurrence outputs support their retained Methods. Historical keyword flags document the combined union, not alternative results.'),
+6:('Population genomic comparisons',['population_genomics'],'Figure 6; population-genomic Methods','Five displayed MAGs, cluster/pair summaries, and callable-reference denominator audit. The priority-20 eligibility table covers all input MAGs, with 15 represented in the denominator audit and five without an audit record. The pair audit contains 191 comparisons; qualification flags identify the 139 retained comparisons. Missing records are unavailable, not zero differences.'),
+7:('Cleaning score candidate models and all MAG context',['cleaning_models','all_MAG_context'],'Figures 5 and 7; Table 1','Frozen cleaning-score inputs and reference constants, all 14 candidates, 168 candidate-model fits, 2,088 all-MAG fits, suppression scenarios, coefficient intervals and influence checks. Duplicate source views are retained with distinct paths and must not be pooled as independent observations. Group IQRs are not confidence intervals.'),
+8:('Mapping and software provenance',['mapping_provenance','software'],'Table S2; processing Methods','Mapping records and executed software/parameter evidence. Coassembly alignment records include secondary alignments and do not measure unified-catalogue recovery. Historical software-version gaps are explicitly retained, not filled from the current environment.')}
+group_to_num={g:n for n,(_,gs,_,_) in groups.items() for g in gs}
+assert set(group_to_num)=={r['group'] for r in manifest}
+guide='''# Statistical and measurement guide
+
+## Select the correct result
+
+- Community MAG/vOTU main_wald files: adjusted-condition Wald tests. interaction_lrt files: joint condition-by-cycle tests. interaction_coefficients: individual interaction coefficients, not independent cycle-specific treatment effects. MAG and vOTU testing universes are separate.
+- Transcriptome de_condition_adjusted: main condition effect. de_condition_cycle_interaction_coefficients: two interaction contrasts. de_condition_cycle_interaction_omnibus: joint interaction test. All use the complete filtered transcriptome, not preselected biofilm/SOS subsets.
+- Biofilm/SOS gene evidence: annotations and membership mapped onto global tests. Combined biofilm membership is 3,905 genes. historical9/historical12 flags are membership provenance, not alternative active gene sets.
+- Dependence tests: N_blocks is the eligible-unit count and K_blocks the supported-unit count; resolution identifies 10-kb, 50-kb or contig units. Ratios compare observed concentration with the corresponding random expectation. Correction across 24 planned block-level tests is distinct from correction within a resolution.
+- Cleaning candidate models: specification, predictor and phase jointly identify the model. There are 56 slope tests per specification (14 MAGs x two predictor types x two phases), and 168 across three specifications. All-MAG models instead use 696 tests per specification and 2,088 jointly. Do not combine their correction columns.
+- Concordance: global_p and constrained_p are different permutation schemes. global_q_BH and constrained_q_BH apply separate BH corrections across assay-pair tests. Pairwise distances are not independent biological replicates.
+- Retained 16S v1 PERMANOVA p_value fields are the returned permutation P values. They are not automatically BH-adjusted, and this package contains no v2 ASV/family DE models.
+
+## Common columns
+
+feature_id, gene_id, MAG_ID, contig_id and phage_id retain exact source identifiers. sample_title denotes a physical sample. A sequencing-run accession is not an additional biological sample. condition is control/treatment; phase is initial/backflush; cycle is cleaning cycle 1–3.
+
+logFC and log2FoldChange are log2 effect estimates for the identified coefficient. Positive condition effects mean higher in treatment. logCPM is the source edgeR log-abundance summary, not a log fold-change. p, pvalue, PValue and p_value are raw P values where the corresponding table defines an inferential test. FDR and padj are adjusted-value columns; the endpoint and correction family must be read with the file/model identity. Fields explicitly named padj_BH_all_nonmissing, padj_BH_two_coefficients, FDR_56, FDR_168, FDR_696 and FDR_2088 distinguish their stated correction scopes. HC3-prefixed fields use heteroscedasticity-consistent standard errors and are separate from ordinary least-squares inference.
+
+beta is the fitted predictor slope; se is its standard error; CI_low/CI_high are coefficient intervals. delta_score is a simulated change in the fixed cleaning score, not percentage biofilm reduction. low/high in suppression tables are coefficient-derived score-change interval limits. suppression is the fractional abundance reduction; delta_x is the log2 predictor change. Group q25/q75 are quartiles of individual MAG estimates, not confidence limits. Fitted values are in-sample predictions.
+
+In the frozen score inputs, R is initial/(initial+backflush) for the specified readout. P is the mean of the three release ratios, not a P value. z_P and z_lag are standardised components, lag_days is the reported regrowth lag, and score is their equally weighted composite. The same reference constants apply to all models.
+
+compared_bases is callable sequence length in a pairwise comparison. full_catalogue_compared_fraction uses the complete MAG reference length as denominator. Consensus-difference rates are differences per million compared bases. Eligibility flags identify the retained comparisons; unavailable values are not zero divergence.
+
+## File navigation and specialist fields
+
+FILE_INDEX.tsv gives every table's exact columns and row count. Plot coordinates, colours, angles and label positions are layout metadata. Source hashes and software fields are provenance. Internal DESeq2 diagnostics retain the package's original field names. Consult the associated model design and software version for those specialist diagnostics; no new definitions or statistical corrections have been imposed during packaging.
+'''
+new_entries=[];checks=[]; limit=45_000_000
+for num,(title,gs,support,desc) in groups.items():
+ rows=[r for r in manifest if r['group'] in gs]
+ readme=f'# Supplementary Data {num}. {title}\n\n{desc}\n\nSupports: {support}.\n\nSee FILE_INDEX.tsv for file-level navigation, row counts, columns and source hashes. Missing values retain source notation and are not converted to zeros. Raw P values and adjusted values retain their original columns; use STATISTICAL_GUIDE.md to select the relevant endpoint and correction family. Plot coordinates and colour columns are layout metadata, not measurements.\n'
+ payload=[('README.md',readme.encode()),('STATISTICAL_GUIDE.md',guide.encode())]
+ local_index=[]
+ for r in rows:
+  src=root/r['source_derived_relative'];b=src.read_bytes();assert hashlib.sha256(b).hexdigest()==r['sha256'],str(src)
+  pieces=split.get(r['archive_path'],{}).get('parts',[{'member':r['archive_path']}])
+  for piece in pieces:
+   name=piece['member']
+   if name in loc:
+    with zipfile.ZipFile(parts/loc[name]['zip']) as z:blob=z.read(name)
+    assert hashlib.sha256(blob).hexdigest()==loc[name]['sha256']
+   else:
+    assert name==r['archive_path'];blob=b
+   payload.append((name,blob))
+   s=schema.get(r['archive_path'],{})
+   entry={'data_number':num,'group':r['group'],'member':name,'rows':piece.get('rows',s.get('rows','not_tabulated')),'columns':'; '.join(s.get('columns',[])),'source':r['source_derived_relative'],'original_sha256':r['sha256'],'member_sha256':hashlib.sha256(blob).hexdigest()}
+   local_index.append(entry)
+ buf=io.StringIO();wr=csv.DictWriter(buf,fieldnames=list(local_index[0]),delimiter='\t');wr.writeheader();wr.writerows(local_index)
+ payload.insert(1,('FILE_INDEX.tsv',buf.getvalue().encode()))
+ batches=[];current=[];size=0
+ for name,blob in payload:
+  estimate=len(zlib.compress(blob,6))+len(name)*2+256
+  assert estimate<limit-100000
+  if size+estimate>limit-100000:batches.append(current);current=[];size=0
+  current.append((name,blob));size+=estimate
+ if current:batches.append(current)
+ for i,batch in enumerate(batches,1):
+  path=out/f'Supplementary_Data_{num}_part_{i:02d}.zip'
+  with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+   # Each part has a self-contained guide even if the payload was partitioned.
+   for name,blob in batch:z.writestr(name,blob)
+   if not any(n=='README.md' for n,_ in batch):z.writestr('README.md',readme)
+   if not any(n=='FILE_INDEX.tsv' for n,_ in batch):z.writestr('FILE_INDEX.tsv',buf.getvalue())
+   if not any(n=='STATISTICAL_GUIDE.md' for n,_ in batch):z.writestr('STATISTICAL_GUIDE.md',guide)
+  assert path.stat().st_size<limit
+  with zipfile.ZipFile(path) as z:
+   assert z.testzip() is None
+   for name,blob in batch:
+    assert hashlib.sha256(z.read(name)).hexdigest()==hashlib.sha256(blob).hexdigest()
+    for e in local_index:
+     if e['member']==name:e['zip']=path.name
+  checks.append({'file':path.name,'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+ new_entries.extend(local_index)
+ print(num,title,len(rows),'source files',len(batches),'ZIP parts',flush=True)
+# Verify that exported interaction chunks reconstruct the original bytes.
+for original,s in split.items():
+ digest=hashlib.sha256()
+ for i,p in enumerate(s['parts']):
+  e=next(x for x in new_entries if x['member']==p['member'])
+  with zipfile.ZipFile(out/e['zip']) as z:b=z.read(e['member'])
+  digest.update(b if i==0 else b[s['header_bytes']:])
+ assert digest.hexdigest()==s['original_sha256']
+workbook=root/'catalogue_sample_supplement_2026-09-22-v1/Catalogue_quality_and_sample_provenance.xlsx'
+shutil.copyfile(workbook,out/'Supplementary_Data_1_catalogue_quality_and_samples.xlsx')
+mapping=root/'supplementary_mapping_table_2026-09-22-v1'
+for name in ['Supplementary_Table_S2.md','catalogue_count_totals.json','CHECKS.json']:
+ shutil.copyfile(mapping/name,out/('mapping_'+name if name=='CHECKS.json' else name))
+with (out/'FILE_INDEX.tsv').open('w',newline='') as f:
+ w=csv.DictWriter(f,fieldnames=list(new_entries[0]),delimiter='\t');w.writeheader();w.writerows(new_entries)
+index='# Supplementary data index\n\nEight logical datasets. Multipart ZIPs belong to one dataset, not separate experiments. Supplementary figure and table numbering are separate.\n\n| Dataset | Contents | Files |\n|---|---|---|\n| 1 | Catalogue quality, sample and sequencing-run provenance | [Excel workbook](Supplementary_Data_1_catalogue_quality_and_samples.xlsx) |\n'
+for n,(title,gs,support,desc) in groups.items():
+ files=[x['file'] for x in checks if x['file'].startswith(f'Supplementary_Data_{n}_')]
+ index+='| '+str(n)+' | '+title+' | '+'; '.join(f'[{f}]({f})' for f in files)+' |\n'
+index+=f'\nTable S1 is the concordance test summary (full sources in Data 2). Table S2 is provided alongside this index with the exact mapping denominators. FILE_INDEX.tsv maps every original source to its numbered ZIP, row count and columns. All {len(manifest)} source files are preserved, including 14 newly added gene-level concentration, cross-omics and priority-20 eligibility/provenance files; split pieces are reconstructable without changing values.\n\nRemaining editorial checks: historical software-version gaps; final supplementary figure allocation/captions; source-specific definitions for specialist diagnostic fields. These are not new statistical analyses.\n'
+(out/'README.md').write_text(index)
+(out/'STATISTICAL_GUIDE.md').write_text(guide)
+(out/'CHECKS.json').write_text(json.dumps({'source_files':len(manifest),'logical_datasets':8,'exported_data_members':len(new_entries),'all_sources_hash_verified':True,'all_zip_members_hash_verified':True,'split_reconstruction_verified':True,'archives':checks},indent=2))
+print(out)
+```

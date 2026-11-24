@@ -1,0 +1,247 @@
+---
+title: "Supplementary figure captions and assembly"
+format: html
+---
+
+This is an author-review assembly, not the submission builder. It preserves vector
+masters and records exact input hashes. Existing report generation stays quarantined.
+Run the Python cell with the bundled PDF runtime, supplying a NEW output directory.
+
+```{python}
+from pathlib import Path
+import csv, hashlib, io, json, sys, subprocess, re
+from xml.sax.saxutils import escape
+from pypdf import PdfReader, PdfWriter, Transformation
+from reportlab.pdfgen import canvas
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+pdfmetrics.registerFont(TTFont('ReviewSans','/System/Library/Fonts/Supplemental/Arial.ttf'))
+pdfmetrics.registerFont(TTFont('ReviewBold','/System/Library/Fonts/Supplemental/Arial Bold.ttf'))
+pdfmetrics.registerFontFamily('ReviewSans', normal='ReviewSans', bold='ReviewBold', italic='ReviewSans', boldItalic='ReviewBold')
+
+root = Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment')
+d = root / 'PRJEB79569/derived'
+out = Path(sys.argv[1])
+out.mkdir(parents=True, exist_ok=False)
+(out/'output/pdf').mkdir(parents=True)
+snap = d/'manuscript_snapshot_2026-09-22_supplement_v1_source'
+text = (snap/'accepted_preview.txt').read_text()
+styles = getSampleStyleSheet()
+styles['Normal'].fontSize = 10
+styles['Normal'].leading = 14
+styles['Normal'].fontName = 'ReviewSans'
+W,H = 595.28,841.89
+writer = PdfWriter()
+manifest=[]
+readers=[]  # Keep readers alive: pypdf uses object identity during cross-file merges.
+review_buffer=io.BytesIO()
+review_canvas=canvas.Canvas(review_buffer,pagesize=(W,H))
+page_count=0
+# Number and assemble figures in manuscript first-mention order.
+display_order = [0, 3, 2, 1, 4, 5, 6, 7, 8]
+reference_map_path=d/'supplementary_reference_reconciliation_2026-09-22/mapping.json'
+reference_map={int(k):v for k,v in json.loads(reference_map_path.read_text())['old_to_new'].items()}
+caption_titles = [
+    'Original experimental system, cleaning sequence and sampling design',
+    'Cross-omics community comparison',
+    'Viral community composition across cleaning cycles',
+    'Family-level 16S rRNA community composition',
+    '16S rRNA community structure based on Bray-Curtis dissimilarities',
+    '16S rRNA community structure based on Aitchison distances',
+    'MAG contributions to treatment-downregulated biofilm-associated gene expression',
+    'Modelled cleaning-score responses to suppression of 14 candidate MAGs',
+    'Distribution of modelled cleaning-score responses across all MAGs',
+]
+
+def rows(path):
+    with open(path) as f: return list(csv.DictReader(f, delimiter='\t'))
+
+def record(path, role):
+    path=Path(path)
+    if not any(r['path']==str(path) for r in manifest):
+        manifest.append({'path':str(path),'role':role,'bytes':path.stat().st_size,
+                         'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+
+def para(c, content, x, y, width):
+    p=Paragraph(content, styles['Normal']); _,h=p.wrap(width,700)
+    if y-h < 40: raise ValueError('Text exceeds page')
+    p.drawOn(c,x,y-h)
+    return y-h-12
+
+def remap_table_refs(body):
+    def replace(m):
+        old=[]
+        for part in re.findall(r'S?\d+(?:[–-]S?\d+)?',m.group()):
+            n=[int(x) for x in re.findall(r'\d+',part)]
+            old.extend(range(n[0],n[-1]+1))
+        labels=[f'S{reference_map[n]}' for n in sorted(old,key=reference_map.get)]
+        label=labels[0] if len(labels)==1 else ', '.join(labels[:-1])+' and '+labels[-1]
+        return ('Table ' if len(labels)==1 else 'Tables ')+label
+    return re.sub(r'\bTables? S\d+(?:(?:[–-]|, | and )S?\d+)*',replace,body)
+
+def page(title, body='', source=None, draw=None):
+    global page_count
+    c=review_canvas
+    full_title = caption_titles[page_count]
+    if page_count == 0:
+        body = re.sub(r'^' + re.escape(full_title) + r'\.\s*', '', body.strip())
+    body = re.sub(r'\b([A-D])\)', r'<b>\1)</b>', body)
+    body = remap_table_refs(body)
+    display_number = display_order.index(page_count) + 1
+    body = f'<b>Figure S{display_number}: {escape(full_title)}.</b> ' + body
+    c.setFont('Helvetica',8); c.setFillColor(colors.HexColor('#555555'))
+    c.drawString(36,22,'Supplementary figures')
+    c.drawRightString(W-36,22,str(display_number)); c.setFillColor(colors.black)
+    if source:
+        source=Path(source); record(source,'figure master')
+        sr=PdfReader(source); readers.append(sr); rp=sr.pages[0]
+        scale=min((W-72)/float(rp.mediabox.width), 490/float(rp.mediabox.height))
+        x=(W-float(rp.mediabox.width)*scale)/2
+        y=H-36-float(rp.mediabox.height)*scale
+        prefix=out/f'review-source-{page_count+1}'
+        subprocess.run(['/opt/homebrew/bin/pdftoppm','-f','1','-singlefile','-r','250','-png',str(source),str(prefix)],check=True,capture_output=True)
+        c.drawImage(str(prefix)+'.png',x,y,width=float(rp.mediabox.width)*scale,height=float(rp.mediabox.height)*scale)
+        para(c,body,36,y-15,W-72)
+    elif draw:
+        para(c,body,36,170,W-72)
+    else:
+        yy=H-72
+        for line in body.split('\n\n'): yy=para(c,line,36,yy,W-72)
+    if draw: draw(c)
+    c.showPage(); page_count+=1
+
+# Verify the unchanged accepted v1 return; never silently swap to v2.
+v1=d/'16s_analysis/09_return_package'
+v1check=[]
+for r in rows(v1/'16s_return_package_manifest.tsv'):
+    p=v1/r['file']; ok=p.is_file() and hashlib.md5(p.read_bytes()).hexdigest()==r['md5']
+    v1check.append({'file':r['file'],'md5_matches':ok})
+assert all(r['md5_matches'] for r in v1check if r['file']!='16s_return_summary.md'), 'Accepted v1 data or figure failed checksum verification'
+# The local narrative summary differs from the archived hash. It is NOT an input
+# to this assembly; preserve and expose the mismatch rather than altering it.
+record(v1/'16s_return_package_manifest.tsv','v1 integrity manifest')
+
+s1cap=text.split('Supplementary Figure 1:',1)[1].strip()
+page('Figure S1. Original experiment',escape(s1cap),
+     d/'figure1_s1_split_reuse_2026-09-15-v2/FigureS1-original-experiment.pdf')
+page('Figure S2. Cross-omics community comparison',
+     'A) Correspondence between Bray-Curtis dissimilarities for metagenomic (MG), '
+     'metatranscriptomic (MT) and 16S rRNA profiles. Points represent the 66 sample pairs '
+     'from 12 matched samples; ρ denotes Spearman correlation.<br/>'
+     'B) Bray-Curtis dissimilarities between consecutive cleaning cycles within each condition '
+     'and sampling phase. Colours identify control and treatment; symbols identify initial and backflush samples.<br/>'
+     'C) Mean within-assay MG and MT read shares for selected MAGs. '
+     'Concordance permutation tests and Benjamini-Hochberg-adjusted P values are reported in '
+     'Supplementary Table S4; turnover and MAG read shares are in Tables S5 and S6.',
+     d/'community_cross_omics_figure_2026-09-15-v3/figures/community_comparison.pdf')
+
+page('Viral community composition',
+     'Relative abundances of all 634 abundance-eligible vOTUs, grouped by viral realm. '
+     'Bars sum to 100% within each sample and represent shares of vOTU-mapped metagenomic reads. '
+     'Control and treatment are aligned by cleaning cycle and sampling phase (I, initial; BF, backflush). '
+     'Unclassified sequences remain in the denominator. Colours identify viral realms and match '
+     'the main community figure. Catalogue quality and taxonomy are reported in Supplementary Table S2.',
+     d/'supplementary_votu_realm_bars_2026-09-22-v2/votu-realm-composition.pdf')
+
+for file,title,caption in [
+    ('16s-community-composition.pdf','16S rRNA community composition',
+     'Family-level relative abundances from 16S rRNA-derived cDNA across 12 samples. '
+     'Bars show control and treatment profiles for initial and backflush samples across three cleaning cycles.<br/>'
+     'Colours identify families. Other classified families and sequences unclassified at family level '
+     'are displayed separately; all categories contribute to the sample total.'),
+    ('16s-community-ordination-bray_curtis.pdf','16S rRNA community structure: Bray-Curtis',
+     'Principal-coordinate analysis of Bray-Curtis dissimilarities among 12 samples, based on '
+     '16S rRNA amplicon sequence variant profiles. Axes 1 and 2 explain 45.1% and 17.4% of variation, respectively.<br/>'
+     'Colours identify control and treatment; circles and triangles identify initial and backflush samples. '
+     'Numbers indicate cleaning cycles. PERMANOVA results are reported in Supplementary Table S24.'),
+    ('16s-community-ordination-aitchison.pdf','16S rRNA community structure: Aitchison',
+     'Principal-coordinate analysis of Aitchison distances among 12 samples, based on '
+     '16S rRNA amplicon sequence variant profiles. Axes 1 and 2 explain 29.2% and 15.9% of variation, respectively.<br/>'
+     'Colours identify control and treatment; circles and triangles identify initial and backflush samples. '
+     'Numbers indicate cleaning cycles. PERMANOVA results are reported in Supplementary Table S24.')]:
+    page(title,caption,v1/file)
+
+contributors=d/'figure4_functional_notation_2026-09-20-v4/tables/all_MAG_contributors.tsv'
+rr=[r for r in rows(contributors) if r['set_id']=='biofilm_combined' and r['direction']=='Down in treatment']
+assert len(rr)==22 and sum(int(r['genes']) for r in rr)==148
+record(contributors,'combined biofilm downstream display data')
+def bars(c):
+    data=sorted(rr,key=lambda r:(-int(r['genes']),r['MAG_ID']))
+    mx=max(int(r['genes']) for r in data)
+    for i,r in enumerate(data):
+        y=745-i*25
+        sample,bin_id=r['MAG_ID'].split('_MAGScoT_cleanbin_')
+        label=f"{r['genus'] or 'Unclassified'} {sample}/{int(bin_id)}"
+        c.setFont('Helvetica',9); c.drawRightString(228,y,label)
+        c.setFillColor(colors.HexColor('#71a76b'))
+        c.rect(240,y-2,int(r['genes'])/mx*270,12,fill=1,stroke=0)
+        c.setFillColor(colors.black); c.drawString(245+int(r['genes'])/mx*270,y,r['genes'])
+    c.setFont('Helvetica',10); c.drawString(240,190,'Supported genes (count)')
+page('Biofilm transcription: downregulated MAG contributors',
+     'Distribution of 148 treatment-downregulated biofilm-associated genes across 22 MAGs. '
+     'Bars indicate gene counts at whole-transcriptome FDR (BH) ≤ 0.05 and negative treatment log2 fold-change. '
+     'Genes were identified using the combined 3,905-gene biofilm-associated set.<br/>'
+     'Labels identify taxonomy and MAG identifiers. Gene membership and differential-expression results '
+     'are reported in Supplementary Table S9; MAG-level gene counts are in Table S12.',draw=bars)
+
+page('All 14 candidates: interval companion',
+     'Model-implied changes in cleaning-performance score at 50% lower whole-MAG DNA abundance. '
+     'Columns compare models adjusted for condition alone, condition and categorical cycle, '
+     'or condition and linear cycle. Colours distinguish initial and backflush predictors.<br/>'
+     'Points and whiskers show estimated changes and coefficient-based 95% confidence intervals '
+     'for 14 MAGs carrying treatment-upregulated biofilm-associated genes. Each model contains six observations.<br/>'
+     'Positive values indicate higher predicted cleaning scores, with other model terms held fixed. '
+     'Model coefficients and suppression estimates are reported in Supplementary Tables S17 and S18.',
+     d/'figure7_candidate_suppression_2026-09-15-v3/figures/figure7-interval-companion.pdf')
+page('All-MAG model context',
+     'Empirical cumulative distributions of predicted cleaning-score changes following a 50% reduction '
+     'in the whole-MAG DNA abundance of each of 348 MAGs separately.<br/>'
+     'Columns compare condition and categorical-cycle, condition-only, and condition and linear-cycle models. '
+     'Rows distinguish backflush and initial predictors; each model contains six observations.<br/>'
+     'Positive values indicate higher predicted cleaning scores. The vertical reference marks zero change. '
+     'Individual-MAG model results are reported in Supplementary Table S19.',
+     d/'cleaning_score_all_MAG_models_2026-09-21-v1/figures/all_MAG_reduction_distribution.pdf')
+
+s1=d/'community_cross_omics_permutation_2026-09-16-v3/tables/bray_curtis_matrix_permutation_tests.tsv'
+record(s1,'Table S1 results')
+def table(c):
+    data=[['Assays','Spearman rho','Global P','Global BH P','Restricted P','Restricted BH P']]
+    for r in rows(s1): data.append([r['assay1']+' / '+r['assay2'],f"{float(r['spearman_rho']):.3f}"]+
+                                 [f'{float(r[k]):.3g}' for k in ['global_p','global_q_BH','constrained_p','constrained_q_BH']])
+    t=Table(data,colWidths=[70,77,70,80,80,90],rowHeights=26)
+    t.setStyle(TableStyle([('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),('FONTSIZE',(0,0),(-1,-1),8),
+                          ('BACKGROUND',(0,0),(-1,0),colors.HexColor('#eeeeee')),
+                          ('LINEBELOW',(0,0),(-1,0),0.5,colors.black)]))
+    t.wrapOn(c,520,200);t.drawOn(c,36,490)
+pdf=out/'output/pdf/Supplementary_Figures.pdf'
+review_canvas.save()
+assembled = PdfReader(io.BytesIO(review_buffer.getvalue()))
+for original_index in display_order:
+    writer.add_page(assembled.pages[original_index])
+with pdf.open('wb') as stream:
+    writer.write(stream)
+assert len(PdfReader(pdf).pages)==9
+reader_text='\n'.join(p.extract_text() for p in PdfReader(pdf).pages)
+for forbidden in ['v1', 'v2', 'AUTHOR REVIEW', 'source-data package', 'inherited master', 'author review']:
+    assert forbidden not in reader_text, forbidden
+
+# Preserve the old file inventory as review candidates, never mark all eligible by existence.
+inventory=rows(d/'supplementary_manifest_2026-09-16-v1/supplementary_file_manifest.tsv')
+for r in inventory:
+    r['review_status']='NEEDS_SOURCE_RECONCILIATION'
+    if r['table_label']=='S1': r['review_status']='RETAIN_TABLE_S1'
+    if r['table_label']=='S13': r['review_status']='RECONCILE_TO_RETAINED_16S_V1'
+    p=Path(r['absolute_path'])
+    r['current_sha256_matches']=p.exists() and hashlib.sha256(p.read_bytes()).hexdigest()==r['sha256']
+(out/'inherited-file-audit.json').write_text(json.dumps(inventory,indent=2))
+(out/'source-manifest.json').write_text(json.dumps(manifest,indent=2))
+(out/'16s-v1-integrity.json').write_text(json.dumps(v1check,indent=2))
+(out/'BUILD_CHECKS.json').write_text(json.dumps({'pdf_pages':page_count,'v1_files_checked':len(v1check),
+    'v1_all_match':all(r['md5_matches'] for r in v1check),'old_inventory_files':len(inventory),
+    'old_inventory_all_match':all(r['current_sha256_matches'] for r in inventory),
+    'live_document_modified':False,'status':'PARTIAL_AUTHOR_REVIEW_NOT_SUBMISSION'},indent=2))
+print(pdf)
+```

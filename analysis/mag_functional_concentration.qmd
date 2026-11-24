@@ -1,0 +1,172 @@
+---
+title: "MAG-resolved biofilm and SOS concentration: exploratory allocation tests"
+format: html
+editor: source
+---
+
+Run with `bash scripts/run_qmd.sh analysis/mag_functional_concentration.qmd NEW_OUTPUT`.
+Frozen full-transcriptome FDR is retained. These are post hoc gene-allocation
+tests, not sample permutations or causal treatment tests. Both historical keyword
+variants are reported; expanded biofilm is a sensitivity. No publication sign-off
+until upstream negative-F diagnostics and genomic-dependence sensitivity are resolved.
+
+Global primary statistic: Simpson concentration of supported genes across MAGs.
+Secondary: maximum MAG share, calibrated across all MAGs. Baseline draws select
+K of N eligible set genes uniformly without replacement. Matched draws preserve
+K in each condition-blind abundance-tertile x length-tertile x prevalence stratum
+(prevalence <=6, 7-11, 12). Quantile ties are never split. Sparse strata are not
+merged: fully selected strata are fixed and their contribution is reported.
+This conservative matching may leave little randomisable information.
+Four endpoints: condition unsigned, up, down, joint interaction (unsigned).
+BH spans all sets/endpoints separately for each null and statistic. Per-MAG
+baseline concentration tails and within-MAG specificity tails have separate BH
+families across all sets/endpoints/MAGs. Dependence is NOT solved by matching.
+
+```{r}
+#| label: reproducible-inputs
+suppressPackageStartupMessages(library(data.table))
+out <- commandArgs(TRUE)[1]
+combined_mode <- length(commandArgs(TRUE))>=2 && commandArgs(TRUE)[2]=="combined"
+stopifnot(!is.na(out), !dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src <- c(condition=file.path(root,"full_transcriptome_de/tables/de_condition_adjusted.tsv"),
+ joint=file.path(root,"full_transcriptome_de/tables/de_condition_cycle_interaction_omnibus.tsv"),
+ biofilm=file.path(root,"biofilm_full_transcriptome_review_2026-09-13-v4/tables/gene_set_membership.tsv"),
+ stress=file.path(root,"full_de_interpretation/tables/tested_feature_category_membership.tsv"),
+ taxonomy=file.path(root,"full_de_interpretation/tables/full_de_gene_annotation_taxonomy.tsv.gz"),
+ notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"))
+stopifnot(all(file.exists(src)))
+if(combined_mode) src['biofilm']<-file.path(root,"biofilm_combined_definition_2026-09-13-v1/combined_gene_membership.tsv")
+stopifnot(all(file.exists(src)))
+hash <- function(p) digest::digest(file=p,algo="sha256")
+before <- vapply(src,hash,character(1))
+cnd <- fread(src['condition']); joint <- fread(src['joint'])
+stopifnot(!anyDuplicated(cnd$feature_id),!anyDuplicated(joint$feature_id),
+ setequal(cnd$feature_id,joint$feature_id))
+joint <- joint[match(cnd$feature_id,feature_id)]
+cnd[,joint_FDR:=joint$FDR]
+stopifnot(all(is.finite(cnd$FDR)),all(is.finite(cnd$joint_FDR)))
+bio <- fread(src['biofilm'])[,.(feature_id,set_id)]
+stress <- fread(src['stress'])[,.(feature_id,set_id=category)]
+if(combined_mode) stress<-stress[set_id=="SOS_response"]
+membership <- unique(rbind(bio,stress))
+stopifnot(all(membership$feature_id %in% cnd$feature_id))
+universe <- cnd[!is.na(MAG_ID) & nzchar(MAG_ID)]
+membership <- merge(membership,universe,by="feature_id",allow.cartesian=TRUE)
+tax <- unique(fread(src['taxonomy'],select=c("feature_id","phylum","family","genus")))
+stopifnot(!anyDuplicated(tax$feature_id))
+membership <- merge(membership,tax,by="feature_id",all.x=TRUE)
+qbin <- function(x) {
+ b <- unique(as.numeric(quantile(x,c(0,1/3,2/3,1),na.rm=TRUE)))
+ if(length(b)<2) return(rep(1L,length(x)))
+ as.integer(cut(x,b,include.lowest=TRUE))
+}
+stopifnot(all(is.finite(universe$mean_CPM)),all(universe$gene_length>0),
+ all(is.finite(universe$gene_length)))
+universe[,stratum:=paste(qbin(mean_CPM),qbin(gene_length),
+ fifelse(n_samples_detected<=6,1L,fifelse(n_samples_detected<12,2L,3L)),sep="_")]
+membership[,stratum:=universe$stratum[match(feature_id,universe$feature_id)]]
+for(s in c("tables","source")) dir.create(file.path(out,s),recursive=TRUE)
+fwrite(data.table(input=names(src),path=src,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+fwrite(data.table(full_tested=nrow(cnd),MAG_assigned=nrow(universe),
+ membership_missing_MAG=sum(!unique(rbind(bio,stress))$feature_id %in% universe$feature_id)),
+ file.path(out,"tables/universe_audit.tsv"),sep="\t")
+fwrite(membership,file.path(out,"tables/membership_and_original_statistics.tsv.gz"),sep="\t")
+```
+
+```{r}
+#| label: null-engine-and-tests
+# Exact multivariate hypergeometric draws via sequential conditional draws.
+draw_alloc <- function(n,k,B) {
+ stopifnot(k>=0,k<=sum(n),all(n>=0))
+ ans <- matrix(0L,B,length(n)); remaining <- rep(k,B); N <- sum(n)
+ for(i in seq_along(n)) {
+  if(n[i]>0) {
+   ans[,i] <- if(N==n[i]) remaining else rhyper(B,n[i],N-n[i],remaining)
+   remaining <- remaining-ans[,i]
+  }
+  N <- N-n[i]
+ }
+ stopifnot(all(rowSums(ans)==k)); ans
+}
+RNGkind("L'Ecuyer-CMRG"); set.seed(20260913)
+test <- draw_alloc(c(5,15),4,100000)
+stopifnot(abs(mean(test[,1])-1)<.02)
+set.seed(11); t1<-draw_alloc(c(2,3,5),3,100)
+set.seed(11); stopifnot(identical(t1,draw_alloc(c(2,3,5),3,100)),
+ all(draw_alloc(c(0,3),0,10)==0),all(draw_alloc(c(2,3),5,10)[,1]==2))
+set.seed(20260913)
+B <- 100000L
+endpoint <- function(z,e) switch(e,condition=z$FDR<.05,
+ up=z$FDR<.05 & z$logFC>0,down=z$FDR<.05 & z$logFC<0,
+ joint=z$joint_FDR<.05)
+global <- list(); per_mag <- list(); strata <- list(); nulls <- list()
+counter <- 0L
+for(s in sort(unique(membership$set_id))) for(e in c("condition","up","down","joint")) {
+ z<-membership[set_id==s]; hit<-endpoint(z,e); K<-sum(hit); N<-nrow(z)
+ mags<-sort(unique(z$MAG_ID)); ni<-tabulate(match(z$MAG_ID,mags),length(mags))
+ hi<-tabulate(match(z$MAG_ID[hit],mags),length(mags))
+ allhit<-endpoint(universe,e)
+ mi<-tabulate(match(universe$MAG_ID,mags),length(mags))
+ mh<-tabulate(match(universe$MAG_ID[allhit],mags),length(mags))
+ per_mag[[length(per_mag)+1L]]<-data.table(set_id=s,endpoint=e,MAG_ID=mags,
+  eligible_set=ni,set_hits=hi,eligible_MAG=mi,MAG_all_hits=mh,
+  expected_across=K*ni/N,p_across=phyper(hi-1,ni,N-ni,K,lower.tail=FALSE),
+  expected_within=mh*ni/mi,p_within=phyper(hi-1,ni,mi-ni,mh,lower.tail=FALSE))
+ for(mode in c("baseline","matched")) {
+  counter<-counter+1L
+  if(K<2) {
+   global[[counter]]<-data.table(set_id=s,endpoint=e,null=mode,N=N,K=K,
+    status="insufficient_hits",p_simpson=NA_real_,p_max=NA_real_)
+   next
+  }
+  alloc<-matrix(0L,B,length(mags))
+  groups<-if(mode=="baseline")list(seq_len(N)) else split(seq_len(N),z$stratum)
+  frozen<-0L
+  for(j in seq_along(groups)) {
+   ix<-groups[[j]]; kg<-sum(hit[ix]); ng<-length(ix)
+   if(kg==ng) frozen<-frozen+kg
+   counts<-tabulate(match(z$MAG_ID[ix],mags),length(mags))
+   active<-which(counts>0)
+   alloc[,active]<-alloc[,active,drop=FALSE]+draw_alloc(counts[active],kg,B)
+   strata[[length(strata)+1L]]<-data.table(set_id=s,endpoint=e,null=mode,
+    stratum=j,N=ng,K=kg,fixed=kg==0 || kg==ng)
+  }
+  stopifnot(all(rowSums(alloc)==K))
+  sim<-rowSums((alloc/K)^2); mx<-apply(alloc,1,max)/K
+  obs<-sum((hi/K)^2); obsmax<-max(hi)/K
+  exceed<-sum(sim>=obs-1e-12); exceedmax<-sum(mx>=obsmax-1e-12)
+  ci<-binom.test(exceed,B)$conf.int
+  global[[counter]]<-data.table(set_id=s,endpoint=e,null=mode,N=N,K=K,
+   status="exploratory_gene_independence",fixed_hits=frozen,simpson=obs,max_share=obsmax,
+   null_mean_simpson=mean(sim),p_simpson=(exceed+1)/(B+1),
+   p_simpson_MC_low=ci[1],p_simpson_MC_high=ci[2],p_max=(exceedmax+1)/(B+1),B=B)
+  nulls[[paste(s,e,mode,sep="/")]]<-list(simpson=sim,max_share=mx,expected_MAG=colMeans(alloc),MAG_ID=mags)
+ }
+ message(s," / ",e,": ",K," supported genes")
+}
+```
+
+```{r}
+#| label: auditable-outputs
+g<-rbindlist(global,fill=TRUE)
+g[,FDR_simpson:=p.adjust(p_simpson,"BH"),by=null]
+g[,FDR_max:=p.adjust(p_max,"BH"),by=null]
+p<-rbindlist(per_mag)
+p[,FDR_across:=p.adjust(p_across,"BH")]
+p[,FDR_within:=p.adjust(p_within,"BH")]
+fwrite(g,file.path(out,"tables/global_concentration.tsv"),sep="\t")
+fwrite(p,file.path(out,"tables/MAG_specificity_baselines.tsv"),sep="\t")
+fwrite(rbindlist(strata),file.path(out,"tables/matching_strata.tsv"),sep="\t")
+saveRDS(nulls,file.path(out,"null_distributions.rds"))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("Seed: 20260913; RNG: L'Ecuyer-CMRG; B: 100000", 
+ "Engine tests PASS: K conservation, theoretical mean, reproducibility, edge cases.",
+ "Pending: within-MAG matched null, genomic-block sensitivity, synthetic dependence tests, upstream negative-F resolution.",
+ "Exploratory only; no manuscript or figure changes."),file.path(out,"CHECKS.txt"))
+stopifnot(identical(before,vapply(src,hash,character(1))))
+file.copy(src['notebook'],file.path(out,"source",basename(src['notebook'])))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,hash,character(1))),
+ file.path(out,"output_sha256.tsv"),sep="\t")
+```

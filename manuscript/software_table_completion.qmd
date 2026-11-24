@@ -1,0 +1,47 @@
+---
+title: "Software inventory for the author-edited supplementary workbook"
+format: html
+---
+
+Prepare a versioned inventory without rewriting the workbook while the author
+is editing it. Runtime records, archived pins and unresolved versions remain
+distinct. Do not infer historical versions from current installations.
+
+```{python}
+from pathlib import Path
+import csv, json, hashlib
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_software_inventory_2026-09-22-v2'
+out.mkdir(exist_ok=False)
+src=root/'supplementary_software_parameters_2026-09-21-v1/evidence.json'
+data=json.loads(src.read_text())
+rows=[]
+for r in data['rows']:
+ if r['software']=='Workflow concatenation':continue
+ rows.append({'Software':r['software'],'Analysis step':r['role'],'Version':r['version'],
+              'Evidence status':r['status'],'Parameters or database':r['parameters'],'Source':str(src.relative_to(root))})
+sources=[src]
+for rel,stage in [('16s_analysis/09_return_package/16s_software_provenance.tsv','16S analysis'),
+                  ('full_transcriptome_de/tables/software_versions.tsv','Whole-transcriptome differential expression'),
+                  ('full_de_interpretation/software_versions.tsv','Functional interpretation')]:
+ p=root/rel;sources.append(p)
+ with p.open() as f:
+  for r in csv.DictReader(f,delimiter='\t'):
+   if r.get('available')=='FALSE' or r.get('requirement')=='optional':continue
+   rows.append({'Software':r.get('software',r.get('component')),'Analysis step':stage,
+                'Version':r['version'],'Evidence status':'Recorded in archived analysis software manifest',
+                'Parameters or database':r.get('purpose',''), 'Source':rel})
+for name in ['DeepMicroClass','dRep','CheckM','geNomad','VirSorter2','ViraLM','Vclust','Cenote-Taker 3','MinCED','PILER-CR','SpacePHARER','DESeq2','metacoder']:
+ rows.append({'Software':name,'Analysis step':'Project workflow','Version':'Not yet verified',
+              'Evidence status':'Historical execution-version audit pending',
+              'Parameters or database':'','Source':'Not yet reconciled'})
+headers=list(rows[0])
+lines=['# Software versions and analysis stages','',
+ 'Staged for integration into the author-edited supplementary workbook. No table number assigned yet. Exact versions marked not verified require further provenance checks.','',
+ '| '+' | '.join(headers[:-1])+' |','|'+'|'.join(['---']*5)+'|']
+for row in rows:lines.append('| '+' | '.join(str(row[k]).replace('|','\\|').replace('\n',' ') for k in headers[:-1])+' |')
+(out/'software_inventory.md').write_text('\n'.join(lines)+'\n')
+(out/'software_inventory.json').write_text(json.dumps(rows,indent=2))
+(out/'source_hashes.json').write_text(json.dumps([{'source':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sources],indent=2))
+print(len(rows),'software/stage rows staged; edited workbook not modified')
+```

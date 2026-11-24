@@ -1,0 +1,43 @@
+---
+title: "Supplementary table candidate: biofilm and SOS gene provenance and MAG attribution"
+format: html
+editor: source
+---
+
+Unnumbered table candidate. One row per gene/set; overlaps between biofilm and SOS
+are retained explicitly. Model statistics are original full-transcriptome values.
+Combined keyword definition is author-approved; annotation matches are not
+experimentally validated phenotypes. Historical flags record provenance only.
+
+```{r}
+suppressPackageStartupMessages(library(data.table))
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+r<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-c(file.path(r,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ file.path(r,"biofilm_combined_definition_2026-09-13-v1/combined_gene_membership.tsv"),
+ file.path(r,"full_de_interpretation/tables/tested_feature_category_membership.tsv"))
+m<-fread(src[1]);b<-fread(src[2]);s<-fread(src[3])[category=="SOS_response"]
+flags<-b[,.(feature_id,in_historical9,in_historical12,in_current_categories,matching_rules)]
+m<-merge(m,flags,by="feature_id",all.x=TRUE)
+m[set_id=="SOS_response",matching_rules:=NA_character_]
+rules<-s[,.(SOS_match_evidence=paste(unique(paste(signature_gene_symbol,match_type,signature_tier,sep=":")),collapse="; ")),by=feature_id]
+m<-merge(m,rules,by="feature_id",all.x=TRUE)
+stopifnot(!anyDuplicated(m[,.(feature_id,set_id)]),m[set_id=="biofilm_combined",.N]==3905,
+ m[set_id=="SOS_response",.N]==523)
+m[,`:=`(main_supported=FDR<.05,joint_supported=joint_FDR<.05)]
+setorder(m,set_id,MAG_ID,contig,start)
+dir.create(out,recursive=TRUE)
+fwrite(m,file.path(out,"supplementary_biofilm_SOS_gene_evidence.tsv"),sep="\t")
+writeLines(c("UNNUMBERED supplementary-table candidate;3905 biofilm rows and523 SOS rows.",
+ "feature_id identifies genes; set_id preserves functional overlap. MAG_ID/contig/start/end give location.",
+ "annotation_source names the source file, not a validated biofilm database.",
+ "matching_rules and in_historical flags retain inclusion provenance, not alternative active analyses.",
+ "FDR/logFC refer to original adjusted condition model; joint_FDR is unsigned condition-cycle interaction.",
+ "No subset-first DE or per-cell RNA:DNA adjustment. One membrane per condition.",
+ "Concentration adjusted p-values are separate set/MAG-level tables, not gene-level FDR.",
+ "Upstream numerical diagnostics remain open."),file.path(out,"README.txt"))
+sha<-function(p)digest::digest(file=p,algo="sha256")
+fwrite(data.table(path=src,sha256=vapply(src,sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+files<-list.files(out,full.names=TRUE)
+fwrite(data.table(path=basename(files),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

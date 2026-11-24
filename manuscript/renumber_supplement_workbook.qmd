@@ -1,0 +1,84 @@
+---
+title: "Results-first supplementary workbook numbering"
+format: html
+---
+
+Preserve author-edited worksheet content and styles. Only table identifiers,
+sheet order and cross-references change. Original S27 remains reserved pending
+the author's decision. The original Office package is not round-tripped through
+a spreadsheet conversion engine.
+
+```{python}
+import json,re,zipfile,hashlib,copy,xml.etree.ElementTree as E
+from pathlib import Path
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplement_placement_audit_2026-09-23')
+mapping={int(k):v for k,v in json.loads((out/'new_mapping.json').read_text())['old_to_new'].items()}
+source=out/'workbook_before.xlsm'
+M='{http://schemas.openxmlformats.org/spreadsheetml/2006/main}'
+R='{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+z=zipfile.ZipFile(source)
+wb=E.fromstring(z.read('xl/workbook.xml'))
+sheets=wb.find(M+'sheets')
+rels=E.fromstring(z.read('xl/_rels/workbook.xml.rels'))
+targets={e.get('Id'):e.get('Target') for e in rels}
+def sheetpath(s):
+    p=targets[s.get(R+'id')]
+    return p.lstrip('/') if p.startswith('/') else 'xl/'+p
+ss=[''.join(e.itertext()) for e in E.fromstring(z.read('xl/sharedStrings.xml'))]
+names={s.get('name'):re.sub(r'^S(\d+)',lambda m:'S'+str(mapping[int(m[1])]),s.get('name')) for s in sheets}
+def relabel(value):
+    # Exact tab names and standalone S-number references only; numeric data stay intact.
+    if value in names:return names[value]
+    return re.sub(r'\bS(\d+)\b',lambda m:'S'+str(mapping[int(m[1])]) if int(m[1]) in mapping else m[0],value)
+replacement={}; changed_cells={}; unchanged=[]
+for sh in sheets:
+    path=sheetpath(sh); raw=z.read(path); doc=E.fromstring(raw); edits=[]
+    for cell in doc.iter(M+'c'):
+        if cell.get('t')=='s':
+            v=cell.find(M+'v'); val=ss[int(v.text)]
+        elif cell.get('t')=='inlineStr':val=''.join(cell.find(M+'is').itertext())
+        elif cell.get('t')=='str':val=(cell.find(M+'v').text or '') if cell.find(M+'v') is not None else ''
+        else:continue
+        if sh.get('name') not in ['Index','Column definitions'] and 'Supplementary Table' not in val and not re.search(r'\bTables? S\d+',val):continue
+        new=relabel(val)
+        if new!=val:
+            # These identifiers are table metadata, never MAG/contig/sample IDs.
+            assert sh.get('name') in ['Index','Column definitions'] or re.search(r'\bTables? S\d+',val), (sh.get('name'),cell.get('r'),val)
+            for child in list(cell):cell.remove(child)
+            cell.set('t','inlineStr');E.SubElement(E.SubElement(cell,M+'is'),M+'t').text=new
+            edits.append({'cell':cell.get('r'),'before':val,'after':new})
+    if sh.get('name')=='Index':
+        data=doc.find(M+'sheetData'); rows=list(data);header=rows[0]
+        def rownum(row):
+            first=row.find(M+'c'); txt=''.join(first.find(M+'is').itertext()) if first.get('t')=='inlineStr' else (ss[int(first.find(M+'v').text)] if first.get('t')=='s' else first.find(M+'v').text)
+            return int(re.search(r'S(\d+)',txt)[1])
+        rows=[header]+sorted(rows[1:],key=rownum)
+        for i,row in enumerate(rows,1):
+            row.set('r',str(i))
+            for c in row:c.set('r',re.sub(r'\d+$',str(i),c.get('r')))
+        data[:]=rows
+    if edits or sh.get('name')=='Index':
+        replacement[path]=E.tostring(doc,encoding='utf-8',xml_declaration=True);changed_cells[path]=edits
+    else:unchanged.append(path)
+    sh.set('name',names[sh.get('name')])
+ordered=sorted([s for s in sheets if re.match(r'S\d+',s.get('name'))],key=lambda s:int(re.match(r'S(\d+)',s.get('name'))[1]))
+sheets[:]=[s for s in sheets if s.get('name')=='Index']+ordered+[s for s in sheets if s.get('name')=='Column definitions']
+assert len(sheets)==30
+for view in wb.iter(M+'workbookView'):view.set('activeTab','0')
+replacement['xl/workbook.xml']=E.tostring(wb,encoding='utf-8',xml_declaration=True)
+# Sheet-name references in formulas require a separate audited update, not silent changes.
+for path in z.namelist():
+    if path.endswith('.xml') and (path.startswith('xl/worksheets/') or path=='xl/workbook.xml'):
+        tree=E.fromstring(z.read(path))
+        for e in tree.iter():
+            if e.tag in (M+'f',M+'definedName') and e.text:
+                assert not any(name+'!' in e.text or "'"+name+"'!" in e.text for name in names if name!=names[name]),('Formula references old sheet',path,e.text)
+dest=out/'Supplementary_Tables_results_order.xlsm'
+with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED) as w:
+    for info in z.infolist():w.writestr(copy.copy(info),replacement.get(info.filename,z.read(info.filename)))
+nz=zipfile.ZipFile(dest);assert nz.testzip() is None
+assert all(z.read(p)==nz.read(p) for p in z.namelist() if p not in replacement)
+report={'source_md5':hashlib.md5(source.read_bytes()).hexdigest(),'output_md5':hashlib.md5(dest.read_bytes()).hexdigest(),'changed_parts':list(replacement),'changed_text_cells':changed_cells,'unchanged_worksheet_parts':unchanged,'all_unaffected_parts_byte_identical':True,'old_to_new':mapping}
+(out/'workbook_preservation.json').write_text(json.dumps(report,indent=2))
+print('All unaffected ZIP parts byte-identical;',len(unchanged),'worksheets unchanged;',len(changed_cells),'metadata-only sheet updates')
+```

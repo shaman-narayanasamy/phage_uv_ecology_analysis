@@ -1,0 +1,41 @@
+---
+title: "Archived binning input selection"
+format: html
+execute:
+  eval: false
+---
+
+Read-only execution audit; no remote writes.
+
+```{python}
+import json,subprocess,sys
+from pathlib import Path
+out=Path(sys.argv[1]);assert not out.exists()
+remote=r'''
+import json,hashlib
+from pathlib import Path
+p=Path('/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569/binning/.snakemake/metadata')
+records=[]
+for f in p.iterdir():
+ if not f.is_file():continue
+ try:d=json.loads(f.read_text())
+ except (ValueError,UnicodeError):continue
+ if d.get('rule') in ['get_all_prokaryotic_seqs','maxbin2','metabat2','vamb','semibin','concoct']:
+  records.append({'path':str(f),'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'metadata':d})
+print(json.dumps(records))
+'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','iris-cluster','python3','-'],input=remote,text=True,capture_output=True,timeout=90)
+if r.returncode:raise RuntimeError(r.stderr)
+records=json.loads(r.stdout)
+rows=[x['metadata'] for x in records if x['metadata']['rule']=='get_all_prokaryotic_seqs']
+assert len(rows)==12
+assert all(not d.get('incomplete') and d.get('endtime') for d in rows)
+assert all(all(s in d['shellcmd'] for s in ['prokaryotes.fa','prokaryotic_viruses.fa','plasmids.fa']) for d in rows)
+out.mkdir(parents=True);(out/'evidence.json').write_text(json.dumps(records,indent=2))
+print('All 12 completed input-pooling commands concatenate prokaryotic, prokaryotic-virus and plasmid contigs.')
+seen=set()
+for row in records:
+ d=row['metadata']
+ if d['rule'] not in seen:
+  print(d['rule'],d['shellcmd']);seen.add(d['rule'])
+```

@@ -1,0 +1,68 @@
+---
+title: "Figure 5 panel B replacement preview"
+format: html
+---
+
+Review only. Preserve current figure and live manuscript. Reuse A, C and D
+from the current generator without refitting; replace B with primary-model
+group medians and interquartile ranges. Original 14 remain the shortlist.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid);library(patchwork)})
+src <- readLines("analysis/figure3_cleaning_candidates.qmd")
+start <- which(src == "```{r}")+1
+end <- grep('^dir.create\\(file.path\\(out,"figures"',src)-1
+eval(parse(text=src[start:end]))
+dir.create(out,recursive=TRUE)
+g <- fread(file.path(root,"cleaning_score_MAG_global_summary_2026-09-21-v1/global_summary.tsv"))
+g <- g[specification=="categorical_cycle" & group %in% c("up","down","ns","not_tested")]
+stopifnot(nrow(g)==8,all(g$q25<=g$median_gain),all(g$median_gain<=g$q75))
+stopifnot(all(g[,.(n=sum(MAGs)),by=phase]$n==348))
+g[,group_label:=factor(group,levels=c("not_tested","ns","down","up"),
+ labels=c("No tested biofilm genes (64)","No main-effect hit (248)","Downregulated only (22)","Upregulated (14)"))]
+g[,phase_label:=factor(phase,levels=c("initial","backflush"),labels=c("Initial","Backflush"))]
+# Up/down colours match transcriptional direction elsewhere in the manuscript.
+group_cols<-c(up="#7E57C2",down="#8FCB8A",ns="#555555",not_tested="#AAAAAA")
+Bnew<-ggplot(g,aes(median_gain,group_label,colour=group))+
+ geom_vline(xintercept=0,linetype=2,colour="grey65",linewidth=.3)+
+ geom_segment(aes(x=q25,xend=q75,yend=group_label),linewidth=1)+
+ geom_point(size=2)+facet_grid(~phase_label)+scale_colour_manual(values=group_cols)+
+ scale_x_continuous(limits=c(-.85,1.95),breaks=c(-.5,0,.5,1,1.5))+
+ labs(x=expression(Delta*hat(S)~"at 50% MAG reduction"),y=NULL)+base+
+ theme(panel.spacing.x=unit(5,"mm"),axis.text.y=element_text(size=7),
+ axis.ticks.y=element_blank(),axis.line.y=element_blank())
+draw_scene<-function(replacement=TRUE) {
+ draw<-function(p,x,y,w,h)print(p,vp=viewport(x=x,y=y,width=w,height=h),newpage=FALSE)
+ draw(A,.5,.885,.98,.18)
+ draw(if(replacement)Bnew else B,.5,.685,.98,.18)
+ draw(C,.5,.405,.98,.34);draw(D,.5,.12,.98,.20)
+ for(i in 1:4)grid.text(c("A","B","C","D")[i],x=.01,y=c(.985,.795,.585,.23)[i],just="left",gp=gpar(fontsize=9,fontface="bold"))
+ for(i in seq_along(cols)) {
+  x<-c(.72,.86)[i]
+  grid.segments(x0=x-.025,x1=x+.025,y0=.785,y1=.785,gp=gpar(col=cols[i],lwd=1))
+  grid.circle(x=x,y=.785,r=unit(.65,"mm"),gp=gpar(fill=cols[i],col=NA))
+  grid.text(c("Control","Treatment")[i],x=x+.032,y=.785,just="left",gp=gpar(fontsize=7))
+ }
+ grid.text("x",x=.055,y=.253,gp=gpar(fontsize=9))
+ grid.text("P ≤ 0.05 (unadjusted)",x=.075,y=.253,just="left",gp=gpar(fontsize=7))
+ grid.circle(x=.79,y=.267,r=unit(.7,"mm"),gp=gpar(fill="black",col="black"))
+ grid.text("Linked",x=.807,y=.267,just="left",gp=gpar(fontsize=7))
+ grid.circle(x=.79,y=.248,r=unit(.7,"mm"),gp=gpar(fill="white",col="black"))
+ grid.text("No detected link",x=.807,y=.248,just="left",gp=gpar(fontsize=7))
+}
+ggsave(file.path(out,"compact-panel.png"),Bnew,width=180,height=52,units="mm",dpi=220,device=ragg::agg_png)
+ragg::agg_png(file.path(out,"proposed-full-figure.png"),width=180,height=230,units="mm",res=220,background="white")
+grid.newpage();draw_scene(TRUE);dev.off()
+ragg::agg_png(file.path(out,"current-vs-proposed.png"),width=370,height=240,units="mm",res=180,background="white")
+grid.newpage()
+for(j in 1:2){
+ pushViewport(viewport(x=c(.25,.75)[j],y=.48,width=.486,height=.958))
+ draw_scene(j==2);popViewport()
+ grid.text(c("Current Figure 5","Proposed: replace B")[j],x=c(.25,.75)[j],y=.985,gp=gpar(fontsize=10,fontface="bold"))
+}
+dev.off()
+fwrite(g,file.path(out,"panel-values.tsv"),sep="\t")
+writeLines(c("PREVIEW ONLY: no manuscript replacement.","B: condition + categorical cycle; separate initial/backflush predictors.","Dots: medians. Bars: interquartile ranges across individual-MAG estimates, not confidence intervals.","Each MAG reduced separately by 50%; four mutually exclusive expression groups.","14 expression-selected candidates retained. A, C and D unchanged.","No models refitted; all source hashes unchanged."),file.path(out,"README.txt"))
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+cat("PASS: 8 group-phase cells, 348 MAGs per phase; source model hashes unchanged.\n")
+```

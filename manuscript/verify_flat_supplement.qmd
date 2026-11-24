@@ -1,0 +1,36 @@
+---
+title: "Verify flat supplementary workbook"
+format: html
+---
+
+```{python}
+from pathlib import Path
+import hashlib,json,math
+from openpyxl import load_workbook
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_workbook_2026-09-22-v1'
+src=out/'Supplementary_Tables.xlsx'
+index=json.loads((out/'INDEX.json').read_text())
+w=load_workbook(src,read_only=True,data_only=False)
+assert w.sheetnames==['Index']+[r['Sheet'] for r in index]+['Column definitions']
+checks=[]
+for i,entry in enumerate(index,1):
+ d=json.loads((out/f'S{i}.json').read_text());sheet=w[d['sheet']]
+ actual=sheet.iter_rows(values_only=True)
+ assert list(next(actual))==d['headers']
+ count=0
+ for expected,found in zip(d['rows'],actual,strict=True):
+  assert len(expected)==len(found)
+  for x,y in zip(expected,found):
+   if isinstance(x,(int,float)) and not isinstance(x,bool):
+    assert isinstance(y,(int,float)) and math.isclose(x,y,rel_tol=1e-14,abs_tol=0),(entry['Sheet'],count,x,y)
+   else:assert x==y,(entry['Sheet'],count,x,y)
+  count+=1
+ assert count==entry['Rows']
+ checks.append({'sheet':entry['Sheet'],'rows':count,'all_cells_match':True})
+ print(entry['Sheet'],count,flush=True)
+for p in json.loads((out/'PROVENANCE.json').read_text()):
+ assert hashlib.sha256((root/p['source']).read_bytes()).hexdigest()==p['sha256']
+(out/'CHECKS.json').write_text(json.dumps({'source_hashes_verified':True,'tables':checks,'bytes':src.stat().st_size,'sha256':hashlib.sha256(src.read_bytes()).hexdigest()},indent=2))
+print('VERIFIED')
+```

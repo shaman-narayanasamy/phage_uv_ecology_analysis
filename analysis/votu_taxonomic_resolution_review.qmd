@@ -1,0 +1,280 @@
+---
+title: "Figure 1 vOTU taxonomic-resolution review"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Review candidates only. No manuscript or accepted figure is replaced.
+Run from the code repository with:
+
+```sh
+bash scripts/run_qmd.sh analysis/votu_taxonomic_resolution_review.qmd NEW_OUTPUT_DIRECTORY
+Rscript tests/test_votu_taxonomic_resolution.R
+```
+
+The poster's Figure 3B motivates examining Caudoviricetes at class level;
+its taxon counts are not sample relative abundances. This notebook uses the
+current CoverM metagenomic read-count matrix, not the poster's exploratory
+Salmon code. Relative abundance is the fraction of reads mapped to the fixed
+634 high-quality, viral-gene-positive catalogue vOTUs, including those with
+blank taxonomy or no Cenote-Taker annotation record.
+It is not genome-copy abundance,
+length-normalised abundance, or a fraction of all metagenomic reads.
+All 12 samples, zero counts and unresolved classifications are retained.
+The earlier 607-vOTU profile is reconstructed as an audit, not carried forward
+as the primary denominator. It omitted nine blank-taxonomy vOTUs and 18 vOTUs
+without a Cenote-Taker record. All candidate ranks use the same 634-vOTU
+denominator. No differential-abundance test is performed.
+
+An additional author-requested mixed-rank candidate assigns each vOTU to its
+deepest explicitly ranked annotation (r_, k_, p_, c_, o_, f_, sf_, g_, s_).
+Ancestor labels contain only vOTUs unresolved below that ancestor, never the
+descendants already displayed elsewhere. The top 25 labels are named; all
+other assigned taxa and genuinely unclassified vOTUs remain in the denominator.
+
+```{r}
+#| label: votu-rank-review
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(scales)
+})
+
+ranks <- c("realm", "kingdom", "phylum", "class", "order", "family", "genus")
+view_ranks <- c(ranks,"mixed")
+rank_prefix <- c(realm="r_", kingdom="k_", phylum="p_", class="c_",
+                 order="o_", family="f_", subfamily="sf_", genus="g_", species="s_")
+check <- function(ok, message) if (!isTRUE(ok)) stop(message, call.=FALSE)
+
+parse_rank <- function(lineages, rank) {
+  check(rank %in% names(rank_prefix), "Unknown rank")
+  vapply(lineages, function(lineage) {
+    if (is.na(lineage) || !nzchar(trimws(lineage))) return(NA_character_)
+    parts <- trimws(strsplit(lineage, ";", fixed=TRUE)[[1]])
+    hits <- parts[startsWith(parts, rank_prefix[[rank]])]
+    check(length(hits) <= 1L, "Ambiguous repeated rank in taxonomy")
+    if (length(hits)) value <- substring(hits, nchar(rank_prefix[[rank]])+1L)
+    else if (rank == "realm" && length(parts) >= 2L &&
+             parts[[1]] == "-_Viruses" && startsWith(parts[[2]], "-_")) {
+      value <- sub("^-_", "", parts[[2]])
+    } else return(NA_character_)
+    if (!nzchar(value) || grepl("unclassified|unknown|incertae|^NA$", value, ignore.case=TRUE))
+      NA_character_ else value
+  }, character(1), USE.NAMES=FALSE)
+}
+
+aggregate_rank <- function(counts, taxa, rank, top_n=25L) {
+  check(!anyDuplicated(taxa$contig_id), "Duplicated taxonomy IDs")
+  check(!anyDuplicated(counts[, .(contig_id, sample_title)]), "Duplicated count keys")
+  check(all(is.finite(counts$reads) & counts$reads >= 0), "Invalid read counts")
+  check(setequal(counts$contig_id, taxa$contig_id), "Count/taxonomy ID mismatch")
+  x <- merge(counts, taxa[, .(contig_id, taxon=get(rank))], by="contig_id", all.x=TRUE)
+  totals <- x[, .(total=sum(reads)), by=sample_title]
+  check(all(totals$total > 0), "Zero sample denominator")
+  x <- merge(x, totals, by="sample_title")
+  full <- x[, .(reads=sum(reads), relative_abundance=sum(reads)/unique(total)),
+            by=.(sample_title, taxon)]
+  priority <- full[!is.na(taxon), .(mean_abundance=mean(relative_abundance)), by=taxon]
+  setorder(priority, -mean_abundance, taxon)
+  selected <- head(priority$taxon, top_n)
+  full[, category := fifelse(is.na(taxon), "Unresolved at this rank",
+                            fifelse(taxon %chin% selected, taxon, "Other classified taxa"))]
+  result <- full[, .(reads=sum(reads), relative_abundance=sum(relative_abundance)),
+                 by=.(sample_title, category)]
+  check(all(abs(result[, sum(relative_abundance), by=sample_title]$V1-1)<1e-12),
+        "Profile does not sum to one")
+  list(profile=result, full=full, selected=selected)
+}
+
+deepest_label <- function(lineages) {
+  labels <- rep(NA_character_,length(lineages))
+  for (rank in names(rank_prefix)) {
+    assigned <- parse_rank(lineages,rank)
+    known <- !is.na(assigned)
+    labels[known] <- paste0(rank_prefix[[rank]],assigned[known])
+  }
+  labels
+}
+
+build_review <- function(output) {
+  repo <- normalizePath(getwd(), mustWork=TRUE)
+  source(file.path(repo, "R/figure_style.R"))
+  data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+    "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"), mustWork=TRUE)
+  check(!file.exists(output), "Output exists; supply a new version directory")
+  paths <- c(
+    metadata=file.path(repo,"metadata/sample_metadata.tsv"),
+    counts=file.path(data,"quantification/mags_votu/coverage/metagenomics/coverm/output-Read_Count.tsv"),
+    taxonomy=file.path(data,"viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/cenotetaker3/output/output_virus_summary.tsv"),
+    checkv=file.path(data,"viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/checkv/quality_summary.tsv"),
+    representatives=file.path(data,"viromics/votu_clustering/cluster_summary.tsv"),
+    prior_profile=file.path(data,"derived/taxonomic_timeseries_layout_comparison/tables/votu_realm_profile.tsv"),
+    poster=file.path(dirname(data),"raw/poster_membrane_cleaning-27052025.pdf"),
+    poster_code=file.path(dirname(data),"raw/membrane_cleaning_v2/vOTU_analysis.qmd"))
+  check(all(file.exists(paths)), "Missing input")
+  metadata <- fread(paths[["metadata"]])[, .(sample_title, condition, phase, cycle, metagenome_run_accession)]
+  check(nrow(metadata)==12L && uniqueN(metadata$sample_title)==12L &&
+        uniqueN(metadata$metagenome_run_accession)==12L, "Sample map is not one-to-one")
+  check(setequal(metadata$condition,c("control","treatment")) &&
+        setequal(metadata$phase,c("initial","backflush")) &&
+        setequal(metadata$cycle,1:3) &&
+        nrow(unique(metadata[,.(condition,phase,cycle)]))==12L, "Unexpected sample design")
+  taxonomy <- fread(paths[["taxonomy"]], select=c("input_name","virus_seq_length","taxonomy_hierarchy"))
+  setnames(taxonomy,"input_name","contig_id")
+  taxonomy[, has_cenote_record := TRUE]
+  qc <- fread(paths[["checkv"]], select=c("contig_id","viral_genes","miuvig_quality"))
+  check(!anyDuplicated(qc$contig_id), "Duplicate CheckV IDs")
+  taxonomy <- merge(taxonomy,qc,by="contig_id",all.y=TRUE)
+  taxonomy[is.na(has_cenote_record),has_cenote_record:=FALSE]
+  setorder(taxonomy,contig_id,-virus_seq_length,taxonomy_hierarchy,na.last=TRUE)
+  # Reproduce the earlier deterministic representative choice; audit every duplicate.
+  duplicates <- taxonomy[duplicated(contig_id) | duplicated(contig_id,fromLast=TRUE)]
+  taxonomy <- taxonomy[,.SD[1L],by=contig_id]
+  taxonomy <- taxonomy[miuvig_quality=="High-quality" & viral_genes>0]
+  check(nrow(taxonomy)==634L, "Expected 634 high-quality viral-gene-positive vOTUs")
+  representatives <- fread(paths[["representatives"]],select="representative")$representative
+  check(all(taxonomy$contig_id %chin% representatives), "Non-representative vOTUs in quality catalogue")
+  taxonomy[, included := !is.na(taxonomy_hierarchy) & nzchar(taxonomy_hierarchy)]
+  for (rank in names(rank_prefix)) taxonomy[, (rank) := parse_rank(taxonomy_hierarchy,rank)]
+  taxonomy[, mixed := deepest_label(taxonomy_hierarchy)]
+  taxa <- taxonomy[included==TRUE]
+  check(nrow(taxa)==607L, "Expected fixed 607-vOTU comparison set")
+  wide <- fread(paths[["counts"]])
+  check(!anyDuplicated(wide$Contig), "Duplicate count-matrix contigs")
+  wide <- wide[Contig %chin% taxonomy$contig_id]
+  check(nrow(wide)==634L && setequal(wide$Contig,taxonomy$contig_id), "Missing vOTU counts")
+  columns <- setdiff(names(wide),"Contig")
+  run_ids <- sub(".*(ERR[0-9]+).*", "\\1",columns)
+  check(length(columns)==12L && !anyDuplicated(run_ids) &&
+        setequal(run_ids,metadata$metagenome_run_accession), "Run columns do not match metadata")
+  setnames(wide,c("Contig",columns),c("contig_id",run_ids))
+  counts <- melt(wide,id.vars="contig_id",variable.name="metagenome_run_accession",value.name="reads")
+  counts <- merge(counts,metadata,by="metagenome_run_accession",all.x=TRUE)
+  check(!anyNA(counts$sample_title) && all(is.finite(counts$reads) & counts$reads>=0), "Invalid mapped counts")
+  check(nrow(counts)==634L*12L, "Incomplete vOTU/sample grid")
+  missing_ids <- taxonomy[has_cenote_record==FALSE,contig_id]
+  blank_ids <- taxonomy[has_cenote_record==TRUE & included==FALSE,contig_id]
+  check(length(missing_ids)==18L && length(blank_ids)==9L,"Unexpected annotation-loss breakdown")
+  denom <- counts[,.(all_634_reads=sum(reads),
+                     excluded_27_reads=sum(reads[!contig_id %chin% taxa$contig_id]),
+                     missing_18_reads=sum(reads[contig_id %chin% missing_ids]),
+                     blank_9_reads=sum(reads[contig_id %chin% blank_ids])),by=sample_title]
+  denom[, excluded_fraction := excluded_27_reads/all_634_reads]
+  baseline_results <- aggregate_rank(counts[contig_id %chin% taxa$contig_id],taxa,"realm")
+  taxa <- taxonomy
+  results <- setNames(lapply(view_ranks,function(r) aggregate_rank(counts,taxa,r)),view_ranks)
+  # Independent original realm-profile comparison, including the original unresolved label.
+  old <- fread(paths[["prior_profile"]])
+  old[, category := fifelse(grepl("unclassified",realm,ignore.case=TRUE),"Unresolved at this rank",realm)]
+  old <- old[,.(old_reads=sum(reads),old_relative=sum(relative_abundance)),by=.(sample_title,category)]
+  joined <- merge(baseline_results$profile,old,by=c("sample_title","category"),all=TRUE)
+  check(!anyNA(joined) && all(joined$reads==joined$old_reads) &&
+        max(abs(joined$relative_abundance-joined$old_relative))<1e-12,
+        "Reconstructed realm profile differs from previous Figure 1")
+
+  dir.create(file.path(output,"figures"),recursive=TRUE)
+  dir.create(file.path(output,"tables"))
+  fwrite(taxonomy,file.path(output,"tables/catalogue_rank_assignments.tsv"),sep="\t")
+  fwrite(duplicates,file.path(output,"tables/taxonomy_duplicate_audit.tsv"),sep="\t")
+  fwrite(denom,file.path(output,"tables/denominator_sensitivity.tsv"),sep="\t")
+  fwrite(counts,file.path(output,"tables/votu_sample_counts.tsv"),sep="\t")
+  fwrite(joined,file.path(output,"tables/previous_607_reconstruction.tsv"),sep="\t")
+  summary <- list(); colour_keys <- list(); plots <- list()
+  sample_levels <- c("C1-I","C1-B","C2-I","C2-B","C3-I","C3-B")
+  for (rank in view_ranks) {
+    res <- results[[rank]]
+    profile <- merge(res$profile,metadata,by="sample_title")
+    categories <- c(res$selected, intersect(c("Other classified taxa","Unresolved at this rank"),unique(profile$category)))
+    key <- unique(taxa[!is.na(get(rank)),.(category=get(rank),realm)])
+    check(!anyDuplicated(key$category), "Taxon has conflicting parent realms")
+    key <- key[match(res$selected,category)]
+    key[, colour := "#888888"]
+    for (realm_name in unique(key$realm)) {
+      idx <- which(key$realm==realm_name)
+      base <- phage_uv_viral_realm_colours[[realm_name]]
+      check(!is.null(base), "Missing fixed realm colour")
+      # Microshades-style hierarchy: fixed parent hue, ordered within-parent shades.
+      shades <- if(length(idx)==1L) base else grDevices::colorRampPalette(c(base,"#F1ECE6"))(length(idx)+2L)[seq_along(idx)]
+      key[idx, colour := shades]
+    }
+    key <- rbind(key,data.table(category=c("Other classified taxa","Unresolved at this rank"),
+                  realm=NA_character_,colour=c("#E6E6E6","#B7B7B7")))
+    key <- key[category %chin% categories]
+    key[, rank := rank]
+    colour_keys[[rank]] <- key
+    palette <- setNames(key$colour,key$category)
+    profile[, `:=`(category=factor(category,levels=rev(categories)),
+      sample_label=factor(sprintf("C%d-%s",cycle,fifelse(phase=="initial","I","B")),levels=rev(sample_levels)),
+      condition_label=factor(fifelse(condition=="control","Control","Phage-UV"),levels=c("Control","Phage-UV")))]
+    unresolved <- profile[,.(unresolved=sum(relative_abundance[category=="Unresolved at this rank"]),
+                             other=sum(relative_abundance[category=="Other classified taxa"])),by=sample_title]
+    summary[[rank]] <- data.table(rank=rank,assigned_votus=sum(!is.na(taxa[[rank]])),
+      named_taxa=length(unique(na.omit(taxa[[rank]]))),shown_taxa=length(res$selected),
+      mean_unresolved_percent=100*mean(unresolved$unresolved),
+      min_unresolved_percent=100*min(unresolved$unresolved),max_unresolved_percent=100*max(unresolved$unresolved),
+      mean_other_percent=100*mean(unresolved$other))
+    fwrite(profile,file.path(output,paste0("tables/",rank,"_profile.tsv")),sep="\t")
+    p <- ggplot(profile,aes(x=relative_abundance,y=sample_label,fill=category))+
+      geom_col(orientation="y",width=.78,colour="white",linewidth=.09)+
+      facet_grid(.~condition_label,labeller=labeller(condition_label=function(x) paste(tools::toTitleCase(rank),x,sep=" | ")))+
+      scale_fill_manual(values=palette,breaks=categories,drop=FALSE,name=NULL)+
+      scale_x_continuous(labels=label_percent(accuracy=1),breaks=c(0,.25,.5,.75,1),expand=expansion(mult=c(0,.01)))+
+      labs(x="Relative abundance of HQ vOTU-mapped reads",y="Cycle / phase")+
+      theme_classic(base_size=10)+theme(legend.position="bottom",legend.text=element_text(size=8),
+        legend.key.height=grid::unit(3,"mm"),legend.key.width=grid::unit(4,"mm"),
+        strip.background=element_rect(fill="#F5F5F5",colour=NA),strip.text=element_text(face="bold"),
+        panel.spacing=grid::unit(10,"mm"),plot.margin=margin(8,12,8,8))+
+      guides(fill=guide_legend(ncol=3,byrow=TRUE))
+    # Force evaluation while rank is local, so stored plots retain their own strip text.
+    rank_label <- if(rank=="mixed") "Deepest assigned rank" else tools::toTitleCase(rank)
+    p$facet$params$labeller <- labeller(condition_label=setNames(paste(rank_label,c("Control","Phage-UV"),sep=" | "),c("Control","Phage-UV")))
+    plots[[rank]] <- p
+    ggsave(file.path(output,paste0("figures/",rank,"_horizontal_abundance.pdf")),p,
+           device=grDevices::pdf,useDingbats=FALSE,width=10,height=4.4+ceiling(length(categories)/3)*.19,units="in")
+  }
+  fwrite(rbindlist(summary),file.path(output,"tables/rank_resolution_summary.tsv"),sep="\t")
+  fwrite(rbindlist(colour_keys),file.path(output,"tables/taxonomy_colour_key.tsv"),sep="\t")
+  # A single review document: overview, intermediate ranks, and deepest rank.
+  grDevices::pdf(file.path(output,"figures/taxonomic_resolution_comparison.pdf"),width=14,height=11,useDingbats=FALSE)
+  print(plots$class/plots$mixed)
+  print((plots$realm + plots$kingdom)/(plots$phylum + plots$order))
+  print(plots$family)
+  print(plots$genus)
+  dev.off()
+  pdfs <- list.files(file.path(output,"figures"),pattern="[.]pdf$",full.names=TRUE)
+  check(length(pdfs)==9L && all(file.info(pdfs)$size>1000),"Missing or empty figure PDFs")
+  input_paths <- c(paths,notebook=file.path(repo,"analysis/votu_taxonomic_resolution_review.qmd"),
+                   style=file.path(repo,"R/figure_style.R"))
+  hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+  fwrite(data.table(input=names(input_paths),path=unname(input_paths),sha256=vapply(input_paths,hash,character(1))),
+         file.path(output,"input_sha256.tsv"),sep="\t")
+  writeLines(c("Review only. No manuscript replacement.",
+    "634 high-quality viral-gene-positive representative vOTUs; denominator fixed at every rank, including missing or blank annotation.",
+    "Metagenomic read proportions, not counts of vOTUs or length-normalised genome abundance.",
+    "C1-C3: cleaning cycles. I: initial. B: backflush. Grey: unresolved at the plotted rank.",
+    "No low-abundance taxa discarded. Top-25 remainder retained separately where needed.",
+    "Mixed-rank view uses the deepest available explicitly ranked assignment per vOTU, without ancestor/descendant double counting.",
+    "r_: realm; k_: kingdom; p_: phylum; c_: class; o_: order; f_: family; sf_: subfamily; g_: genus; s_: species. Unresolved in mixed view means no named rank assignment.",
+    "Colour hierarchy follows fixed project realm hues; descendants use microshades-style shades.",
+    "The poster's Figure 3B uses mixed-depth taxa, including Caudoviricetes; not a sample profile.",
+    "Nine blank-taxonomy and 18 annotation-missing HQ vOTUs are restored as unresolved; their read contributions are in denominator_sensitivity.tsv.",
+    "QC: 634 unique HQ representative IDs; 607-ID baseline reconstructed separately; 12 one-to-one samples; complete grid; finite nonnegative counts; each profile sums to one; baseline exactly matches old realm counts.",
+    capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+  output_paths <- list.files(output,recursive=TRUE,full.names=TRUE)
+  fwrite(data.table(path=substring(output_paths,nchar(output)+2L),sha256=vapply(output_paths,hash,character(1))),
+         file.path(output,"output_sha256.tsv"),sep="\t")
+  print(rbindlist(summary)); print(denom)
+}
+
+if (Sys.getenv("PHAGE_UV_REVIEW_TEST_ONLY") != "1") {
+  args <- commandArgs(trailingOnly=TRUE)
+  check(length(args)==1L,"Supply one new output directory")
+  build_review(normalizePath(args[[1]],mustWork=FALSE))
+}
+```

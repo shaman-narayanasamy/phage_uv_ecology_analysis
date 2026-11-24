@@ -1,0 +1,38 @@
+---
+title: "Publish author-preserving supplementary workbook reconciliation"
+format: html
+---
+
+```{python}
+import json,sys,urllib.request,hashlib
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+from manuscript_identity import assistant_access_token,verified_editor,guarded_urlopen
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_reference_reconciliation_2026-09-22'
+old=json.loads((root/'supplementary_live_snapshot_2026-09-22/metadata.json').read_text())
+token=assistant_access_token();editor=verified_editor(token)
+headers={'Authorization':'Bearer '+token}
+fid=old['id'];base='https://www.googleapis.com/drive/v3/files/'+fid
+def getmeta():
+    with guarded_urlopen(urllib.request.Request(base+'?fields=id,name,mimeType,modifiedTime,version,size,md5Checksum,parents',headers=headers)) as r:return json.load(r),r.headers.get('ETag')
+current,etag=getmeta()
+assert current['md5Checksum']==old['md5Checksum'] and current['modifiedTime']==old['modifiedTime'],'Live workbook content changed; abort instead of overwriting edits'
+body=(out/'Supplementary_Tables_reconciled.xlsm').read_bytes()
+check=json.loads((out/'preservation_check.json').read_text());assert hashlib.md5(body).hexdigest()==check['output_md5']
+assert check['all_preserved_byte_identical']
+backup={'name':current['name'].rsplit('.',1)[0]+'__before_reference_reconciliation.xlsm','parents':current.get('parents',[])}
+req=urllib.request.Request(base+'/copy?fields=id,name,md5Checksum',headers={**headers,'Content-Type':'application/json'},data=json.dumps(backup).encode(),method='POST')
+with guarded_urlopen(req) as r:saved=json.load(r)
+assert saved['md5Checksum']==old['md5Checksum']
+(out/'drive_backup_receipt.json').write_text(json.dumps(saved,indent=2))
+again,etag=getmeta();assert again['md5Checksum']==old['md5Checksum'] and again['modifiedTime']==old['modifiedTime']
+h={**headers,'Content-Type':current['mimeType']}
+if etag:h['If-Match']=etag
+req=urllib.request.Request('https://www.googleapis.com/upload/drive/v3/files/'+fid+'?uploadType=media&fields=id,name,mimeType,version,md5Checksum,size',headers=h,data=body,method='PATCH')
+with guarded_urlopen(req,timeout=240) as r:posted=json.load(r)
+assert posted['md5Checksum']==check['output_md5']
+live,_=getmeta();assert live['md5Checksum']==check['output_md5'] and int(live['size'])==len(body)
+(out/'drive_upload_receipt.json').write_text(json.dumps({'editor':editor,'pre_upload':again,'backup':saved,'uploaded':posted,'verified':live},indent=2))
+print('Live workbook updated and checksum verified. Preserved original ID:',fid)
+```

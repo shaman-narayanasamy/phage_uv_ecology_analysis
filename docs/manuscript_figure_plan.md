@@ -1,5 +1,93 @@
 # Manuscript figure plan
 
+## Current live review update, 2026-09-15 afternoon
+
+This supersedes the historical allocations below. The v3 Doc now contains author-written Abstract and Introduction, not figures only. Preserve concurrent edits.
+
+- Figure 1: A-D community context, full-width radial host network. Source `analysis/figure1_fullwidth_network.qmd`; data output `figure1_fullwidth_network_2026-09-15-v3`. Former abundance trajectories are a separate supplementary candidate, not E-J in the current main figure.
+- Figure 2: functional v8, `figure2_functional_2026-09-15-v8`.
+- Figure 3: cleaning candidates v4, `figure3_cleaning_candidates_2026-09-15-v4`.
+- Figure 4: population genomics v2, `figure4_population_2026-09-15-v2`, five MAGs and 139 pairs, not the historical recurrent-gene figure.
+- S1 remains reserved for experimental design/workflow.
+
+All four images are present in the accepted-suggestions preview of the live v3 Doc, verified in data `figures_v3_author_review_2026-09-15/figures1234_verified/`. Replacements/additions are Codex Assistant suggestions, not accepted on the author's behalf. The original Figure1 carried an author deletion suggestion: the new Figure1 is inserted independently before its caption so accepting that deletion does not remove the new artwork. Figure1 is fitted proportionally to 22.5cm height for the review page; full-resolution vector original remains in the data output.
+
+Standing author rule: consolidate caveats in one Limitations section. Do not repeat defensive disclaimers in Results, captions, Abstract or Discussion. Keep Methods reproducible and claims accurate without repeatedly rebutting claims the author has not made. A dedicated Limitations draft is now suggested in the live Doc. Figures and captions remain review drafts; no claims of final journal layout or completed Zotero fields.
+
+## Current review allocation, 2026-09-15
+
+Figure1: community context plus selected abundance trajectories (print v4).
+Figure2: biofilm/SOS expression and concentration (functional v6).
+Figure3: phenotype components, locked cleaning score, MAG models and candidate
+phage-link context (cleaning candidates v3). This renumbers the earlier proposed
+Figure4; the older allocation below is historical. Figure3 is a review candidate.
+S1 remains experimental design/workflow. New v3 Google Doc is figures and captions
+ONLY, separately from existing manuscript; user explicitly authorized its creation.
+Treatment/Control labels throughout, per terminology decision. No model refits.
+
+Print-readability trial, 2026-09-15: `figure1_print_proof_2026-09-15-v3` is a
+nominal180x250mm six-panel candidate with7pt text and selective main tree/network
+labels. All nodes, edges and observations remain. Full taxonomic key moves to S3
+candidate; full labels remain in frozen source figures/tables. No approval implied.
+S1 is still reserved for design/workflow; S2 remains the full test overview.
+
+## Current expansion, author-directed 2026-09-14
+
+- Figure1 candidate A-D uses the frozen shared-taxonomy vector artwork unchanged;
+  E adds two MAG trajectories and F adds four vOTU trajectories (all features
+  passing archived main-condition OR joint-interaction BH q<0.05). No refits.
+- Candidate package: `derived/figure1_expanded_2026-09-14-v2/`.
+  Builder: `analysis/figure1_expanded_response.qmd`. Final layout awaits review.
+- Supplementary Figure1 is RESERVED for experimental design AND workflow.
+- Supplementary Figure2: full community differential-abundance overview, with
+  complete archived result tables. This supersedes older numbering proposals.
+- Standalone community-response Figure2 is absorbed into this allocation.
+  Next main figure is biofilm/SOS context; remaining renumbering awaits review.
+- Frozen four-panel baseline remains intact. No Google Doc edits made.
+
+Figure 1 frozen by author on 2026-09-14: data package
+`derived/figure1_shared_taxonomy_2026-09-14-v3/`. A-D layout and unified mixed-rank
+taxonomy encoding accepted. Do not revise without author direction; earlier
+provisional Figure1 wording below is superseded. Google Doc not changed.
+
+## Author-approved reorganization, 2026-09-14
+
+This allocation supersedes the older allocation text below; existing outputs
+and live manuscript have NOT yet been replaced or renumbered.
+
+- Figure 1: community context. Preserve the approved circular MAG heat tree/QC
+  rings, original non-circular phage heat tree, and prokaryotic stacked relative
+  abundance panel. ADD a compact community-wide phage-host link network panel.
+  Current tree/layout source is analysis/figure1_community_preview.qmd, not the
+  older scripts/build_community_figure_one.qmd. Use existing verified exact-ID
+  CRISPR/SpacePHARER edges, not genus-inferred or therapeutic interaction claims.
+  Keep the complete network audit and quality detail supplementary. Do not
+  replace the community network with the seven shortlisted candidate links.
+  Provisional four-panel allocation A MAG tree, B phage tree, C prokaryotic
+  stacks, D host-link network; lettering/layout can change after preview.
+- Figure 2: PROVISIONAL, author unconvinced but authorized a visual trial.
+  Community response across repeated cleaning: microbial/phage trajectories
+  and differential abundance, distinguishing condition and cycle effects.
+  Avoid repeating Figure 1 composition bars or filling space with ordinations.
+  Evaluate its narrative value from the preview before locking allocation.
+- Figure 3: biofilm/SOS responses in MAG context, including up/down contributors
+  and concentration evidence. Combined3905 is the sole active biofilm list.
+- Figure 4: cleaning readouts and standardized composite, condition-adjusted
+  versus cycle-adjusted associations, and ecological candidate shortlist.
+  End at iterative treatment optimization; isolation/validation is future work.
+  Retain negative model slopes as suppression-direction evidence, uncertainty
+  and raw/adjusted p-values. No BH-significant associations claimed.
+- Supplement: complete models/gene provenance, full host network evidence audit,
+  separate genomic heterogeneity dataset, additional composition/ordination/16S
+  detail. Workflow subway diagram placement remains provisional.
+
+Preserve all current figure versions. No live Google Doc edits authorized by
+this allocation decision. Main Figure 1 moves a network view out of the purely
+supplementary allocation, not all network QC panels. Captions must call edges
+predicted CRISPR-based host associations rather than demonstrated infections.
+
+## Historical allocation and delivery records
+
 Status: author-directed allocation revised on 2026-09-01. Figure 1 describes
 the microbial and phage communities. Supplementary Figure S8 contains the
 host-phage evidence audit and S9 contains detailed community-abundance tests.

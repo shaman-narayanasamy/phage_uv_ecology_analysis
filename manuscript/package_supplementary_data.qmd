@@ -1,0 +1,137 @@
+---
+title: "Source-traceable supplementary data review package"
+format: html
+---
+
+Packages explicit active analysis sources without changing values, assigning final
+table numbers, or reviving quarantined reports. This is a review package.
+
+```{python}
+from pathlib import Path
+import csv,hashlib,json,sys,zipfile,io
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False)
+groups={}
+def add(group,folder,names):
+    for name in names:
+        p=root/folder/name
+        assert p.is_file(),str(p)
+        groups.setdefault(group,[]).append(p)
+def all_tsv(group,folder):
+    files=sorted((root/folder).glob('*.tsv'))
+    assert files,folder
+    add(group,folder,[p.name for p in files])
+add('concordance','community_cross_omics_permutation_2026-09-16-v3/tables',
+    ['bray_curtis_matrix_permutation_tests.tsv','permutation_null_summary.tsv'])
+all_tsv('community','community_cycle_models_catalogue_aligned_2026-09-16-v1/tables')
+add('community','votu_taxonomic_resolution_review_2026-09-13-v4/tables',['catalogue_rank_assignments.tsv'])
+add('community','supplementary_votu_realm_bars_2026-09-22-v2',['plotted_values.tsv','CAPTION.txt'])
+v1='16s_analysis/09_return_package'
+add('16S_v1',v1,['16s_asv_counts_unrarefied.tsv','16s_asv_taxonomy_silva138.2.tsv',
+    '16s_asv_representative_sequences.fasta','16s_alpha_diversity.tsv','16s_beta_ordination_coordinates.tsv',
+    '16s_beta_permanova.tsv','16s_dada2_parameters.tsv','16s_family_profile_long.tsv',
+    '16s_phase_structure_check.tsv','16s_read_retention.tsv','16s_sample_data.tsv',
+    '16s_software_provenance.tsv','16s_taxonomy_concordance.tsv'])
+v1md5={r['file']:r['md5'] for r in csv.DictReader((root/v1/'16s_return_package_manifest.tsv').open(),delimiter='\t')}
+for p in groups['16S_v1']: assert hashlib.md5(p.read_bytes()).hexdigest()==v1md5[p.name],p
+add('transcriptome','full_transcriptome_de/tables',[
+    'de_condition_adjusted.tsv','de_condition_cycle_interaction_coefficients.tsv',
+    'de_condition_cycle_interaction_omnibus.tsv','analysis_parameters.tsv','filtering_summary.tsv',
+    'library_sizes_and_normalization.tsv','model_fit_diagnostics.tsv','predeclared_models.tsv',
+    'deterministic_result_summary.tsv','software_versions.tsv','design_matrix_main.tsv','design_matrix_condition_cycle.tsv'])
+add('biofilm_SOS','biofilm_sos_supplementary_table_2026-09-13-v1',['supplementary_biofilm_SOS_gene_evidence.tsv'])
+add('biofilm_SOS','mag_concentration_dependence_combined_2026-09-13-v1/tables',[
+    'dependence_results.tsv','matching_strata.tsv','blocks_10kb.tsv','blocks_50kb.tsv','blocks_contig.tsv','gene_block_assignments.tsv.gz'])
+add('biofilm_SOS','figure4_functional_notation_2026-09-20-v4/tables',['all_MAG_contributors.tsv'])
+all_tsv('population_genomics','figure6_population_heterogeneity_2026-09-20-v1/tables')
+all_tsv('population_genomics','instrain_denominator_audit_2026-09-09')
+add('cleaning_models','cleaning_performance_score_2026-09-14-v1',['frozen_reference.tsv','release_components.tsv','scores.tsv'])
+all_tsv('cleaning_models','cleaning_score_MAG_models_2026-09-14-v1/tables')
+add('cleaning_models','cleaning_score_condition_models_2026-09-14-v1',[
+    'all_specifications.tsv','DNA_suppression_scenarios.tsv','leave_cycle_out.tsv','model_observations.tsv','models.tsv'])
+add('cleaning_models','figure7_candidate_suppression_2026-09-15-v3/tables',[
+    '50_percent_intervals.tsv','all_168_model_results.tsv','all14_candidate_ranking.tsv',
+    'observed_fitted_example.tsv','plotted_suppression_scenarios.tsv','table1_candidate_prioritization.tsv'])
+add('all_MAG_context','cleaning_score_all_MAG_models_2026-09-21-v1/tables',[
+    'MAG_expression_evidence.tsv','models_annotated.tsv','50_percent_reduction_annotated.tsv',
+    'original_84_fit_reconciliation.tsv','leave_cycle_out.tsv','model_observations.tsv'])
+add('all_MAG_context','cleaning_score_MAG_group_comparison_2026-09-21-v1/tables',[
+    'MAG_group_membership.tsv','individual_MAG_group_summary.tsv','individual_MAG_50_percent_by_group.tsv'])
+add('mapping_provenance','mapping_recovery_review_2026-09-22-v1',[
+    'coassembly_mapping_records.json','mapping-recovery-review.md'])
+add('biofilm_SOS','biofilm_combined_definition_2026-09-13-v1',[
+    'combined_gene_membership.tsv','overlap_counts.tsv','input_sha256.tsv'])
+add('biofilm_SOS','supplementary_evidence_completion_2026-09-22-v2',[
+    'biofilm_keyword_provenance.json','biofilm_keyword_provenance.md','source_sha256.json','CHECKS.json'])
+add('functional_recurrence','full_de_interpretation/tables',[
+    'functional_category_effect_summary.tsv','functional_category_enrichment.tsv',
+    'functional_category_six_cell_effects.tsv','gene_six_cell_recurrence.tsv.gz',
+    'mag_coherence.tsv','mag_six_cell_effects.tsv','tested_feature_category_membership.tsv',
+    'annotation_and_membership_audit.tsv'])
+add('functional_recurrence','full_de_interpretation',[
+    'input_provenance.tsv','software_versions.tsv','INTERPRETATION_BOUNDARY.txt'])
+add('functional_recurrence','recurrence_figure_publication_2026-09-09-v2/tables',[
+    'recurrence_direction_concordance.tsv','recurrent_gene_heatmap_selection.tsv',
+    'recurrence_selection_funnel.tsv','recurrent_gene_heatmap_cells.tsv','publication_input_provenance.tsv'])
+add('software','supplementary_software_parameters_2026-09-21-v1',[
+    'software_parameters.md','evidence.json'])
+add('software','full_transcriptome_de/tables',['software_versions.tsv'])
+add('software','full_de_interpretation',['software_versions.tsv'])
+add('software',v1,['16s_software_provenance.tsv','16s_dada2_parameters.tsv'])
+add('host_phage','figure1_shared_taxonomy_2026-09-14-v3/tables',[
+    'plotted_network_edges.tsv','viral_node_quality.tsv'])
+add('host_phage','supplementary_evidence_completion_2026-09-22-v2',[
+    'host_phage_catalogue_reconciliation.json','README.md','CHECKS.json','source_sha256.json'])
+
+descriptions={
+ 'concordance':'Table S1 sources. Three assay-pair correlations; global and constrained permutation tests; separate BH families. The 66 pairwise distances arise from 12 samples.',
+ 'community':'Current MAG/vOTU count matrices, eligibility, complete abundance tests and diagnostics. 634 eligible vOTUs; 578 passed expression-count filtering. Composition includes all 634. Gene expression is a different analysis.',
+ '16S_v1':'Author-retained accepted v1 counts, taxonomy, community analyses and executed settings. No v2-only feature-level models or earlier-cohort comparison. Original sample labels are preserved.',
+ 'transcriptome':'Complete-universe edgeR results and model provenance. Functional lists are interpreted after these global tests. Main condition, coefficient-specific interactions and omnibus interaction are separate endpoints.',
+ 'biofilm_SOS':'Combined biofilm and separate SOS gene membership, MAG assignments and dependence-aware concentration tests. The display label Other MAGs in the contributor table is a plotting aggregation, not a taxonomic identity; use MAG_ID and genus.',
+ 'population_genomics':'Source panels and reference-denominator audit for the current five-MAG, 139-qualified-comparison display. Unavailable comparisons are not zero differences.',
+ 'cleaning_models':'Fixed cleaning-index inputs; condition-only, categorical-cycle and linear-cycle models; all 14 candidates, scenarios and coefficient intervals. Scenario effects are cleaning-score units, not percent biofilm removal. Duplicate views are retained with source paths, not pooled.',
+ 'all_MAG_context':'All-MAG single-predictor estimates and their summaries by expression category. Group IQRs summarize individual estimates; they are not confidence intervals. Joint multi-group interventions are not included.',
+ 'mapping_provenance':'Coassembly flagstat-derived alignment-record fractions. These include secondary records and are not primary-read or MAG/vOTU-catalogue recovery rates.',
+ 'functional_recurrence':'Eight prespecified stress categories interpreted after full-transcriptome DE, plus all-gene descriptive six-cell recurrence and plotted selections. Recurrence is descriptive, not an additional hypothesis test. Combined biofilm results are in biofilm_SOS, not replaced by these categories.',
+ 'software':'Evidence-linked upstream inventory plus executed downstream and retained 16S v1 software records. Upstream table explicitly lists remaining unverified versions/categories. Current installed versions are not substituted for historical execution versions.',
+ 'host_phage':'All 86 frozen network links (80 MAGs, 85 viral contigs), original scores, quality records and current taxonomy/abundance scope. All 85 assignments agree with archived cluster membership. Neither their representatives nor other members of those clusters overlap the 634-vOTU abundance universe. Network and abundance analyses therefore retain explicitly different scopes. No new clustering or host prediction was performed.'}
+
+manifest=[]; schema=[]
+for group,paths in groups.items():
+ for p in paths:
+    rel=p.relative_to(root)
+    dest=str(Path(group)/rel)
+    blob=p.read_bytes()
+    entry=dict(group=group,archive_path=dest,source_derived_relative=str(rel),bytes=len(blob),sha256=hashlib.sha256(blob).hexdigest())
+    manifest.append(entry)
+    if p.suffix=='.tsv':
+      with p.open() as f:
+        rd=csv.reader(f,delimiter='\t'); columns=next(rd); count=sum(1 for _ in rd)
+      schema.append(dict(archive_path=dest,rows=count,columns=columns))
+assert len({r['archive_path'] for r in manifest})==len(manifest)
+readme='''# Supplementary source data: author review
+
+Not submission-ready: final numbering, full column definitions, remaining software-version provenance and journal-sized file allocation are still pending. Exact combined biofilm keyword provenance, full functional/recurrence sources, software records and archived-cluster reconciliation of host-linked viral contigs are included.
+
+16S v1 is retained. No v2-only results, earlier-cohort comparisons, subset-first differential expression or obsolete viral abundance analyses are included. Values are copied without reformatting or recomputation. Group names are descriptive, not final supplementary numbers.
+
+MANIFEST.json links each archive member to its exact derived source and SHA256. COLUMN_INDEX.json lists original columns and row counts; this is a schema index, not a completed data dictionary. Group READMEs give interpretation boundaries. Missing values remain missing. Do not infer zero from NA. P-value columns remain exactly as produced; consult the source models for the correction family.
+'''
+zpath=out/'supplementary-source-data-review.zip'
+with zipfile.ZipFile(zpath,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
+ z.writestr('README.md',readme)
+ z.writestr('MANIFEST.json',json.dumps(manifest,indent=2))
+ z.writestr('COLUMN_INDEX.json',json.dumps(schema,indent=2))
+ for group,desc in descriptions.items(): z.writestr(group+'/README.md','# '+group+'\n\n'+desc+'\n')
+ for r in manifest: z.write(root/r['source_derived_relative'],r['archive_path'])
+with zipfile.ZipFile(zpath) as z:
+ assert z.testzip() is None
+ for r in manifest: assert hashlib.sha256(z.read(r['archive_path'])).hexdigest()==r['sha256']
+(out/'MANIFEST.json').write_text(json.dumps(manifest,indent=2))
+(out/'COLUMN_INDEX.json').write_text(json.dumps(schema,indent=2))
+(out/'README.md').write_text(readme+'\n## Groups\n\n'+'\n'.join('- **'+k+'**: '+v for k,v in descriptions.items()))
+(out/'CHECKS.json').write_text(json.dumps(dict(source_files=len(manifest),groups=len(groups),all_zip_members_verified=True,
+ zip_bytes=zpath.stat().st_size,zip_sha256=hashlib.sha256(zpath.read_bytes()).hexdigest(),status='AUTHOR_REVIEW_PARTIAL_NOT_SUBMISSION'),indent=2))
+print(zpath); print(len(manifest),'source files;',zpath.stat().st_size,'bytes; every archive member hash verified')
+```

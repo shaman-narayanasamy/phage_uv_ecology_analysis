@@ -1,5 +1,301 @@
 # Codex context: PRJEB79569 phage-UV ecology
 
+ZOTERO FINAL 2026-09-16: all43 Methods references verified present (auditv6).
+MinCED2ERHVA7J is in manuscript collectionNMULZ6FZ; user completed pending import.
+No live Google Docs citation insertion performed; security block still applies.
+Older41/43 and42/43 checkpoints below are superseded.
+
+VOTU REFIT 2026-09-16: read notes/handoff-2026-09-16-votu-catalogue-refit.md.
+Catalogue-aligned models complete and validated:634 eligible/578 retained,
+0 main treatment hits, same4 joint cycle-interaction hits. All18 formerly
+Cenote-missing representatives pass filtering. MAG results reproduce unchanged.
+New outputs:derived/community_cycle_models_catalogue_aligned_2026-09-16-v1/.
+Local Methods updated; figures/captions/Results reconciliation explicitly
+DEFERRED by user. Archived run untouched. Google Doc block still applies.
+
+COMPACTION CHECKPOINT 2026-09-16: read
+notes/handoff-2026-09-16-complete-methods-and-zotero.md FIRST.
+Full Methods local draft complete; 41/43 cited references matched in Zotero,
+BWA-MEM and MinCED imports pending. Live Methods insertion NOT done; browser
+security-policy block must not be bypassed. Do not change screen-lock settings.
+Canonical code checkout is /Users/shaman.narayanasamy/Work/repositories/phage_uv_ecology_analysis;
+data/figures remain under /Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569.
+Older figure numbering/status entries below are historical: consult latest
+figure7-table1 and figures-only-google-doc-v3 handoffs before any live change.
+Preserve the dirty worktree and author edits. No commit/push in this checkpoint.
+
+COMMUNITY CROSS-OMICS 2026-09-15: completed matched12/348MAG/2700ASV descriptive
+comparison. Read notes/handoff-2026-09-15-community-cross-omics.md first for this
+topic. New companion figure/data: derived/community_cross_omics_figure_2026-09-15-v3/.
+Source analysis/community_cross_omics_figure.qmd; full all348 table retained.
+Local Results/Methods/captions/Limitations: manuscript/community_results_2026-09-15.md.
+Author explicitly wants limitations in that section, not scattered in Results.
+Latest local prose/figure NOT uploaded after browser policy blocked live access.
+Earlier live community suggestions exist. Preserve author edits and frozen figures.
+
+FIGURE3 REVIEW 2026-09-15: derived/figure3_cleaning_candidates_2026-09-15-v3/.
+Current A phenotype fractions/lag, B locked composite, C all14MAG associations
+and aligned existing phage links, D Azonexus suppression illustration. No refits.
+Read notes/handoff-2026-09-15-figure3-cleaning-review.md. User authorized a NEW
+v3 figures-only Google Doc (figures/captions, not manuscript prose); preserve old
+manuscript and edits. Separate upload handoff records external completion.
+
+AUTHOR TERMINOLOGY 2026-09-15: use Treatment/Control throughout manuscript and
+figure labels, not Phage-UV. Directions: up/down in treatment. Define the combined
+intervention in Methods; preserve raw IDs and legacy inputs. Canonical decision:
+notes/decision-2026-09-15-treatment-terminology.md. Current wording-only previews:
+Figure1 derived/figure1_print_proof_2026-09-15-v4/ and Figure2
+derived/figure2_functional_2026-09-15-v6/. D uses C_obs/E_0[C], explanation in caption.
+No live Google Doc edits. Earlier versions below are historical snapshots.
+
+NEXT FUNCTIONAL FIGURE REVIEW: derived/figure2_functional_2026-09-15-v2/.
+Source analysis/figure2_functional_print_proof.qmd, nominal180x240mm. A gene-level
+condition effects (active3905biofilm/523SOS); B all14up-biofilm MAGs; C all11SOS
+hit MAGs; D whole-contig concentration FDR_all_planned. No refits/subset DE.
+148down-biofilm genes remain in A and complete contributor table, not shown as
+one dominating aggregate bar. Candidate only; no Google Doc edit; S1 reserved.
+
+PRINT-SIZE REVIEW 2026-09-15: derived/figure1_print_proof_2026-09-15-v3/.
+Author requested actual-size readability trial after oversized expanded figure.
+New source analysis/figure1_print_proof.qmd, nominal180x250mm,7pt text/9pt tags.
+All nodes/edges and six trajectories retained; only main text density reduced.
+Full shared taxonomy key is S3 candidate. S1 design/workflow; S2 test overview.
+Frozen earlier figures unchanged. This print proof is not author-approved yet.
+
+LATEST EXPANDED FIGURE1 CANDIDATE: derived/figure1_expanded_2026-09-14-v2/.
+User approved adding selected trajectories: E two MAGs; F four vOTUs. A-D frozen
+vector artwork embedded unchanged. Source analysis/figure1_expanded_response.qmd.
+S1 RESERVED experimental design/workflow. Full community test overview is S2.
+Old standalone community-response F2 allocation superseded. Preview not yet frozen.
+
+FIGURE1 AUTHOR-FROZEN: derived/figure1_shared_taxonomy_2026-09-14-v3/.
+Author approved and requested freeze on 2026-09-14. Do not overwrite/rebuild this
+directory or change its encodings/layout without a new author request. Source
+snapshot and output_sha256.tsv are the frozen reproducibility record.
+Author requires identical taxonomic colours across MAG tree, bars, network.
+PHAGE_UV_SHARED_TAXONOMY=1 activates deepest-reported assignments, top25 plus
+within-phylum remainders. All348 MAG tips and80 network hosts share bar-category
+colours; individual MAGs remain separate. Internal mixed clades retain phylum hue.
+Shared taxonomy legend replaces separate family/host-phylum legends.
+Read tables/MAG_colour_alignment.tsv and caption. Next: Figure2 review.
+
+FIGURE1 ASSEMBLED REVIEW: data derived/figure1_assembled_2026-09-14-v1/.
+Four accepted panels including labelled/quality-coloured circular host network;
+unified A-D legend and source records. Large review canvas, not final journal sizing.
+Source analysis/figure1_community_preview.qmd network-quality; Google Doc unchanged.
+
+FIGURE ALLOCATION UPDATE: docs/manuscript_figure_plan.md,2026-09-14 amendment.
+Figure1 adds community-wide host-link network to approved trees/prokaryotic bars.
+Figure2 community-response draft is provisional, not author-approved final content.
+Figures3functional MAG context,4composite/models/shortlist. Preserve versions.
+
+LATEST SOS/GENOMICS: notes/handoff-2026-09-14-SOS-heterogeneity-models.md.
+Separate models on unchanged composite:78SOS fits for13biofilm candidates;
+8heterogeneity fits for2eligible MAG-phase pairs in a DIFFERENT MAG set.
+No BH hits. Genomic layer unavailable in existing qualified set for14candidates.
+
+AUTHOR-APPROVED STORY: notes/handoff-2026-09-14-candidate-evidence-story.md.
+Biofilm DE -> MAG attribution -> condition/cycle-adjusted composite associations
+-> existing exact-ID phage links -> exploratory candidates. Report nulls honestly.
+
+LATEST SENSITIVITY: notes/handoff-2026-09-14-condition-only-composite-models.md.
+Author requested score~condition+predictor;56 fits,3 residual df,unchanged score.
+20 raw p<.05, no BH56<.05; minimum BH=.09947. Does not replace cycle-adjusted fits.
+
+LATEST MODEL RESULTS: `notes/handoff-2026-09-14-composite-MAG-models.md`.
+112 six-row fits (56 categorical-cycle primary, 56 linear-cycle sensitivity),
+DNA and RNA predictors in separate phase views. No BH-significant associations.
+Canonical new model code: analysis/cleaning_score_MAG_models.qmd.
+
+SCORE CONSTRUCTION: standardized score implemented and validated; read
+`notes/handoff-2026-09-14-standardized-score-results.md`. Six scores saved;
+MAG models now completed as above. Canonical code: analysis/cleaning_performance_score.qmd.
+
+COMPACTION RESTART: `notes/handoff-2026-09-14-model-quarantine-and-resume.md`.
+Old phenotype model definitions/benefit rankings are historical, not active-score
+results. Code and outputs preserved. Combined3905 DE/contributors remain active.
+
+AUTHOR-APPROVED PRIMARY ENDPOINT (2026-09-14): read
+`notes/handoff-2026-09-14-cleaning-performance-score.md` FIRST.
+Score = 0.5*z(P) + 0.5*z(L), where P is the mean of the three
+R = Initial/(Initial + Backflush) ratios and L is exact reported TMP lag days.
+Use shared six-row means and sample SDs; freeze these for scenarios. NOT 0–100.
+The proposed 30-day denominator and former bounded score are superseded.
+Units/source audit: notes/cleaning-score-source-audit-2026-09-14.md.
+One score per membrane-cycle. Exploratory proof of concept to inform experiments,
+not a measured percentage of biofilm removed. Supersedes earlier "no composite"
+and Backflush-only benefit interpretations. Prior outputs are NOT new-score fits.
+
+HISTORICAL 2026-09-14: whole-MAG DNA abundance models and opposite-direction
+detachment sensitivity completed. Read `notes/detachment-model-decision-2026-09-14.md`.
+Less recovered EPS is NOT demonstrated lower attached biofilm. This former
+increased-release hypothesis is superseded. Historical output v2; v1 incomplete.
+All phenotype/RNA scenario entries below are historical, not current directions.
+
+Historical implementation:biofilm-burden proxy sensitivity,2310scenarios
+and all14candidate heatmap. `notes/handoff-2026-09-14-burden-proxy-sensitivity.md`.
+Author-approved proof-of-concept: interpret released components using explicit
+detachment observation model; no contact with original authors. The former
+no-composite restriction is superseded by the approved score above.
+
+Latest:author-approved graded suppression model completed. See
+`notes/handoff-2026-09-14-MAG-suppression.md` and `analysis/biofilm_MAG_suppression.qmd`.
+14MAGs,0-95%suppression,transcript-pool accounting and separate conditional
+phenotype scenarios. JAKLIU01 illustration50%suppression=>-32%released
+polysaccharides,-51%released protein (HC3 envelopes crosszero). No attached-biofilm
+or phage-efficacy validation claimed; no manuscript edits.
+
+Latest completed work:42 exploratory phenotype association models; results in
+`notes/handoff-2026-09-14-phenotype-association-results.md`. NoneFDR<0.05.
+Best nominal link JAKLIU01-polysaccharides p0.0048,FDR0.20. This is separate
+from robust biofilm gene concentration. Model assumptions/source alignment remain
+explicit. No phage-efficacy inference, no author contact or manuscript edits.
+
+Latest task: separate phenotype models (cells,EPS protein,EPS polysaccharides)
+versus MAG biofilm transcription. Source audit/model boundaries:
+`notes/handoff-2026-09-13-biofilm-phenotype-models.md`. Raw Figure2 measurement
+workbook not yet located; no models fitted. Local supplementary XLSX is omics,
+TMP Google Sheet contents unverified. Need true sample/phase/cycle alignment.
+
+ACTIVE DEFINITION AND QUARANTINE supersede earlier entries:
+`notes/biofilm-sos-active-definition-2026-09-13.md`. Only biofilm_combined3905
+and SOS_response active. Alternative-list concentration outputs are provenance
+only, not manuscript evidence. Membership provenance is a supplementary-table
+deliverable; active reruns use the explicit `combined` argument.
+
+AUTHOR DECISION: use combined historical annotation keywords + current category
+matches,3905 genes. See `notes/biofilm-combined-provenance-2026-09-13.md` and
+`analysis/biofilm_combined_definition.qmd`. The agent3489 union was annotation
+regex screening, NOT a separately curated biofilm gene database. Combined-set
+tests must be rerun; old3489 p-values do not transfer. Manuscript unchanged.
+
+Current follow-up: author requested dependence sensitivity for concentration
+tests. See `notes/handoff-2026-09-13-dependence-sensitivity.md` and
+`analysis/mag_concentration_dependence.qmd`: 10kb/50kb/whole-contig collapse,
+matched block randomisation, BH across48. This does not clear upstream negative-F
+diagnostics or establish between-contig independence. No manuscript changes.
+
+Latest author request: test whether biofilm-associated DE hits are unusually
+concentrated in particular MAGs; perform the same attribution/enrichment exercise
+for SOS (other repair categories kept distinct). Durable execution plan:
+`notes/handoff-2026-09-13-mag-functional-concentration.md`. First-pass execution
+now in `analysis/mag_functional_concentration.qmd`; continuation status in
+`notes/handoff-2026-09-13-mag-concentration-execution.md`. Do not confuse
+gene-wise exploratory null tests with completed dependence validation.
+Use denominator/detectability-aware nulls, distinguish global concentration from
+within-MAG functional specificity, and address correlated neighbouring genes.
+Do not treat a naive bootstrap as a valid treatment test or replace the historical
+keyword definition with the expanded set. No live manuscript changes.
+
+Susana 16S model addendum is pushed on her documentation branch at `509fe16`:
+`notes/handoff-2026-09-13-susana-16s-models-pointer.md`. No 16S processing launched.
+MAG/vOTU additive plus cycle-interaction models are now in
+`analysis/community_cycle_models.qmd`, with versioned data under
+`derived/community_cycle_models_2026-09-13-v1/`. See
+`notes/handoff-2026-09-13-community-cycle-models.md` for results and validation.
+No accepted community outputs or manuscript edits. Next: inspect supported-feature
+trajectories, taxonomy and influence diagnostics before making figure candidates.
+
+Current biofilm restoration: `notes/biofilm-review-2026-09-13.md` is the review
+handoff for comment AAACG7oxq7o. Canonical notebook:
+`analysis/biofilm_full_transcriptome_review.qmd`; outputs in
+`derived/biofilm_full_transcriptome_review_2026-09-13-v4/`. Full-universe post-model
+analysis, 3489 matched genes, 164 condition-associated and 13 joint-interaction
+features. Two local previews and draft legends/Results; no live manuscript edits.
+Gene-set findings are correlation-sensitive. Upstream negative interaction F
+statistics remain a publication QC gate; see preserved audit, not assumed rounding.
+V1 is quarantined for a corrected result-column binding error. Keep Figures 1/2 fixed.
+
+Figure 2 gap diagnostic: `notes/figure2-gap-diagnosis-2026-09-13.md` and
+`derived/figure2_gap_diagnostics_2026-09-13-v2/`. Monochrome and matched-opacity
+comparisons support a display-induced apparent gap; the transition contains
+many non-significant genes. Diagnostic only, no manuscript replacement.
+
+Latest Figure 2 candidate: `derived/figure2_transcriptome_preview_2026-09-13-v4-transparent-gray/`.
+Author requested transparent grey points: opacity 0.15 -> 0.02 only; v3 preserved.
+Author authorized retaining A and rebuilding B. Frozen MDS unchanged; B displays
+all 361907 tested genes, with explicit FDR-only directional counts and grey key.
+See `notes/handoff-2026-09-13-figure2-preview.md` for reproduction, integrity checks,
+subsampling comparison and interpretation limits. Await author preview review;
+no Google Doc/other figure changes. This supersedes the implementation hold below.
+
+Current focus: author said "Nice!" to Figure 1 v9 and moved to Figure 2 review.
+Keep Figure 1 layout fixed for this pass. Read `notes/figure-comment-review-2026-09-13.md`
+for the full cross-figure comment inventory, verified Figure 2 plotting behaviour,
+and dependency map. Live read: 60 open / 3 resolved comments; snapshots saved under
+`derived/figure_comment_review_2026-09-13/`. No live edits/comment resolutions.
+Two different supplements are currently called S1; defer renumbering until content
+allocation is settled. Six image comments lack positional anchors in the connector;
+their routing is provisional. Next: discuss Figure 2 changes before implementation.
+
+Latest preview: `derived/figure1_community_preview_2026-09-13-v9-family-key-right/`.
+Author-marked move applied: family legend now in open right-hand space above C,
+below the QC keys. Trees, shared abundance key and bar panel positions unchanged
+from v8. Original bottom legend slot retained blank to prevent bars resizing.
+PDF inspected; data/colour/hash checks pass. No Google Doc changes.
+
+Latest annotated-layout response: `derived/figure1_community_preview_2026-09-13-v8-clean-shared/`.
+MAG tree enlarged further, QC legends detached to upper-right; common abundance
+key horizontal between A and B and explicitly labelled A, B. Only panel letters,
+taxon/axis/key labels remain; descriptive headings/footnotes moved to local
+FIGURE_LEGEND_DRAFT.txt. Phage below-left and vertically stacked profiles below-right.
+PDF visually verified; unchanged data and colours. No live manuscript changes.
+
+Newest layout preview: `derived/figure1_community_preview_2026-09-13-v7-shared-key/`.
+MAG tree above; phage tree below-left, vertically stacked Control/Phage-UV family
+profiles below-right. Duplicate native abundance legends replaced by one common
+0-100% within-community key at upper-right; MAG QC legends stay separate.
+Taxonomic colours remain distinct mappings; community read denominators are not
+pooled. Family profile byte-identical to v1. Prior alternatives retained; awaiting
+author layout review, not a Google Doc replacement. V6 is a failed diagnostic.
+
+Latest Figure 1 layout comparison: `derived/figure1_community_preview_2026-09-13-v4-side-by-side/`
+and `derived/figure1_community_preview_2026-09-13-v5-large-mag/`.
+Both place Control and Phage-UV bars side by side, with bar width .55 (formerly .8).
+V5 enlarges the MAG viewport and moves MAG abundance/family legends left.
+Plotted profiles remain byte-identical to v1; all data/colour checks pass.
+These alternatives await author selection. V1 and diagnostic v2/v3 remain intact.
+Author decision: phage heat tree replaces phage relative-abundance bars in Figure 1.
+Three panels: A circular MAG tree with QC rings; B unchanged non-circular phage
+heat tree; C prokaryotic family stacked bars. No ordinations
+or experimental-design panel. Phage profiles may accompany ordinations in a
+supplementary figure; grouping/numbering not yet final. No Google Doc changes.
+
+Author reset (2026-09-13): broad manuscript work is stopped. Figure 1 only,
+one question at a time, no live-document changes pending agreement. Read
+`notes/handoff-2026-09-13-figure1-votu-review.md` first: verified rank candidates
+and a 607-to-634 vOTU denominator correction are for author review, not accepted
+manuscript replacements. Earlier completion language below is historical.
+
+Latest MAG-only review: `derived/mag_heat_tree_circular_quality_2026-09-13-v3/`.
+Family branches and MAG leaves now use exact frozen stacked-bar family/remainder
+shades; higher ranks retain phylum colours. Independent colour tests pass;
+all plotted coordinates and quality rings are identical to v2. V2 is preserved.
+Author requested circular: all 348 individual MAG leaves now share one radius,
+with aligned completeness (inner) and contamination (outer) rings. Custom
+deterministic layout; native metacoder rendering, taxonomy, colours and abundance
+areas preserved. All 696 values and 1046 node areas independently verified.
+Earlier scattered-tile v3 and circular diagnostic v1 are preserved; use circular
+v3 for review. Viral native v4 and manuscript remain unchanged.
+
+Current Figure 1 review (2026-09-13): the author explicitly requested genuine
+metacoder plots after the ggtree approximation. Use
+`derived/native_metacoder_heat_trees_2026-09-13-v4/`; native heat_tree, unchanged
+abundances, all 774 nodes, tested polygon areas and inspected vector PDFs.
+Read the latest Figure 1 handoff section for code/runtime and label rules.
+
+Earlier Figure 1 candidates (2026-09-13): border-free global vOTU tree v3 and
+global MAG tree v2, both in PRJEB79569/derived. The latter retains all 348 MAGs
+and 698 taxonomic nodes; both average 12 within-sample read proportions equally.
+Quarto sources and independent raw-input tests are in the code repository.
+See the Figure 1 handoff for exact paths; no Google Doc changes were made.
+
+Repository-location update (2026-09-10): actual code checkouts now belong under
+`/Users/shaman.narayanasamy/Work/repositories/`, not the data workspace.
+Read `notes/handoff-2026-09-10-code-data-separation.md` for the exact map,
+temporary compatibility links, preserved concurrent edits, and no-figure Git policy.
+This operational change does not change any scientific results or the live manuscript.
+
 Current continuation checkpoint (2026-09-09): read the latest section of
 `notes/handoff-2026-09-09-google-docs-api.md` first. Figures 1-5 now have
 publication-size vector masters and verified native suggested previews. The

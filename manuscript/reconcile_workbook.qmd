@@ -1,0 +1,131 @@
+---
+title: "Preserve author-edited sheets while reconciling supplementary numbering"
+format: html
+---
+
+The workbook is an Office-format file edited in Sheets. Existing scientific
+worksheet XML is preserved byte-for-byte, except the explicit S27 title and
+source-table references. Only Index, Column definitions and a new software sheet
+are authored with Artifact Tool, then grafted into the original OpenXML package.
+No whole-workbook import/export or scientific recalculation is performed.
+
+```{python}
+import json,re,sys,zipfile,copy,hashlib,xml.etree.ElementTree as E
+from pathlib import Path
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=root/'supplementary_reference_reconciliation_2026-09-22'
+src=root/'supplementary_live_snapshot_2026-09-22/author_workbook.xlsm'
+ns={'m':'http://schemas.openxmlformats.org/spreadsheetml/2006/main','r':'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
+M='{'+ns['m']+'}'
+z=zipfile.ZipFile(src)
+ss=[ ''.join(t.itertext()) for t in E.fromstring(z.read('xl/sharedStrings.xml'))]
+mapping={int(k):v for k,v in json.loads((out/'mapping.json').read_text())['old_to_new'].items()}
+wb=E.fromstring(z.read('xl/workbook.xml'))
+sheets=wb.find('m:sheets',ns)
+names={int(re.match(r'S(\d+)',s.get('name'))[1]):s.get('name') for s in sheets if re.match(r'S\d+',s.get('name'))}
+newnames={n:re.sub(r'^S\d+',f'S{mapping[n]}',name) for n,name in names.items()}
+newnames[28]=f'S{mapping[28]} Software'
+def rows(fn):
+    result=[]
+    for _,row in E.iterparse(z.open(fn),events=['end']):
+        if row.tag!=M+'row':continue
+        values=[]
+        for c in row:
+            v=c.find('m:v',ns)
+            value=v.text if v is not None else ''
+            if c.get('t')=='s':value=ss[int(value)]
+            elif c.get('t')=='inlineStr':value=''.join(c.find('m:is',ns).itertext())
+            elif value:
+                try:value=float(value);value=int(value) if value.is_integer() else value
+                except ValueError:pass
+            values.append(value)
+        result.append(values)
+    return result
+if sys.argv[-1]=='prepare':
+    ix=rows('xl/worksheets/sheet1.xml'); index={int(re.search(r'S(\d+)',r[0])[1]):r[:5] for r in ix[1:] if r and re.search(r'S\d+',str(r[0]))}
+    software=json.loads((root/'supplementary_software_inventory_2026-09-22-v2/software_inventory.json').read_text())
+    software_rows=[['Software','Analysis step','Version','Version evidence','Parameters or database']]
+    for r in software:
+        status=r['Evidence status']; parameters=r['Parameters or database']
+        parameters=parameters.replace(' Other parameters not consolidated in this table yet.','')
+        status=re.sub(r'; Archived Snakemake.*','; exact runtime version not recoverable from archived execution evidence.',status)
+        software_rows.append([r['Software'],r['Analysis step'],r['Version'],status,parameters])
+    index[28]=['Supplementary Table S28','S28 Software','Software versions and key parameters',len(software),'Executed versions and archived environment pins are distinguished. Unrecoverable historical versions are explicitly identified.']
+    index[23][2]='16S alpha diversity';index[23][4]='Alpha-diversity estimates for the 12 samples.'
+    index[24][2]='16S community tests'
+    index[27][4]='Per-MAG sample counts, n(n−1)/2 calculations, 139 qualified comparisons and six coverage exclusions. Sources: Supplementary Tables S14 and S15.'
+    result=[]
+    for old in sorted(mapping,key=mapping.get):
+        r=index[old];r[0]=f'Supplementary Table S{mapping[old]}';r[1]=newnames[old];result.append(r)
+    defs=rows('xl/worksheets/sheet28.xml')
+    for r in defs[1:]:
+        if r and re.fullmatch(r'S\d+',str(r[0])):r[0]=f'S{mapping[int(r[0][1:])]}'
+    defs=[r[:3] for r in defs if len(r)>=3]
+    defs+= [[f'S{mapping[28]}',k,v] for k,v in [('Version','Executed version when recorded; otherwise an archived environment pin or explicitly unavailable.'),('Version evidence','Provenance distinguishing runtime records from environment pins.'),('Parameters or database','Recorded command options or database release used for the analysis stage.')]]
+    (out/'workbook_auxiliary.json').write_text(json.dumps({'Index':[ix[0]]+result,'Column definitions':defs,newnames[28]:software_rows},ensure_ascii=False,indent=2))
+    print('Prepared index, definitions and',len(software),'software rows')
+elif sys.argv[-1]=='merge':
+    az=zipfile.ZipFile(out/'auxiliary.xlsx')
+    aw=E.fromstring(az.read('xl/workbook.xml'))
+    ars=E.fromstring(az.read('xl/_rels/workbook.xml.rels'))
+    targets={x.get('Id'):x.get('Target').lstrip('/') for x in ars}
+    astyles=E.fromstring(az.read('xl/styles.xml'));styles=E.fromstring(z.read('xl/styles.xml'))
+    offsets={}
+    for tag in ['fonts','fills','borders','cellStyleXfs','cellXfs']:
+        dest=styles.find('m:'+tag,ns);source=astyles.find('m:'+tag,ns);offsets[tag]=len(dest)
+        for el in source:
+            el=copy.deepcopy(el)
+            if tag in ['cellStyleXfs','cellXfs']:
+                for attr,parent in [('fontId','fonts'),('fillId','fills'),('borderId','borders')]:
+                    if attr in el.attrib:el.set(attr,str(int(el.get(attr))+offsets[parent]))
+                if 'xfId' in el.attrib:el.set('xfId',str(int(el.get('xfId'))+offsets['cellStyleXfs']))
+            dest.append(el)
+        dest.set('count',str(len(dest)))
+    ass=[''.join(t.itertext()) for t in E.fromstring(az.read('xl/sharedStrings.xml'))] if 'xl/sharedStrings.xml' in az.namelist() else []
+    replacement={}
+    destnames={'Index':'xl/worksheets/sheet1.xml','Column definitions':'xl/worksheets/sheet28.xml',newnames[28]:'xl/worksheets/sheet30.xml'}
+    for sh in aw.find('m:sheets',ns):
+        target=targets[sh.get('{'+ns['r']+'}id')];target=target if target.startswith('xl/') else 'xl/'+target
+        doc=E.fromstring(az.read(target))
+        for cell in doc.iter(M+'c'):
+            if cell.get('s'):cell.set('s',str(int(cell.get('s'))+offsets['cellXfs']))
+            if cell.get('t')=='s':
+                value=ass[int(cell.find('m:v',ns).text)];cell.remove(cell.find('m:v',ns));cell.set('t','inlineStr');E.SubElement(E.SubElement(cell,M+'is'),M+'t').text=value
+        replacement[destnames[sh.get('name')]]=E.tostring(doc,encoding='utf-8',xml_declaration=True)
+    # Preserve all original scientific data and formatting. Update only S27's
+    # displayed title/source refs without changing numeric or formula cells.
+    pair=E.fromstring(z.read('xl/worksheets/sheet29.xml'))
+    for cell in pair.iter(M+'c'):
+        if cell.get('t')=='s':
+            v=cell.find('m:v',ns);value=ss[int(v.text)]
+            if 'Supplementary Table S27' in value or 'Tables S13 and S14' in value:
+                value=value.replace('Supplementary Table S27',f'Supplementary Table S{mapping[27]}').replace('Tables S13 and S14',f'Tables S{mapping[13]} and S{mapping[14]}')
+                cell.remove(v);cell.set('t','inlineStr');E.SubElement(E.SubElement(cell,M+'is'),M+'t').text=value
+    replacement['xl/worksheets/sheet29.xml']=E.tostring(pair,encoding='utf-8',xml_declaration=True)
+    for s in sheets:
+        n=re.match(r'S(\d+)',s.get('name'))
+        if n:s.set('name',newnames[int(n[1])])
+    software=E.Element(M+'sheet',{'name':newnames[28],'sheetId':'30','{'+ns['r']+'}id':'rIdSoftware28'})
+    ordered=sorted([s for s in sheets if s.get('name').startswith('S')]+[software],key=lambda s:int(re.match(r'S(\d+)',s.get('name'))[1]))
+    ix=next(s for s in sheets if s.get('name')=='Index');defs=next(s for s in sheets if s.get('name')=='Column definitions')
+    sheets[:]=[ix]+ordered+[defs]
+    for view in wb.findall('m:bookViews/m:workbookView',ns):view.set('activeTab','0')
+    replacement['xl/workbook.xml']=E.tostring(wb,encoding='utf-8',xml_declaration=True)
+    replacement['xl/styles.xml']=E.tostring(styles,encoding='utf-8',xml_declaration=True)
+    rel=E.fromstring(z.read('xl/_rels/workbook.xml.rels'));E.SubElement(rel,'{http://schemas.openxmlformats.org/package/2006/relationships}Relationship',{'Id':'rIdSoftware28','Type':ns['r']+'/worksheet','Target':'worksheets/sheet30.xml'})
+    replacement['xl/_rels/workbook.xml.rels']=E.tostring(rel,encoding='utf-8',xml_declaration=True)
+    ct=E.fromstring(z.read('[Content_Types].xml'));E.SubElement(ct,'{http://schemas.openxmlformats.org/package/2006/content-types}Override',{'PartName':'/xl/worksheets/sheet30.xml','ContentType':'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml'})
+    replacement['[Content_Types].xml']=E.tostring(ct,encoding='utf-8',xml_declaration=True)
+    path=out/'Supplementary_Tables_reconciled.xlsm'
+    with zipfile.ZipFile(path,'w',zipfile.ZIP_DEFLATED) as dest:
+        for info in z.infolist():dest.writestr(info,replacement.pop(info.filename,z.read(info.filename)))
+        for name,value in replacement.items():dest.writestr(name,value)
+    z=zipfile.ZipFile(src)  # Writing ZipInfo objects updates offsets; reopen source.
+    nz=zipfile.ZipFile(path);assert nz.testzip() is None
+    unchanged=[n for n in z.namelist() if n.startswith('xl/worksheets/sheet') and n not in ['xl/worksheets/sheet1.xml','xl/worksheets/sheet28.xml','xl/worksheets/sheet29.xml']]
+    assert all(z.read(n)==nz.read(n) for n in unchanged)
+    assert z.read('xl/sharedStrings.xml')==nz.read('xl/sharedStrings.xml')
+    report={'preserved_scientific_sheet_parts':unchanged,'all_preserved_byte_identical':True,'output_md5':hashlib.md5(path.read_bytes()).hexdigest(),'output_bytes':path.stat().st_size,'old_to_new':mapping}
+    (out/'preservation_check.json').write_text(json.dumps(report,indent=2))
+    print('Verified',len(unchanged),'scientific sheets byte-identical; S27 title/source labels only changed')
+```

@@ -1,0 +1,3 @@
+table_id	status	title	canonical_file	notes
+S1	author_allocated	Cross-assay Bray-Curtis matrix concordance	PRJEB79569/derived/community_cross_omics_permutation_2026-09-16-v3/tables/bray_curtis_matrix_permutation_tests.tsv	Three assay pairs;Spearman rho;global and condition-phase-constrained permutation p and BH q
+pending_remap	legacy_inventory	Historical grouped source tables S1-S11	manuscript/supplementary_report_sources.json	Predates rewritten manuscript;do not reuse labels without audit;legacy S10 contains superseded vOTU scope

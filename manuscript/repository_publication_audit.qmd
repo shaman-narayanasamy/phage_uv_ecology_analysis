@@ -1,0 +1,54 @@
+---
+title: "Repository publication preflight"
+format: html
+execute:
+  eval: false
+---
+
+Read-only GitHub inspection and isolated mirrors of project code repositories.
+No visibility changes or history rewrites. Report filenames and detector types,
+never matched credential strings. Heuristic screening is not a security guarantee.
+
+```{python}
+import concurrent.futures, json, re, subprocess, sys, tempfile
+from pathlib import Path
+out=Path(sys.argv[1]);assert not out.exists()
+names=['multiomics_pipeline','viromics_pipeline','community_uv_response','phage_uv_ecology_analysis','host_phage_linking']
+def run(args):return subprocess.check_output(args,text=True,stderr=subprocess.DEVNULL)
+def audit(name):
+ info=json.loads(run(['gh','api','repos/shaman-narayanasamy/'+name]))
+ root=Path(tempfile.mkdtemp(prefix='phage-repo-audit-'));mirror=root/(name+'.git')
+ subprocess.run(['git','clone','--mirror',info['ssh_url'],str(mirror)],check=True,capture_output=True)
+ def git(*args):return run(['git','--git-dir='+str(mirror),*args])
+ branches=git('for-each-ref','--format=%(refname:short) %(objectname)','refs/heads').splitlines()
+ objects=git('rev-list','--objects','--all').splitlines();findings=[];files=0
+ detectors={
+ 'credential_pattern':re.compile(r'(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|AIza[\w-]{30,}|-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|ya29\.[\w.-]{30,}|1//[A-Za-z0-9_-]{40,})'),
+ 'credential_assignment':re.compile(r'(?im)(?:api[_-]?key|client[_-]?secret|refresh[_-]?token|password)\s*[=:]\s*["\x27]([^"\x27\n]{12,})'),
+ 'external_project_reference':re.compile(r'(?i)airport_surveillance|aircraft_lavatory|mouse.microbiome|ai.avatar|soil_experiment'),
+ }
+ for entry in objects:
+  sha,_,path=entry.partition(' ')
+  if not path:continue
+  if git('cat-file','-t',sha).strip()!='blob':continue
+  files+=1
+  raw=subprocess.check_output(['git','--git-dir='+str(mirror),'cat-file','blob',sha])
+  if b'\0' in raw[:8192]:
+   findings.append({'path':path,'blob':sha,'type':'binary_review'});continue
+  content=raw.decode('utf-8',errors='replace')
+  for kind,pattern in detectors.items():
+   if pattern.search(content):findings.append({'path':path,'blob':sha,'type':kind})
+  if re.search(r'(?i)(?:^|/)(?:\.env|.*token.*\.json|.*credentials.*\.json|id_rsa|id_ed25519)$',path):
+   findings.append({'path':path,'blob':sha,'type':'sensitive_filename'})
+ tree=git('ls-tree','-r','--name-only',info['default_branch']).splitlines()
+ return {'repository':name,'url':info['html_url'],'visibility':info['visibility'],'default_branch':info['default_branch'],
+         'branches':branches,'default_tree':tree,'blob_count':files,'findings':findings,'mirror':str(mirror),
+         'scope':'All objects reachable from fetched refs; heuristic review, not comprehensive secret certification'}
+with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:results=list(pool.map(audit,names))
+out.mkdir(parents=True);(out/'audit.json').write_text(json.dumps(results,indent=2))
+for r in results:
+ print(r['repository'],r['visibility'],'branches',len(r['branches']),'blobs',r['blob_count'],'findings',len(r['findings']))
+ for kind in sorted({f['type'] for f in r['findings']}):
+  print(kind,sorted({f['path'] for f in r['findings'] if f['type']==kind})[:25])
+print(out/'audit.json')
+```

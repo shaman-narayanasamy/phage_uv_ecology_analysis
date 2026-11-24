@@ -36,6 +36,7 @@ import csv
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
 import sys
@@ -52,7 +53,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
 repo = Path(__file__).resolve().parent.parent
-data = repo.parent.parent / "PRJEB79569" / "derived"
+data = Path(os.environ.get("PHAGE_UV_DATA_ROOT", "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569")).resolve(strict=True) / "derived"
 if len(sys.argv) not in (2,4) or (len(sys.argv)==4 and sys.argv[2]!="--reuse-source-archive"):
     raise SystemExit("Supply a new output directory, optionally --reuse-source-archive /path/to/verified.zip")
 out = Path(sys.argv[1]).resolve()

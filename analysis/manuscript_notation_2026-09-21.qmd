@@ -1,0 +1,23 @@
+---
+title: "Manuscript notation harmonisation"
+format: html
+---
+
+Author-approved presentation change: R[k] denotes each initial-release fraction;
+bar(R) denotes their arithmetic mean. No numerical calculations change.
+Use bars for observed means, s for sample SD, hats for fitted quantities, and
+retain P for raw statistical P values. FDR (BH) denotes BH-adjusted P values.
+Do not mechanically rename R software, protein labels or stored data columns.
+
+```{r}
+library(grid)
+out <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/manuscript_notation_2026-09-21-v1"
+dir.create(out,recursive=TRUE,showWarnings=FALSE)
+eq <- list(
+ expression(R[k]==frac(I[k],I[k]+BF[k])~~bar(R)==frac(R[cells]+R[protein]+R[polysaccharides],3)),
+ expression(z(X[i])==frac(X[i]-bar(X),s[X])~~S[i]==frac(1,2)*z(bar(R)[i])+frac(1,2)*z(L[i])))
+for(i in seq_along(eq)) {
+ ragg::agg_png(file.path(out,paste0("methods-equation-",i,".png")),width=170,height=20,units="mm",res=300,background="white")
+ grid.newpage();grid.text(eq[[i]],gp=gpar(fontsize=11));dev.off()
+}
+```

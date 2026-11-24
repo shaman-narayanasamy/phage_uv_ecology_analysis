@@ -1,0 +1,113 @@
+---
+title: "In-silico suppression of MAG-associated biofilm transcription"
+format: html
+editor: source
+---
+
+Author-authorised what-if model. Suppress each candidate MAG's combined-list
+RNA contribution by0-95%, holding other genes, effective library sizes, covariates
+and fitted coefficients fixed. No new p-value filtering or refitting. This is an
+effective transcriptional suppression axis, NOT phage dose, mortality or inferred
+infection susceptibility. No compensatory community growth or matrix turnover.
+Recompute the original score with the same edgeR prior.count0.5 and frozen gene
+centres; never multiply a centred/log score by(1-s). Phenotype response ratio is
+10^(beta*delta_score), a conditional geometric-scale projection. Digitised outcomes
+describe released cells/EPS, not residual membrane biomass. 100% omitted to avoid
+presenting a pseudocount-determined floor as a biological extinction prediction.
+
+Reference precedent: Martínez Arbas,Narayanasamy etal,Nat Microbiol,
+doi10.1038/s41564-020-00794-8, Methods Linear model of community dynamics,
+removed predictor groups to assess importance. This graded fixed-coefficient
+perturbation is different from their model refitting/variable-ablation analysis.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(edgeR);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+r<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-c(members=file.path(r,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz"),
+ counts=file.path(r,"full_transcriptome_de/tables/collapsed_raw_count_matrix.tsv"),
+ libs=file.path(r,"full_transcriptome_de/tables/library_sizes_and_normalization.tsv"),
+ models=file.path(r,"biofilm_phenotype_associations_2026-09-14-v1/tables/model_results.tsv"),
+ observations=file.path(r,"biofilm_phenotype_associations_2026-09-14-v1/tables/model_observations.tsv"),
+ deletion=file.path(r,"biofilm_phenotype_associations_2026-09-14-v1/tables/deletion_sensitivity.tsv"))
+sha<-function(p)digest::digest(file=p,algo="sha256")
+hashes<-vapply(src,sha,character(1))
+m<-fread(src['members'])[set_id=="biofilm_combined"]
+libs<-fread(src['libs']);samples<-libs$sample_title
+counts<-fread(src['counts'],select=c("feature_id",samples))
+counts<-counts[match(m$feature_id,feature_id)];stopifnot(identical(counts$feature_id,m$feature_id),nrow(m)==3905)
+mat<-as.matrix(counts[,..samples]);lcpm<-cpm(mat,lib.size=libs$effective_library_size,log=TRUE,prior.count=.5)
+centres<-rowMeans(lcpm);models<-fread(src['models']);obs<-fread(src['observations']);del<-fread(src['deletion'])
+candidates<-unique(models$MAG_ID);stopifnot(length(candidates)==14)
+levels_s<-c(0,seq(.1,.9,.1),.95)
+rows<-list();pool<-list()
+for(mag in candidates){
+ ix<-which(m$MAG_ID==mag)
+ baseline<-colMeans(lcpm[ix,,drop=FALSE]-centres[ix])
+ score_obs<-unique(obs[MAG_ID==mag,.(sample_title,expression_score)])
+ stopifnot(max(abs(baseline-score_obs$expression_score[match(samples,score_obs$sample_title)]))<1e-9)
+ for(s in levels_s){
+  newlog<-cpm(mat[ix,,drop=FALSE]*(1-s),lib.size=libs$effective_library_size,log=TRUE,prior.count=.5)
+  newscore<-colMeans(newlog-centres[ix]);delta<-newscore-baseline
+  stopifnot(all(delta<=1e-10),if(s==0)max(abs(delta))<1e-10 else TRUE)
+  base<-data.table(MAG_ID=mag,suppression=s,sample_title=samples,
+   baseline_score=baseline,suppressed_score=newscore,delta_score=delta,
+   transcript_pool_loss_pct=100*s*colSums(mat[ix,,drop=FALSE])/colSums(mat),
+   outside_observed_score_range=newscore<min(baseline)|newscore>max(baseline))
+  base<-merge(base,libs[,.(sample_title,condition,phase,cycle)],by="sample_title")
+  pool[[paste(mag,s)]]<-base
+  for(o in unique(models$outcome)){
+   fit<-models[MAG_ID==mag & outcome==o];d<-copy(base)
+   crit<-qt(.975,fit$df);hc<-fit$beta+c(-1,1)*crit*fit$HC3_se
+   dd<-del[MAG_ID==mag & outcome==o,beta]
+   d[,`:=`(outcome=o,genus=fit$genus,beta=fit$beta,
+    change_pct=100*(10^(fit$beta*delta_score)-1),
+    nominal_low=100*(10^(fit$CI_high*delta_score)-1),
+    nominal_high=100*(10^(fit$CI_low*delta_score)-1),
+    HC3_low=100*(10^(max(hc)*delta_score)-1),
+    HC3_high=100*(10^(min(hc)*delta_score)-1),
+    pixel_low=100*(10^(fit$pixel_beta_high*delta_score)-1),
+    pixel_high=100*(10^(fit$pixel_beta_low*delta_score)-1),
+    deletion_low=100*(10^(max(dd)*delta_score)-1),
+    deletion_high=100*(10^(min(dd)*delta_score)-1))]
+   rows[[paste(mag,s,o)]]<-d
+  }
+ }
+}
+d<-rbindlist(rows);p<-rbindlist(pool)
+stopifnot(nrow(d)==14*11*12*3,all(d[suppression==0,change_pct]==0),
+ all(d$nominal_low<=d$change_pct+1e-8),all(d$nominal_high>=d$change_pct-1e-8))
+# Combined14-target transcript-pool accounting ONLY; single-MAG phenotype models
+# cannot be summed into a joint intervention prediction.
+combined<-rbindlist(lapply(levels_s,function(s)data.table(suppression=s,sample_title=samples,
+ combined_pool_loss_pct=100*s*colSums(mat[m$MAG_ID %in% candidates,,drop=FALSE])/colSums(mat))))
+combined<-merge(combined,libs[,.(sample_title,condition,phase,cycle)],by="sample_title")
+for(x in c("tables","figures","source"))dir.create(file.path(out,x),recursive=TRUE)
+fwrite(d,file.path(out,"tables/phenotype_scenarios.tsv"),sep="\t")
+fwrite(p,file.path(out,"tables/single_MAG_transcript_pool_scenarios.tsv"),sep="\t")
+fwrite(combined,file.path(out,"tables/combined14_transcript_pool_only.tsv"),sep="\t")
+summary<-d[condition=="treatment",.(change_pct=mean(change_pct),nominal_low=mean(nominal_low),
+ nominal_high=mean(nominal_high),HC3_low=mean(HC3_low),HC3_high=mean(HC3_high),
+ outside_range_samples=sum(outside_observed_score_range)),by=.(MAG_ID,genus,outcome,suppression)]
+fwrite(summary,file.path(out,"tables/treatment_summary.tsv"),sep="\t")
+summary[,label:=paste(ifelse(is.na(genus)|genus=="","Unclassified",genus),sub("_MAGScoT_cleanbin_"," / ",MAG_ID))]
+# Show all candidates at50% suppression; full curves/tables retained.
+g<-ggplot(summary[abs(suppression-.5)<1e-8],aes(change_pct,label))+
+ geom_vline(xintercept=0,colour="grey60")+geom_segment(aes(x=nominal_low,xend=nominal_high,yend=label),colour="grey65")+
+ geom_point(size=2,colour="#176B83")+facet_wrap(~outcome,nrow=1,scales="free_x")+
+ theme_bw(base_size=9)+labs(x="Projected change in released material (%)",y=NULL,
+  subtitle="50% suppression of each MAG's biofilm-associated RNA contribution; treatment samples averaged",
+  caption="Dots: fixed-coefficient scenarios. Lines: nominal coefficient intervals, not intervention prediction intervals. No phage dose implied.")
+ggsave(file.path(out,"figures/suppression50_all_MAGs.png"),g,width=15,height=8,dpi=160,device=ragg::agg_png)
+stopifnot(identical(hashes,vapply(src,sha,character(1))))
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/biofilm_MAG_suppression.qmd"))
+fwrite(data.table(input=names(src),path=src,sha256=hashes),file.path(out,"input_sha256.tsv"),sep="\t")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS: baseline scores reproduced; zero suppression gives zero change;monotone score suppression;interval ordering;input hashes unchanged.",
+ "No 100% extrapolation. Outside-score-range samples explicitly flagged.",
+ "Nominal,HC3,pixel and deletion envelopes retained separately, not a joint uncertainty distribution.",
+ "Projected response is released cells/EPS, not attached biofilm or validated phage response.",
+ "Other community contributions fixed; no ecological compensation model."),file.path(out,"CHECKS.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

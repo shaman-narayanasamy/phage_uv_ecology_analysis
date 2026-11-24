@@ -1,0 +1,108 @@
+---
+title: "Author requested supplementary figure merges"
+format: html
+---
+
+Display-only assembly from retained 16S and current catalogue sources. Argument 2
+is `consecutive` only after author confirmation; otherwise original labels are
+retained for the merged-page preview. No statistical reanalysis.
+
+```{python}
+from pathlib import Path
+import io, json, sys, subprocess, hashlib, re
+from pypdf import PdfReader, PdfWriter, Transformation
+from pypdf.generic import TextStringObject
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from PIL import Image
+
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False)
+consecutive=len(sys.argv)>2 and sys.argv[2]=='consecutive'
+src=Path('manuscript/supplementary_review_2026-09-22.qmd').read_text().split('```{python}\n')[1].split('\n```')[0]
+env={'__name__':'assembly_sources','sys':sys}
+# Collect the nine existing captions and their sources without running the legacy
+# assembly or modifying its outputs. Its source checks and table remapping apply.
+prefix=src[:src.index('out = Path(sys.argv[1])')]
+exec(prefix,env)
+env.update(out=out)
+mid=src[src.index("snap = d/"):src.index('# Verify the unchanged')]
+exec(mid,env)
+items=[]
+def collect(title,body='',source=None,draw=None):
+    i=len(items);body=env['remap_table_refs'](body)
+    if i==0: body=re.sub(r'^'+re.escape(env['caption_titles'][0])+r'\.\s*','',body.strip())
+    items.append(dict(title=env['caption_titles'][i],body=body,source=source,draw=draw))
+env['page']=collect
+exec(src[src.index('# Verify the unchanged'):src.index("s1=d/'community_cross_omics_permutation")],env)
+assert len(items)==9
+items[2]['source']=root/'supplementary_votu_compact_2026-09-23-v1/votu-realm-composition.pdf'
+
+pdfmetrics.registerFont(TTFont('MergeSans','/System/Library/Fonts/Supplemental/Arial.ttf'))
+pdfmetrics.registerFont(TTFont('MergeBold','/System/Library/Fonts/Supplemental/Arial Bold.ttf'))
+pdfmetrics.registerFontFamily('MergeSans',normal='MergeSans',bold='MergeBold',italic='MergeSans',boldItalic='MergeBold')
+style=ParagraphStyle('Caption',fontName='MergeSans',fontSize=10,leading=13)
+W,H=595.28,841.89
+buffer=io.BytesIO();c=canvas.Canvas(buffer,pagesize=(W,H)); provenance=[]
+def raster(path):
+    path=Path(path); digest=hashlib.sha256(path.read_bytes()).hexdigest()
+    dst=out/(path.stem+'-display.pdf')
+    reader=PdfReader(path);p=reader.pages[0];stream=p.get_contents();changes=0
+    for operands,operator in stream.operations:
+        if operator==b'Tj' and str(operands[0])=='Phage-UV':
+            operands[0]=TextStringObject('Treatment');changes+=1
+    if changes:p.replace_contents(stream)
+    writer=PdfWriter();writer.add_page(p)
+    with dst.open('wb') as f:writer.write(f)
+    png=dst.with_suffix('')
+    subprocess.run(['pdftoppm','-singlefile','-r','300','-png',str(dst),str(png)],check=True,capture_output=True)
+    provenance.append({'source':str(path),'sha256':digest,'display_label_replacements':changes})
+    return str(png)+'.png',float(p.mediabox.width),float(p.mediabox.height)
+def art(path,x,top,maxw,maxh,letter=None):
+    png,w,h=raster(path);s=min(maxw/w,maxh/h)
+    c.drawImage(png,x+(maxw-w*s)/2,top-h*s,width=w*s,height=h*s)
+    if letter:c.setFont('MergeBold',11);c.drawString(x,top+4,letter)
+    return top-h*s
+def caption(number,title,body,top):
+    body=re.sub(r'\b([A-D])\)',r'<b>\1)</b>',body)
+    p=Paragraph(f'<b>Figure S{number}: {title}.</b> '+body,style)
+    _,h=p.wrap(W-72,750)
+    assert top-h>=36,(number,top,h)
+    p.drawOn(c,36,top-h)
+    c.setFont('MergeSans',8);c.drawString(36,22,'Supplementary figures');c.drawRightString(W-36,22,str(number));c.showPage()
+
+groups=[(0,),(3,2),(1,),(4,5),(6,),(7,),(8,)]
+numbers=list(range(1,8)) if consecutive else [1,2,4,5,7,8,9]
+for number,group in zip(numbers,groups):
+    if group==(3,2):
+        y=art(root/'supplementary_composition_aligned_2026-09-23-v3/aligned-composition.pdf',36,800,W-72,620)
+        body=('A) Family-level relative abundances from 16S rRNA-derived cDNA across 12 samples. '
+              'Other classified families and sequences unclassified at family level remain separate. '
+              'B) Viral realm composition of all 634 abundance-eligible vOTUs, expressed as shares of vOTU-mapped metagenomic reads. '
+              'Bars sum to 100% within each sample; unclassified sequences remain in the denominator. '
+              'Control and treatment are aligned by cycle and sampling phase (I, initial; BF, backflush). '
+              'Viral catalogue quality and taxonomy are reported in Supplementary Table S3.')
+        caption(number,'Amplicon and viral community composition across cleaning cycles',body,y-14)
+    elif group==(4,5):
+        y1=art(root/'supplementary_ordination_pair_2026-09-23-v2/paired-ordinations.pdf',36,800,W-72,330)
+        y2=y1
+        body=('Principal-coordinate analyses of 16S rRNA amplicon sequence variant profiles from 12 samples using '
+              'A) Bray-Curtis dissimilarities and B) Aitchison distances. Axes 1 and 2 explain 45.1% and 17.4% '
+              'of variation for Bray-Curtis and 29.2% and 15.9% for Aitchison, respectively. '
+              'Colours identify control and treatment; circles and triangles identify initial and backflush samples. '
+              'Numbers identify cleaning cycles. PERMANOVA results are reported in Supplementary Table S26.')
+        caption(number,'16S rRNA community structure under two distance measures',body,min(y1,y2)-20)
+    else:
+        it=items[group[0]]
+        if it['draw']:
+            it['draw'](c);top=170
+        else:top=art(it['source'],36,H-36,W-72,490)-15
+        caption(number,it['title'],it['body'],top)
+c.save();pdf=out/'Supplementary_Figures.pdf';pdf.write_bytes(buffer.getvalue())
+assert len(PdfReader(pdf).pages)==7
+(out/'manifest.json').write_text(json.dumps({'consecutive_numbering':consecutive,'display_numbers':numbers,'groups_old':[ [1],[2,3],[4],[5,6],[7],[8],[9]],'sources':provenance,'pdf_sha256':hashlib.sha256(pdf.read_bytes()).hexdigest()},indent=2))
+print(pdf)
+```

@@ -1,0 +1,41 @@
+---
+title: "Publish verified supplementary mapping table"
+format: html
+---
+
+```{python}
+from pathlib import Path
+import json,sys,hashlib,urllib.request,urllib.parse
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+from manuscript_identity import assistant_access_token,verified_editor,guarded_urlopen
+out=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/supplementary_mapping_table_2026-09-22-v1')
+src=out/'Supplementary_Table_S2.md'
+token=assistant_access_token();editor=verified_editor(token)
+headers={'Authorization':'Bearer '+token}
+folder='1ajfSU0gAgrMPBsuhXQ4QSIrXWwrnRchy'
+name='Supplementary_Table_S2_mapping_2026-09-22.md'
+q=urllib.parse.urlencode({'q':f"'{folder}' in parents and trashed=false and name='{name}'",'fields':'files(id,name,parents,webViewLink,md5Checksum,size)'})
+with guarded_urlopen(urllib.request.Request('https://www.googleapis.com/drive/v3/files?'+q,headers=headers)) as r: found=json.load(r)['files']
+if found:
+ assert len(found)==1;result=found[0]
+else:
+ boundary='mapping-table-s2-20260922'
+ meta={'name':name,'parents':[folder],'description':'Supplementary Table S2: 24 sample-by-assay rows in each panel. Panel A coassembly alignment-record denominators; panel B unified-catalogue CoverM count totals. See the table notes for exact definitions.'}
+ body=(('--'+boundary+'\r\nContent-Type: application/json\r\n\r\n'+json.dumps(meta)+'\r\n--'+boundary+'\r\nContent-Type: text/markdown\r\n\r\n').encode()+src.read_bytes()+('\r\n--'+boundary+'--\r\n').encode())
+ req=urllib.request.Request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,parents,webViewLink,md5Checksum,size',data=body,headers={**headers,'Content-Type':'multipart/related; boundary='+boundary})
+ with guarded_urlopen(req) as r:result=json.load(r)
+assert result['md5Checksum']==hashlib.md5(src.read_bytes()).hexdigest()
+assert folder in result['parents'] and int(result['size'])==src.stat().st_size
+content='COMPLETED FOR REVIEW: Supplementary Table S2 is now available in the Manuscript folder: '+result['webViewLink']+' . Panel A presents all 24 sample-by-assay coassembly mapped/all alignment-record fractions, explicitly including secondary and supplementary alignment records. Panel B presents all 24 unified MAG/vOTU catalogue-assigned CoverM count totals, pooling MT analytical runs within physical sample. The two mapping targets are kept separate; catalogue counts are not divided by coassembly totals. A tracked Methods insertion now references Supplementary Table S2. Counts, percentages and uploaded file checksum have been verified. This supersedes the earlier pending-placement reply. Leaving this thread open for your review.'
+base='https://www.googleapis.com/drive/v3/files/1tl6VL6Z1bYcTDuG67CHY4mOdkWuEIvzWOhBMqKneQbQ/comments/AAACHLx5KZI'
+with guarded_urlopen(urllib.request.Request(base+'?fields=*',headers=headers)) as r:comment=json.load(r)
+existing=[x for x in comment.get('replies',[]) if x.get('content')==content and not x.get('deleted')]
+if existing:reply=existing[0]
+else:
+ req=urllib.request.Request(base+'/replies?fields=*',headers={**headers,'Content-Type':'application/json'},data=json.dumps({'content':content}).encode())
+ with guarded_urlopen(req) as r:reply=json.load(r)
+with guarded_urlopen(urllib.request.Request(base+'/replies/'+reply['id']+'?fields=*',headers=headers)) as r:checked=json.load(r)
+assert checked['content']==content
+(out/'drive_and_comment_receipt.json').write_text(json.dumps({'editor':editor,'file':result,'reply':checked,'comments_resolved':False},indent=2))
+print(result['webViewLink']);print('Checksum and comment readback verified')
+```

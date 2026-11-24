@@ -51,13 +51,14 @@ source(file.path(repo_root, "R", "figure_style.R"))
 abort <- function(...) stop(sprintf(...), call. = FALSE)
 
 parse_cli <- function(args) {
-  data_root <- normalizePath(file.path(repo_root, "..", ".."), mustWork = FALSE)
+  data_root <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+    "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"), mustWork = TRUE)
   values <- list(
-    de_dir = file.path(data_root, "PRJEB79569", "derived", "full_transcriptome_de"),
-    taxonomy = file.path(data_root, "PRJEB79569", "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
-    signature_hits = file.path(data_root, "PRJEB79569", "community_uv_response", "uv_signature_hits.tsv"),
+    de_dir = file.path(data_root, "derived", "full_transcriptome_de"),
+    taxonomy = file.path(data_root, "annotation", "catbat", "gtdb", "BAT.bin2classification.txt"),
+    signature_hits = file.path(data_root, "community_uv_response", "uv_signature_hits.tsv"),
     category_registry = file.path(repo_root, "resources", "full_de_category_registry.tsv"),
-    output_dir = file.path(data_root, "PRJEB79569", "derived", "full_de_interpretation"),
+    output_dir = file.path(data_root, "derived", "full_de_interpretation"),
     overwrite = FALSE
   )
   if ("--help" %in% args || "-h" %in% args) {

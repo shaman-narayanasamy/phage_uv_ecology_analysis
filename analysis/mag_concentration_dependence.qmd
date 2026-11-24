@@ -1,0 +1,128 @@
+---
+title: "Genomic-block sensitivity of MAG functional concentration"
+format: html
+editor: source
+---
+
+This sensitivity collapses eligible genes into fixed 10 kb, 50 kb, or whole-contig
+units, within MAG and functional set. One or more original full-model hits make
+a unit supported; multiple neighbouring hits count once. These are proximity
+blocks, NOT inferred operons. The estimand is concentration of supported blocks,
+not concentration of individual genes. Inter-contig/regulon dependence remains.
+
+Fixed focal family: historical9, historical12, biofilm_union, SOS_response;
+condition unsigned/up/down and joint unsigned. BH across all 48 planned tests
+(including non-estimable tests in family size), also reported per resolution
+across 16. No best-resolution selection. Match blocks by number of eligible genes
+(1,2,3-5,6+) and condition-blind mean CPM tertile. Preserve supported block counts
+per stratum. Sparse/fixed strata retained and reported. 100000 draws, seed 20260914.
+No refit, sample permutation, manuscript change, or causal treatment inference.
+
+```{r}
+#| label: inputs-and-engine
+suppressPackageStartupMessages(library(data.table))
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+combined_mode<-length(commandArgs(TRUE))>=2 && commandArgs(TRUE)[2]=="combined"
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-file.path(root,"mag_functional_concentration_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz")
+if(combined_mode) src<-file.path(root,"mag_functional_concentration_combined_2026-09-13-v1/tables/membership_and_original_statistics.tsv.gz")
+sha<-function(p)digest::digest(file=p,algo="sha256")
+before<-sha(src);m<-fread(src)
+selected_sets<-if(combined_mode)c("biofilm_combined","SOS_response") else c("historical9","historical12","biofilm_union","SOS_response")
+m<-m[set_id %in% selected_sets]
+family_size<-length(selected_sets)*4L*3L
+stopifnot(!anyDuplicated(m[,.(set_id,feature_id)]),all(m$start>=0),
+ all(m$end>=m$start),!anyNA(m$contig),!anyNA(m$MAG_ID))
+draw<-function(n,k,B){
+ a<-matrix(0L,B,length(n));r<-rep(k,B);N<-sum(n)
+ for(i in seq_along(n)){
+  a[,i]<-if(N==n[i])r else rhyper(B,n[i],N-n[i],r)
+  r<-r-a[,i];N<-N-n[i]
+ }
+ stopifnot(all(rowSums(a)==k));a
+}
+qbin<-function(x){
+ b<-unique(as.numeric(quantile(x,c(0,1/3,2/3,1))))
+ if(length(b)<2)rep(1L,length(x)) else as.integer(cut(x,b,include.lowest=TRUE))
+}
+RNGkind("L'Ecuyer-CMRG");set.seed(20260914);B<-100000L
+# Correlated synthetic example: ten perfectly linked hits in one unit collapse
+# to one, not ten independent observations. Fully selected/null units conserve K.
+toy<-data.table(block=c(rep("a",10),"b"),hit=c(rep(TRUE,10),FALSE))
+stopifnot(toy[,any(hit),by=block][,sum(V1)]==1,
+ all(draw(c(2,3),5,10)[,1]==2),all(draw(c(2,3),0,10)==0))
+set.seed(7);a<-draw(c(5,15),4,100000)
+stopifnot(abs(mean(a[,1])-1)<.02)
+set.seed(8);a<-draw(c(2,3),2,100)
+set.seed(8);stopifnot(identical(a,draw(c(2,3),2,100)))
+set.seed(20260914)
+dir.create(out,recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+results<-list();assignments<-list();strata<-list();nulls<-list()
+```
+
+```{r}
+#| label: block-randomisation
+for(res in c("10kb","50kb","contig")){
+ x<-copy(m)
+ # Source coordinates include zero starts; retain zero-based windows.
+ x[,window:=if(res=="contig")0L else floor(start/if(res=="10kb")10000 else 50000)]
+ blocks<-x[,.(eligible_genes=.N,mean_CPM=mean(mean_CPM),
+  first_start=min(start),last_end=max(end),
+  condition=any(FDR<.05),up=any(FDR<.05 & logFC>0),
+  down=any(FDR<.05 & logFC<0),joint=any(joint_FDR<.05)),
+  by=.(set_id,MAG_ID,contig,window)]
+ assignments[[res]]<-x[,.(resolution=res,set_id,feature_id,MAG_ID,contig,window)]
+ for(s in sort(unique(blocks$set_id))){
+  z<-blocks[set_id==s]
+  z[,stratum:=paste(cut(eligible_genes,c(0,1,2,5,Inf),labels=FALSE),qbin(mean_CPM),sep="_")]
+  for(e in c("condition","up","down","joint")){
+   hit<-z[[e]];K<-sum(hit);mags<-sort(unique(z$MAG_ID))
+   hi<-tabulate(match(z$MAG_ID[hit],mags),length(mags))
+   key<-paste(res,s,e,sep="/")
+   base<-data.table(resolution=res,set_id=s,endpoint=e,N_blocks=nrow(z),K_blocks=K,
+    original_hits=sum(switch(e,condition=x[set_id==s,FDR<.05],
+     up=x[set_id==s,FDR<.05 & logFC>0],down=x[set_id==s,FDR<.05 & logFC<0],
+     joint=x[set_id==s,joint_FDR<.05])))
+   if(K<2){base[,`:=`(status="insufficient_blocks",p=NA_real_)];results[[key]]<-base;next}
+   alloc<-matrix(0L,B,length(mags));fixed<-0L
+   for(st in sort(unique(z$stratum))){
+    ix<-which(z$stratum==st);k<-sum(hit[ix]);n<-length(ix)
+    counts<-tabulate(match(z$MAG_ID[ix],mags),length(mags));active<-which(counts>0)
+    alloc[,active]<-alloc[,active,drop=FALSE]+draw(counts[active],k,B)
+    if(k==n)fixed<-fixed+k
+    strata[[paste(key,st)]]<-data.table(resolution=res,set_id=s,endpoint=e,stratum=st,N=n,K=k)
+   }
+   stopifnot(all(rowSums(alloc)==K))
+   obs<-sum((hi/K)^2);sim<-rowSums((alloc/K)^2);b<-sum(sim>=obs-1e-12)
+   ci<-binom.test(b,B)$conf.int
+   base[,`:=`(status="proximity_sensitivity",simpson=obs,expected_simpson=mean(sim),
+    p=(b+1)/(B+1),MC_low=ci[1],MC_high=ci[2],fixed_supported_blocks=fixed,B=B)]
+   results[[key]]<-base;nulls[[key]]<-sim
+  }
+ }
+ fwrite(blocks,file.path(out,"tables",paste0("blocks_",res,".tsv")),sep="\t")
+ message("Completed ",res)
+}
+```
+
+```{r}
+#| label: verification-and-save
+g<-rbindlist(results,fill=TRUE)
+stopifnot(nrow(g)==family_size)
+g[,FDR_all_planned:=p.adjust(p,"BH",n=family_size)]
+g[,FDR_per_resolution:=p.adjust(p,"BH",n=family_size/3),by=resolution]
+fwrite(g,file.path(out,"tables/dependence_results.tsv"),sep="\t")
+fwrite(rbindlist(assignments),file.path(out,"tables/gene_block_assignments.tsv.gz"),sep="\t")
+fwrite(rbindlist(strata),file.path(out,"tables/matching_strata.tsv"),sep="\t")
+saveRDS(nulls,file.path(out,"null_distributions.rds"))
+stopifnot(identical(before,sha(src)))
+notebook<-Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+file.copy(notebook,file.path(out,"source",basename(notebook)))
+fwrite(data.table(path=c(src,notebook),sha256=vapply(c(src,notebook),sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS engine: conservation, deterministic seed, theoretical mean, synthetic linked-hit collapse.",
+ "Sensitivity only: proximity blocks are not inferred operons; cross-contig dependence remains.",
+ paste0("Seed=20260914; B=100000; L'Ecuyer-CMRG; planned tests=",family_size)),file.path(out,"CHECKS.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

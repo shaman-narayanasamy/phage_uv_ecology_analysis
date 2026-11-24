@@ -1,0 +1,45 @@
+---
+title: "Supplementary Table S2: per-sample mapping and catalogue counts"
+format: html
+---
+
+```{python}
+from pathlib import Path
+import csv,json,hashlib,collections,sys
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569')
+out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False)
+co=root/'derived/mapping_recovery_review_2026-09-22-v1/coassembly_mapping_records.json'
+records=json.loads(co.read_text());assert len(records)==24
+hashes={str(co):hashlib.sha256(co.read_bytes()).hexdigest()}
+totals={};runs={}
+for assay,folder,expected in [('MG','metagenomics',12),('MT','metatranscriptomics',23)]:
+ p=root/f'quantification/mags_votu/coverage/{folder}/coverm/output-Read_Count.tsv'
+ hashes[str(p)]=hashlib.sha256(p.read_bytes()).hexdigest()
+ with p.open(newline='') as f:
+  rd=csv.reader(f,delimiter='\t');header=next(rd);assert len(header)-1==expected
+  sums=[0]*(len(header)-1)
+  for row in rd:
+   assert len(row)==len(header)
+   for i,v in enumerate(row[1:]):sums[i]+=int(v)
+ for h,n in zip(header[1:],sums):
+  sample=h.split('__')[0];key=(sample,assay)
+  totals[key]=totals.get(key,0)+n;runs[key]=runs.get(key,0)+1
+assert len(totals)==24
+lines=['# Supplementary Table S2. Per-sample coassembly mapping and catalogue-assigned counts','',
+'## A. Coassembly mapping','',
+'Mapped alignment records divided by all alignment records in archived SAMtools flagstat reports. Secondary and supplementary alignments are included. These percentages refer to sample coassemblies, not the unified MAG/vOTU catalogue.','',
+'| Sample | Assay | Total alignment records | Mapped alignment records | Secondary | Supplementary | Mapped alignment records (%) |',
+'|---|---|---:|---:|---:|---:|---:|']
+for r in records:
+ assert abs(r['mapped_alignment_percent']-100*r['mapped_alignment_records']/r['total_alignment_records'])<1e-8
+ lines.append('| '+' | '.join([r['sample'],r['assay']]+[str(r[k]) for k in ['total_alignment_records','mapped_alignment_records','secondary_records','supplementary_records']]+[f"{r['mapped_alignment_percent']:.2f}"])+' |')
+lines+=['','## B. Unified MAG/vOTU catalogue counts','',
+'Sum of the reported CoverM Read Count values across all contigs in the staged unified-catalogue count table. MT analytical runs are summed within their physical sample (23 runs across 12 samples); MG has one run per sample. These are unnormalised catalogue-assigned count totals, not percentages or estimates of uniquely mapped primary reads. No unmapped-read row is present in these tables. They are not divided by the coassembly alignment totals in panel A, which refer to a different mapping target.','',
+'| Sample | Assay | Sequencing runs | Catalogue-assigned count total |','|---|---|---:|---:|']
+for (sample,assay),n in sorted(totals.items()):lines.append(f'| {sample} | {assay} | {runs[(sample,assay)]} | {n} |')
+lines+=['','Sample codes: C, control; T, treatment; I, initial; BF, backflush; terminal digit, cleaning cycle. MG, metagenomics; MT, metatranscriptomics. Counts and percentages describe technical mapping yield, not biological replication.','']
+(out/'Supplementary_Table_S2.md').write_text('\n'.join(lines))
+(out/'catalogue_count_totals.json').write_text(json.dumps([dict(sample=s,assay=a,sequencing_runs=runs[(s,a)],catalogue_assigned_count_total=n) for (s,a),n in sorted(totals.items())],indent=2))
+(out/'CHECKS.json').write_text(json.dumps(dict(coassembly_rows=24,catalogue_sample_rows=24,MG_runs=12,MT_runs=23,coassembly_percentages_verified=True,source_sha256=hashes),indent=2))
+print(out/'Supplementary_Table_S2.md')
+```

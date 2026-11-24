@@ -1,0 +1,39 @@
+---
+title: "Author-requested unresolved-comment status replies"
+format: html
+---
+
+Replies only; never resolve comments or change document content. Exact duplicate
+replies are skipped. Each write uses the designated-assistant identity gate.
+
+```{python}
+import json,sys,urllib.request
+from pathlib import Path
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+from manuscript_identity import assistant_access_token,verified_editor,guarded_urlopen
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment')
+message_path=Path(sys.argv[1]) if len(sys.argv)>1 else root/'notes/comment-status-replies-2026-09-22.json'
+receipt_path=Path(sys.argv[2]) if len(sys.argv)>2 else root/'notes/comment-status-reply-receipt-2026-09-22.json'
+messages=json.loads(message_path.read_text())
+token=assistant_access_token(); editor=verified_editor(token)
+headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
+base='https://www.googleapis.com/drive/v3/files/1tl6VL6Z1bYcTDuG67CHY4mOdkWuEIvzWOhBMqKneQbQ/comments/'
+receipt=[]
+for cid,content in messages.items():
+    req=urllib.request.Request(base+cid+'?fields=*',headers=headers)
+    with guarded_urlopen(req) as r: current=json.load(r)
+    if current.get('deleted') or current.get('resolved'):
+        receipt.append(dict(comment=cid,status='skipped_closed'));continue
+    if any(r.get('content')==content and not r.get('deleted') for r in current.get('replies',[])):
+        receipt.append(dict(comment=cid,status='already_present'));continue
+    req=urllib.request.Request(base+cid+'/replies?fields=*',headers=headers,
+        data=json.dumps({'content':content}).encode(),method='POST')
+    with guarded_urlopen(req) as r: posted=json.load(r)
+    assert posted['content']==content
+    with guarded_urlopen(urllib.request.Request(base+cid+'/replies/'+posted['id']+'?fields=*',headers=headers)) as r: checked=json.load(r)
+    assert checked['content']==content and not checked.get('deleted')
+    receipt.append(dict(comment=cid,reply=posted['id'],status='posted_and_readback_verified',author=checked.get('author',{}).get('displayName')))
+    print(cid,receipt[-1]['status'],flush=True)
+receipt_path.write_text(json.dumps(dict(editor=editor,replies=receipt,comments_resolved=0,document_content_changed=False),indent=2))
+print('Verified',len(receipt),'thread statuses; no comments resolved.')
+```

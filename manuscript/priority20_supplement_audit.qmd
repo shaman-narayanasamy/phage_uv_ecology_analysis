@@ -1,0 +1,26 @@
+---
+title: "Priority 20 genomic comparison eligibility"
+format: html
+---
+
+```{python}
+from pathlib import Path
+import csv,json,hashlib
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569')
+p=root/'community_uv_response/variant_analysis/instrain/priority_mag_inputs/priority_mags.tsv'
+a=root/'derived/instrain_denominator_audit_2026-09-09/mag_denominator_audit.tsv'
+out=root/'derived/priority20_supplement_audit_2026-09-22-v1';out.mkdir(exist_ok=False)
+priority=list(csv.DictReader(p.open(),delimiter='\t'));audit={r['MAG_ID']:r for r in csv.DictReader(a.open(),delimiter='\t')}
+assert len(priority)==20 and len({r['MAG_ID'] for r in priority})==20
+assert set(audit)<=set(r['MAG_ID'] for r in priority)
+rows=[]
+for r in priority:
+ mag=r['MAG_ID'];q=audit.get(mag)
+ row={'MAG_ID':mag,'comparison_audit_record_available':q is not None,'coverage_qualified_for_main_figure':q['full_length_selected'] if q else False,'qualified_pair_count':q['full_length_valid_pairs'] if q else 'NA','samples_in_qualified_pairs':q['full_length_samples'] if q else 'NA','full_catalogue_length_bp':q['full_catalogue_length'] if q else 'NA','interpretation':'No comparison record in the archived denominator audit; counts unavailable, not zero.' if q is None else 'Included' if q['full_length_selected']=='True' else 'Did not meet the combined pair-count and sample-count criteria after pairwise coverage filtering.'}
+ rows.append(row)
+assert sum(r['coverage_qualified_for_main_figure']=='True' for r in rows)==5
+with (out/'priority20_eligibility.tsv').open('w',newline='') as f:
+ w=csv.DictWriter(f,fieldnames=list(rows[0]),delimiter='\t');w.writeheader();w.writerows(rows)
+(out/'PROVENANCE.json').write_text(json.dumps({'source_sha256':{str(x.relative_to(root)):hashlib.sha256(x.read_bytes()).hexdigest() for x in [p,a]},'priority_MAGs':20,'with_audit_records':len(audit),'retained':5},indent=2))
+print(out)
+```

@@ -1,0 +1,112 @@
+---
+title: "Figure 6: MAG-resolved suppression scenarios"
+format: html
+editor: source
+---
+
+Display-only notebook. Frozen composite-model outputs; no statistical refits.
+All fourteen pre-existing biofilm candidates are retained. Main and interval
+companion figures use the same two specifications and two DNA phase views.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(patchwork);library(grid)})
+out <- commandArgs(TRUE)[1]; stopifnot(!dir.exists(out))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+paths <- c(models=file.path(root,"cleaning_score_condition_models_2026-09-14-v1/all_specifications.tsv"),
+ obs_condition=file.path(root,"cleaning_score_condition_models_2026-09-14-v1/model_observations.tsv"),
+ obs_cycle=file.path(root,"cleaning_score_MAG_models_2026-09-14-v1/tables/model_observations.tsv"),
+ sc_condition=file.path(root,"cleaning_score_condition_models_2026-09-14-v1/DNA_suppression_scenarios.tsv"),
+ sc_cycle=file.path(root,"cleaning_score_MAG_models_2026-09-14-v1/tables/DNA_suppression_scenarios.tsv"),
+ links=file.path(root,"biofilm_candidate_phage_crosswalk_2026-09-14-v1/candidate_summary.tsv"))
+hash <- function(p) digest::digest(file=p,algo="sha256")
+before <- vapply(paths,hash,character(1)); m <- fread(paths['models']); links <- fread(paths['links'])
+obs <- rbindlist(list(fread(paths['obs_condition']),fread(paths['obs_cycle'])),fill=TRUE)
+sc1 <- fread(paths['sc_condition']); sc1[,specification:="condition_only"]
+sc <- rbindlist(list(sc1,fread(paths['sc_cycle'])),fill=TRUE)
+spec <- c("condition_only","categorical_cycle")
+sc_all <- copy(sc)
+sc <- sc[specification %in% spec]; obs <- obs[specification %in% spec & predictor=="DNA"]
+stopifnot(nrow(sc)==392,uniqueN(sc$MAG_ID)==14,nrow(obs)==336,nrow(m)==168,
+ all(sc[suppression==0,delta_score]==0),all(sc$low<=sc$delta_score),all(sc$high>=sc$delta_score))
+check <- merge(sc,m[predictor=="DNA",.(MAG_ID,phase,specification,beta)],by=c("MAG_ID","phase","specification"))
+stopifnot(nrow(check)==392,max(abs(check$delta_score-check$beta*log2(1-check$suppression)))<1e-10)
+links[,label:=paste(ifelse(is.na(genus)|genus=="","Unclassified",genus),sub("_MAGScoT_cleanbin_0*","/",MAG_ID))]
+setorder(links,label); ids <- links$MAG_ID; labs <- links$label
+decorate <- function(d) {
+ d[,mag_label:=factor(MAG_ID,levels=ids,labels=labs)]
+ d[,model:=factor(specification,levels=spec,labels=c("Condition adjusted","Condition + cycle"))]
+ d[,phase_label:=factor(phase,levels=c("initial","backflush"),labels=c("Initial","Backflush"))]
+ d
+}
+sc <- decorate(sc); obs <- decorate(obs)
+base <- theme_classic(base_size=7)+theme(axis.text=element_text(size=6.5),axis.title=element_text(size=7),
+ strip.background=element_rect(fill="#F3F3F3",colour=NA),strip.text=element_text(size=6.5),
+ legend.text=element_text(size=6.5),legend.title=element_blank(),plot.margin=margin(3,4,3,4))
+phase_cols <- c(Initial="#176B8C",Backflush="#C57922")
+condition_cols <- c(control="#8FCB8A",treatment="#7E57C2")
+example <- obs[MAG_ID=="TBF3_MAGScoT_cleanbin_000057"]
+stopifnot(nrow(example)==24)
+A <- ggplot(example,aes(score,fitted,colour=condition))+geom_abline(slope=1,intercept=0,colour="grey65",linetype=2,linewidth=.3)+
+ geom_point(size=1.4)+geom_text(aes(label=cycle),nudge_x=.13,nudge_y=.055,colour="black",size=2,show.legend=FALSE)+
+ facet_grid(phase_label~model)+scale_colour_manual(values=condition_cols,labels=c("Control","Treatment"))+
+ coord_fixed(xlim=c(-1.5,1.9),ylim=c(-1.5,1.9))+
+ labs(x="Observed cleaning score",y="Fitted cleaning score",title="Azonexus TBF3/57")+base+
+ theme(legend.position="bottom",plot.title=element_text(size=7))
+links[,mag_label:=factor(MAG_ID,levels=rev(ids),labels=rev(labs))]
+B <- ggplot(links,aes(linked_contigs,mag_label))+geom_segment(aes(x=0,xend=linked_contigs,yend=mag_label),colour="grey65",linewidth=.4)+
+ geom_point(aes(shape=linked_contigs>0),size=1.8)+scale_shape_manual(values=c(1,16),guide="none")+
+ scale_x_continuous(breaks=0:1,limits=c(-.05,1.1))+
+ labs(x="Linked viral contigs (count)",y=NULL)+base+theme(axis.text.y=element_text(size=6))
+curve <- m[predictor=="DNA" & specification %in% spec,.(suppression=seq(0,.95,length.out=191)),by=.(MAG_ID,phase,specification,beta)]
+curve[,delta_score:=beta*log2(1-suppression)];curve <- decorate(curve)
+C <- ggplot(curve,aes(suppression*100,delta_score,colour=phase_label,linetype=model,group=interaction(phase_label,model)))+
+ geom_hline(yintercept=0,colour="grey75",linewidth=.25)+geom_line(linewidth=.5)+
+ facet_wrap(~mag_label,ncol=4,scales="free_y")+
+ scale_colour_manual(values=phase_cols)+scale_linetype_manual(values=c("solid","dashed"))+
+ scale_x_continuous(breaks=c(0,50,95))+labs(x="Hypothetical decrease in whole-MAG abundance (%)",y="Change in cleaning score")+
+ base+theme(legend.position="bottom",panel.spacing=unit(3,"mm"))
+fig <- (A+B+plot_layout(widths=c(1.12,1)))/C+plot_layout(heights=c(1,1.75))+plot_annotation(tag_levels="A")
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+ggsave(file.path(out,"figures/figure6-candidate-suppression.pdf"),fig,width=190,height=245,units="mm",device="pdf",useDingbats=FALSE)
+ggsave(file.path(out,"figures/preview.png"),fig,width=190,height=245,units="mm",dpi=180,bg="white",device=ragg::agg_png)
+# Complete uncertainty view, not a selective set of intervals.
+half <- copy(sc_all[suppression==.5]);half[,mag_label:=factor(MAG_ID,levels=rev(ids),labels=rev(labs))]
+half[,phase_label:=factor(phase,levels=c("initial","backflush"),labels=c("Initial","Backflush"))]
+half[,model:=factor(specification,levels=c(spec,"linear_cycle"),labels=c("Condition adjusted","Condition + cycle","Condition + linear cycle"))]
+stopifnot(nrow(half)==84,!anyNA(half$model))
+interval <- ggplot(half,aes(delta_score,mag_label,colour=phase_label))+
+ geom_vline(xintercept=0,linetype=2,colour="grey60",linewidth=.3)+
+ geom_errorbar(aes(xmin=low,xmax=high),orientation="y",width=.15,linewidth=.35,position=position_dodge(width=.45))+
+ geom_point(size=1.5,position=position_dodge(width=.45))+facet_grid(~model)+
+ scale_colour_manual(values=phase_cols)+scale_x_continuous(trans=scales::pseudo_log_trans(sigma=.5),breaks=c(-100,0,100))+
+ labs(x="Change in cleaning score at 50% lower abundance (95% coefficient intervals)",y=NULL)+base+
+ theme(legend.position="bottom",axis.text.y=element_text(size=7))
+ggsave(file.path(out,"figures/figure6-interval-companion.pdf"),interval,width=190,height=150,units="mm",device="pdf",useDingbats=FALSE)
+writeLines(c("Interval companion to Figure 6.","All 14 candidate MAGs at a hypothetical 50% reduction in whole-MAG abundance, evaluated separately using initial and backflush predictors. Points show conditional score changes and horizontal intervals show coefficient-based nominal 95% confidence intervals. Columns retain condition-only, categorical-cycle and linear-cycle specifications. The common horizontal axis has a symmetric pseudo-log transformation (sigma = 0.5); labels are original index units. All 84 contrasts are retained, without significance selection."),file.path(out,"INTERVAL_CAPTION.txt"))
+eq <- list(expression(R[k]==frac(I[k],I[k]+BF[k])~~P==frac(R[cells]+R[protein]+R[polysaccharides],3)),
+ expression(z(X[i])==frac(X[i]-bar(X),s[X])~~S[i]==frac(1,2)*z(P[i])+frac(1,2)*z(L[i])),
+ expression(Delta*x==log[2](1-f)~~Delta*hat(S)==hat(beta)[x]*log[2](1-f)))
+for(i in seq_along(eq)) {
+ ragg::agg_png(file.path(out,"figures",paste0("methods-equation-",i,".png")),width=170,height=20,units="mm",res=300,background="white")
+ grid.newpage();grid.text(eq[[i]],gp=gpar(fontsize=11));dev.off()
+}
+fwrite(sc,file.path(out,"tables/plotted_suppression_scenarios.tsv"),sep="\t")
+fwrite(curve,file.path(out,"tables/dense_plotting_grid.tsv"),sep="\t")
+fwrite(half,file.path(out,"tables/50_percent_intervals.tsv"),sep="\t")
+fwrite(example,file.path(out,"tables/observed_fitted_example.tsv"),sep="\t")
+fwrite(links,file.path(out,"tables/candidate_phage_links.tsv"),sep="\t")
+fwrite(m,file.path(out,"tables/all_168_model_results.tsv"),sep="\t")
+writeLines(c("Figure 6: Modelled cleaning-score responses to candidate MAG suppression.",
+ "A) Observed and fitted cleaning-performance scores for Azonexus TBF3/57 using whole-MAG DNA abundance. Columns show condition-adjusted and condition-plus-categorical-cycle models; rows show initial and backflush predictors. Colours identify control and treatment, numbers identify cleaning cycles, and dashed diagonals indicate agreement. Each model contains six observations.",
+ "B) Number of viral contigs with existing exact-ID CRISPR/SpacePHARER host links to each of the 14 candidate MAGs. Filled points denote a detected link; open points denote none detected.",
+ "C) Model-implied score changes across hypothetical 0-95% decreases in whole-MAG abundance for all 14 MAGs carrying treatment-upregulated biofilm-associated genes. Initial and backflush predictions are shown in blue and orange; solid and dashed lines denote condition-adjusted and cycle-adjusted models. Changes are calculated as Delta S = beta log2(1-r), where r is the suppressed fraction, with all other model terms and score normalization held fixed. Positive changes indicate higher cleaning-performance scores. Panels have separate y-axis ranges. Curves show point estimates; complete 95% coefficient intervals at 50% suppression, linear-cycle sensitivity results and extrapolation flags accompany the figure."),file.path(out,"FIGURE_CAPTION.txt"))
+stopifnot(identical(before,vapply(paths,hash,character(1))))
+fwrite(data.table(path=paths,sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(Sys.getenv("PHAGE_UV_NOTEBOOK_PATH"),file.path(out,"source/figure6_candidate_suppression.qmd"))
+writeLines(c("PASS: all 14 candidates; 392 frozen DNA scenarios; two phases and two specifications.",
+ "PASS: zero-suppression identity, signed log2 contrast and interval ordering independently checked.",
+ "PASS: all source SHA256 values unchanged. No fits rerun, no outcome/scaling changes.",
+ "PASS: 24 observed/fitted points in four six-observation Azonexus models; 84 interval contrasts including linear-cycle sensitivity.",
+ "Figure is a preview, not a live manuscript update. Curves do not include RNA suppression."),file.path(out,"VALIDATION.txt"))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+```

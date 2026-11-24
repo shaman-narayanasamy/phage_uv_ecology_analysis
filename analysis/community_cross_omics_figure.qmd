@@ -1,0 +1,80 @@
+---
+title: "Cross-omics community comparison"
+format: html
+editor: source
+---
+
+Run `bash scripts/run_qmd.sh analysis/community_cross_omics_figure.qmd NEW_OUTPUT`.
+Display-only, from the completed matched-sample analysis. No model refits.
+Panel C selects the 12 MAGs with greatest maximum of their mean MG and MT read
+shares, not the greatest ratio. Full 348-MAG table accompanies the figure.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(patchwork);library(digest)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-file.path(root,"community_cross_omics_2026-09-15-v3")
+paths<-c(setNames(file.path(src,paste0(c("MG","MT","16S"),"_relative_profile.tsv")),c("MG","MT","16S")),
+ mag=file.path(src,"MAG_contributions.tsv"),turn=file.path(src,"cycle_turnover.tsv"),
+ colours=file.path(root,"figure1_shared_taxonomy_2026-09-14-v3/tables/MAG_colour_alignment.tsv"))
+hashes<-vapply(paths,function(x)digest(file=x,algo="sha256"),character(1))
+dir.create(file.path(out,"figures"),recursive=TRUE);dir.create(file.path(out,"tables"))
+fwrite(data.table(source=names(paths),path=paths,sha256=hashes),file.path(out,"input_sha256.tsv"),sep="\t")
+theme_set(theme_classic(base_size=8,base_family="Helvetica"))
+clean<-theme(strip.background=element_rect(fill="#F3F3F3",colour=NA),strip.text=element_text(size=8),
+ legend.position="bottom",legend.title=element_blank(),axis.text=element_text(colour="#222222"),
+ plot.margin=margin(5,6,4,5))
+mat<-lapply(paths[c("MG","MT","16S")],function(p){d<-fread(p);m<-as.matrix(d[,-1]);rownames(m)<-d$feature_id;m})
+stopifnot(all(vapply(mat,function(m)ncol(m)==12 && max(abs(colSums(m)-1))<1e-10,logical(1))))
+bray<-function(m){z<-combn(seq_len(ncol(m)),2);data.table(s1=colnames(m)[z[1,]],s2=colnames(m)[z[2,]],d=apply(z,2,function(k)sum(abs(m[,k[1]]-m[,k[2]]))/2))}
+dist<-lapply(mat,bray)
+pair_specs<-list(c("MG","16S"),c("MG","MT"),c("16S","MT"))
+scatter<-rbindlist(lapply(pair_specs,function(p){a<-dist[[p[1]]];b<-dist[[p[2]]];stopifnot(identical(a$s1,b$s1),identical(a$s2,b$s2));
+ data.table(comparison=paste(p,collapse=" / "),s1=a$s1,s2=a$s2,x=a$d,y=b$d)}))
+rho<-scatter[,.(rho=cor(x,y,method="spearman")),by=comparison]
+rho[,label:=sprintf("rho == %.2f",rho)]
+a<-ggplot(scatter,aes(x,y))+geom_point(size=1.35,colour="#455A64",alpha=.65)+
+ facet_wrap(~comparison,nrow=1)+geom_text(data=rho,aes(x=.03,y=.96,label=label),inherit.aes=FALSE,hjust=0,vjust=1,size=2.6,parse=TRUE)+
+ scale_x_continuous(limits=c(0,1),breaks=c(0,.5,1))+scale_y_continuous(limits=c(0,1),breaks=c(0,.5,1))+
+ labs(x="Bray-Curtis dissimilarity (first assay)",y="Bray-Curtis dissimilarity\n(second assay)")+clean
+turn<-fread(paths['turn']);turn[,condition:=factor(condition,c("control","treatment"),c("Control","Treatment"))]
+turn[,phase:=factor(phase,c("initial","backflush"),c("Initial","Backflush"))]
+turn[,assay:=factor(assay,c("16S","MG","MT"))]
+turn[,transition:=factor(transition,c("1-2","2-3"),c("C1-C2","C2-C3"))]
+b<-ggplot(turn,aes(transition,bray,colour=condition,shape=phase,linetype=phase,group=interaction(condition,phase)))+
+ geom_line(linewidth=.5)+geom_point(size=1.8)+facet_wrap(~assay,nrow=1)+
+ scale_colour_manual(values=c(Control="#8FCB8A",Treatment="#7E57C2"))+
+ scale_shape_manual(values=c(Initial=16,Backflush=17))+scale_linetype_manual(values=c(Initial="solid",Backflush="dashed"))+
+ scale_y_continuous(limits=c(.3,.85),breaks=c(.3,.5,.7))+
+ labs(x="Consecutive cleaning cycles",y="Bray-Curtis dissimilarity")+clean
+mag<-fread(paths['mag']);cols<-fread(paths['colours']);stopifnot(nrow(mag)==348,!anyDuplicated(cols$MAG_ID))
+mag<-merge(mag,cols[,.(MAG_ID,colour)],by="MAG_ID",all.x=TRUE);stopifnot(!anyNA(mag$colour))
+mag[,selection_share:=pmax(MG_mean_percent,MT_mean_percent)];setorder(mag,-selection_share,MAG_ID)
+mag[,displayed:=seq_len(.N)<=12]
+top<-copy(mag[displayed==TRUE]);top[,short_id:=sub("_MAGScoT_cleanbin_0*","/",MAG_ID)]
+top[,taxon:=fifelse(!is.na(genus)&genus!="",genus,fifelse(!is.na(family)&family!="",paste("f.",family),paste("o.",order)))]
+top[,label:=paste(gsub("\\*","",taxon),short_id)]
+top[,label:=factor(label,levels=rev(label))]
+long<-melt(top,id.vars=c("MAG_ID","label","colour"),measure.vars=c("MG_mean_percent","MT_mean_percent"),variable.name="assay",value.name="share")
+long[,assay:=factor(assay,c("MG_mean_percent","MT_mean_percent"),c("MG","MT"))]
+c<-ggplot(top,aes(y=label))+geom_segment(aes(x=MG_mean_percent,xend=MT_mean_percent,yend=label,colour=colour),linewidth=.65)+
+ geom_point(data=long,aes(x=share,shape=assay,colour=colour),size=2.2,stroke=.75,fill="white")+
+ scale_colour_identity()+scale_shape_manual(values=c(MG=21,MT=16))+
+ scale_x_continuous(limits=c(0,11),breaks=c(0,2,4,6,8,10),expand=expansion(mult=c(.02,.02)))+
+ labs(x="Mean within-assay MAG read share (%)",y=NULL)+clean
+fig<-(a/b/c)+plot_layout(heights=c(1,1.1,1.9))+plot_annotation(tag_levels="A",theme=theme(plot.tag=element_text(size=10)))
+ggsave(file.path(out,"figures/community_comparison.pdf"),fig,width=180,height=225,units="mm",device=grDevices::pdf,useDingbats=FALSE)
+ggsave(file.path(out,"figures/community_comparison.png"),fig,width=180,height=225,units="mm",dpi=300,bg="white",device=ragg::agg_png)
+fwrite(mag,file.path(out,"tables/all_MAG_contributions.tsv"),sep="\t")
+fwrite(top,file.path(out,"tables/displayed_MAGs.tsv"),sep="\t")
+writeLines(c("# Displayed MAG contributions", "", "| MAG | MG read share (%) | MT read share (%) |", "| --- | ---: | ---: |",
+ sprintf("| %s | %.3f | %.3f |",as.character(top$label),top$MG_mean_percent,top$MT_mean_percent),"",
+ "Means across 12 matched samples. Selection: largest maximum of mean MG and MT read shares. Full identifiers and all 348 MAGs are retained in all_MAG_contributions.tsv."),
+ file.path(out,"tables/displayed_MAGs.md"))
+fwrite(scatter,file.path(out,"tables/sample_pair_distances.tsv"),sep="\t")
+fwrite(rho,file.path(out,"tables/distance_correlations.tsv"),sep="\t")
+fwrite(turn,file.path(out,"tables/cycle_turnover.tsv"),sep="\t")
+stopifnot(identical(hashes,vapply(paths,function(x)digest(file=x,algo="sha256"),character(1))))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+print(top[,.(label,MG_mean_percent,MT_mean_percent)])
+```

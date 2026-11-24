@@ -1,0 +1,70 @@
+---
+title: "Catalogue quality and sample provenance supplement"
+format: html
+---
+
+Exact-ID joins to the active manuscript universes. No quality reclassification,
+imputation, inference tests or source overwrites. Run the Python cell, then the
+companion workbook renderer with the JSON output path.
+
+```{python}
+from pathlib import Path
+import csv,json,hashlib,collections
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569')
+out=root/'derived/catalogue_sample_supplement_2026-09-22-v1'
+out.mkdir(exist_ok=True)
+assert not (out/'CHECKS.json').exists(), 'Completed output exists; use a new version'
+sources={}
+def read(p,sep='\t'):
+ p=root/p;sources[str(p.relative_to(root))]=hashlib.sha256(p.read_bytes()).hexdigest()
+ with p.open(newline='') as f:return list(csv.DictReader(f,delimiter=sep))
+def index(rows,key):
+ d={r[key]:r for r in rows};assert len(d)==len(rows);return d
+leaves=index(read('derived/mag_heat_tree_circular_quality_2026-09-13-v3/tables/mag_leaves.tsv'),'MAG_ID')
+quality=index(read('binning/dereplication/data_tables/genomeInfo.csv',','),'genome')
+mags=[]
+for mag,r in sorted(leaves.items()):
+ q=quality[mag+'.fasta']
+ assert abs(float(q['completeness'])-float(r['completeness']))<1e-8 and abs(float(q['contamination'])-float(r['contamination']))<1e-8
+ mags.append(dict(MAG_ID=mag,phylum=r['phylum'],completeness_percent=float(q['completeness']),contamination_percent=float(q['contamination']),strain_heterogeneity_percent=float(q['strain_heterogeneity']),genome_length_bp=int(q['length']),N50_bp=int(q['N50'])))
+assert len(mags)==348
+votu_ids=index(read('derived/community_cycle_models_catalogue_aligned_2026-09-16-v1/tables/votu_counts.tsv'),'feature_id')
+vqual=index(read('viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/checkv/quality_summary.tsv'),'contig_id')
+tax=index(read('derived/votu_taxonomic_resolution_review_2026-09-13-v4/tables/catalogue_rank_assignments.tsv'),'contig_id')
+votus=[]
+for vid in sorted(votu_ids):
+ q=vqual[vid];t=tax[vid]
+ assert q['miuvig_quality']=='High-quality' and int(q['viral_genes'])>=1
+ # Historical taxonomy table contains 27 rows excluded by its old annotation
+ # availability rule. Use annotations only; the current count universe controls
+ # inclusion, retaining unassigned vOTUs.
+ row=dict(vOTU_ID=vid,length_bp=int(q['contig_length']),checkv_quality=q['checkv_quality'],miuvig_quality=q['miuvig_quality'],completeness_percent=None if q['completeness']=='NA' else float(q['completeness']),contamination_percent=None if q['contamination']=='NA' else float(q['contamination']),completeness_method=q['completeness_method'],provirus=q['provirus'],proviral_length_bp=None if q['proviral_length']=='NA' else int(q['proviral_length']),gene_count=int(q['gene_count']),viral_genes=int(q['viral_genes']),host_genes=int(q['host_genes']),warnings=q['warnings'])
+ for k in ['realm','kingdom','phylum','class','order','family','subfamily','genus','species']:row[k]=t[k] or None
+ votus.append(row)
+assert len(votus)==634
+meta=read('derived/full_transcriptome_de/tables/sample_metadata_audit.tsv')
+amp=index(read('derived/16s_analysis/09_return_package/16s_sample_data.tsv'),'sample_title')
+samples=[];runs=[]
+for r in meta:
+ for k in ['condition','phase','cycle','amplicon_run_accession','metagenome_run_accession','metatranscriptome_run_accessions']:assert r[k]==amp[r['sample_title']][k]
+ sample={k:r[k] for k in ['sample_title','condition','phase','ena_sample_accession','ena_secondary_sample_accession']};sample['cycle']=int(r['cycle'])
+ sample['amplicon_runs']=1;sample['MG_runs']=1;sample['MT_runs']=len(r['metatranscriptome_run_accessions'].split(';'));samples.append(sample)
+ for assay,key in [('16S','amplicon_run_accession'),('MG','metagenome_run_accession'),('MT','metatranscriptome_run_accessions')]:
+  for run in r[key].split(';'):runs.append(dict(run_accession=run,sample_title=r['sample_title'],assay=assay,condition=r['condition'],phase=r['phase'],cycle=int(r['cycle']),ena_sample_accession=r['ena_sample_accession']))
+assert len(samples)==12 and len(runs)==47 and len({r['run_accession'] for r in runs})==47
+assert collections.Counter(r['assay'] for r in runs)=={'16S':12,'MG':12,'MT':23}
+tables={'MAG quality':mags,'vOTU quality':votus,'Samples':samples,'Sequencing runs':runs}
+for title,rows in tables.items():
+ with (out/(title.replace(' ','_')+'.tsv')).open('w',newline='') as f:
+  w=csv.DictWriter(f,fieldnames=list(rows[0]),delimiter='\t');w.writeheader();w.writerows([{k:'NA' if v is None else v for k,v in r.items()} for r in rows])
+dictionary=[]
+definitions={'MAG_ID':'Exact dereplicated MAG identifier used in manuscript figures.','vOTU_ID':'Exact viral contig identifier in the 634-vOTU abundance catalogue; not the separate host-network viral universe.','completeness_percent':'Estimated genome completeness in percentage points, copied from CheckM/dRep for MAGs or CheckV for vOTUs.','contamination_percent':'Estimated contamination in percentage points from the corresponding quality source.','strain_heterogeneity_percent':'CheckM strain heterogeneity estimate; not the inStrain population-variation metric.','genome_length_bp':'Total length of the MAG reference sequences, in bases.','N50_bp':'MAG assembly N50 in bases.','length_bp':'Viral contig length in bases.','checkv_quality':'Original CheckV quality category, including Complete or High-quality.','miuvig_quality':'Original MIUViG category reported by CheckV.','completeness_method':'CheckV completeness estimation method and confidence.','provirus':'CheckV provirus flag.','proviral_length_bp':'CheckV proviral length in bases; NA if unavailable.','gene_count':'Total CheckV gene count.','viral_genes':'CheckV viral gene count.','host_genes':'CheckV host gene count.','warnings':'Original CheckV warnings; empty means no warning recorded.','sample_title':'Canonical physical-sample identifier, shared across assays.','condition':'Control or treatment membrane.','phase':'Initial or backflush fraction.','cycle':'Cleaning cycle 1, 2 or 3.','ena_sample_accession':'ENA BioSample accession.','ena_secondary_sample_accession':'ENA sample accession.','amplicon_runs':'Number of 16S sequencing runs for this physical sample.','MG_runs':'Number of metagenomic sequencing runs for this physical sample.','MT_runs':'Number of metatranscriptomic sequencing runs pooled for this physical sample.','run_accession':'ENA sequencing-run accession; each occurs once.','assay':'16S amplicon, metagenomic (MG) or metatranscriptomic (MT) assay.'}
+for name,rows in tables.items():
+ for col in rows[0]:dictionary.append({'table':name,'column':col,'definition':definitions.get(col,'Taxonomic assignment at '+col+' rank from the active figure annotation source; NA denotes no assignment.')})
+tables['Column definitions']=dictionary
+(out/'workbook_data.json').write_text(json.dumps(tables,indent=2))
+checks=dict(rows={k:len(v) for k,v in tables.items()},unique_run_accessions=47,sample_metadata_matches_retained_16s_v1=True,all_MAG_quality_matches_current_tree=True,votu_categories=dict(collections.Counter(r['checkv_quality'] for r in votus)),source_sha256=sources)
+(out/'CHECKS.json').write_text(json.dumps(checks,indent=2))
+(out/'README.md').write_text('# Catalogue quality and sample provenance\n\n348 MAGs, 634 abundance-eligible vOTUs, 12 physical samples and 47 sequencing runs. Genome IDs are exact matches to the current manuscript universes. NA means unavailable or unassigned, not zero. MAG taxonomy here is phylum-level; vOTU taxonomy is supplied through species where assigned. The vOTU table does not describe the separate host-network viral universe.\n\nOriginal quality categories and values are preserved. Column definitions are provided in the workbook. Sources and SHA256 hashes are in CHECKS.json. No differential analysis was rerun. Final supplementary numbering is assigned through the manuscript evidence register.\n')
+print(json.dumps({k:v for k,v in checks.items() if k!='source_sha256'},indent=2))
+```

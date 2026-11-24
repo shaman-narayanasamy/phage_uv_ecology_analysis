@@ -1,0 +1,102 @@
+---
+title: "Analytical workflow and separately attributed original experiment"
+format: html
+editor: source
+---
+
+Main Figure 1 is our reanalysis workflow. Supplementary Figure 1 describes the
+original experiment. Frozen drawing inputs and modelling provenance are recorded
+in the output checksums. No statistical fits are executed.
+
+```{r}
+out <- commandArgs(TRUE)[[1]]; stopifnot(!dir.exists(out)); dir.create(out,recursive=TRUE)
+base <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/figure1_promoted_workflow_2026-09-15-v3/sources"
+ns <- c(s="http://www.w3.org/2000/svg")
+d <- xml2::read_xml(file.path(base,"workflow_metro.svg"))
+xml2::xml_set_attr(xml2::xml_root(d),"viewBox","0 0 1960 1840")
+legend <- xml2::xml_find_first(d,"//s:g[@id='legend']",ns)
+xml2::xml_set_attr(legend,"transform","translate(0,700)")
+# Original route geometry is untouched. Labelled continuation ports connect the
+# frozen analytical outputs to downstream candidate modelling below the map.
+append <- '<g xmlns="http://www.w3.org/2000/svg" id="downstream-model-integration" font-family="Helvetica,Arial,sans-serif" fill="#333">
+<style>.droute{fill:none;stroke-width:6;stroke-linejoin:round;stroke-linecap:round}.dlabel{font-size:17px;font-weight:600}.dsub{font-size:14px}.dpill{fill:white;stroke:#444;stroke-width:2.5}</style>
+<text class="dlabel" x="60" y="1010">MAG-resolved integration and candidate modelling</text>
+<path class="droute" stroke="#DF6A2C" d="M70,1110 H1010 L1110,1210 H1240"/>
+<path class="droute" stroke="#416EB0" d="M70,1240 H1100 L1130,1210 H1240"/>
+<path class="droute" stroke="#8A8F98" d="M70,1370 H1080 L1240,1210"/>
+<path class="droute" stroke="#159A9C" d="M1240,1210 H1800"/>
+<path class="droute" stroke="#697D45" d="M1460,1080 H1670 L1800,1210"/>
+<path class="droute" stroke="#159A9C" d="M1800,1210 V1430 H1470"/>
+<circle cx="70" cy="1110" r="7" fill="white" stroke="#DF6A2C" stroke-width="3"/>
+<circle cx="70" cy="1240" r="7" fill="white" stroke="#416EB0" stroke-width="3"/>
+<circle cx="70" cy="1370" r="7" fill="white" stroke="#8A8F98" stroke-width="3"/>
+<circle cx="1460" cy="1080" r="7" fill="white" stroke="#697D45" stroke-width="3"/>
+<text class="dlabel" x="70" y="1060">Full-transcriptome output</text>
+<text class="dsub" x="70" y="1081">Gene counts + MAG attribution</text>
+<text class="dlabel" x="380" y="1060">Biofilm / SOS annotation</text>
+<text class="dsub" x="380" y="1081">Combined biofilm list; separate SOS set</text>
+<rect class="dpill" x="521" y="1094" width="18" height="32" rx="9"/>
+<text class="dlabel" x="790" y="1060">MAG concentration tests</text>
+<text class="dsub" x="790" y="1081">Randomisation + dependence checks</text>
+<rect class="dpill" x="911" y="1094" width="18" height="32" rx="9"/>
+<text class="dlabel" x="70" y="1190">MAG predictors</text>
+<text class="dsub" x="70" y="1211">Whole-MAG DNA; biofilm RNA scores</text>
+<rect class="dpill" x="651" y="1224" width="18" height="32" rx="9"/>
+<text class="dlabel" x="440" y="1278">14 biofilm up-hit MAGs</text>
+<text class="dsub" x="440" y="1299">Full-transcriptome FDR &lt; 0.05</text>
+<text class="dlabel" x="70" y="1320">Published phenotype measurements</text>
+<text class="dsub" x="70" y="1341">Cells / proteins / polysaccharides + TMP lag</text>
+<rect class="dpill" x="651" y="1354" width="18" height="32" rx="9"/>
+<text class="dlabel" x="480" y="1408">Frozen cleaning score</text>
+<text class="dsub" x="480" y="1429">50% removal-pattern + 50% lag</text>
+<rect class="dpill" x="1231" y="1184" width="18" height="52" rx="9"/>
+<text class="dlabel" x="1160" y="1280">Phase-specific models</text>
+<text class="dsub" x="1160" y="1301">Condition + predictor; + cycle</text>
+<text class="dsub" x="1160" y="1322">Separate DNA / RNA fits</text>
+<rect class="dpill" x="1491" y="1194" width="18" height="32" rx="9"/>
+<text class="dlabel" x="1390" y="1160">DNA suppression</text>
+<text class="dsub" x="1390" y="1181">Fixed-coefficient scenarios</text>
+<text class="dlabel" x="1460" y="1030">Existing host-phage links</text>
+<text class="dsub" x="1460" y="1051">Exact MAG identifiers</text>
+<rect class="dpill" x="1791" y="1184" width="18" height="52" rx="9"/>
+<text class="dlabel" x="1660" y="1280">Candidate prioritisation</text>
+<text class="dsub" x="1660" y="1301">Model-direction agreement</text>
+<text class="dsub" x="1660" y="1322">and linked viral sequences</text>
+<circle cx="1470" cy="1430" r="7" fill="white" stroke="#159A9C" stroke-width="3"/>
+<text class="dlabel" x="1090" y="1465">12 displayed candidates; all 14 retained in full results</text>
+</g>'
+xml2::xml_add_child(xml2::xml_root(d),xml2::xml_root(xml2::read_xml(append)))
+xml2::write_xml(d,file.path(out,"Figure1-analytical-workflow.svg"))
+# Scope CSS classes and IDs independently before composing the original panels.
+scope <- function(doc,prefix) {
+ t <- as.character(doc)
+ classes <- unique(unlist(strsplit(xml2::xml_attr(xml2::xml_find_all(doc,"//*[@class]"),"class")," ")))
+ for(cl in classes[!is.na(classes)]) {
+  t <- gsub(paste0("\\.",cl,"(?=[^A-Za-z0-9_-])"),paste0(".",prefix,cl),t,perl=TRUE)
+ }
+ z <- xml2::read_xml(t)
+ for(n in xml2::xml_find_all(z,"//*[@class]")) xml2::xml_set_attr(n,"class",paste0(prefix,strsplit(xml2::xml_attr(n,"class")," ")[[1]],collapse=" "))
+ ids <- xml2::xml_attr(xml2::xml_find_all(z,"//*[@id]"),"id")
+ t <- as.character(z)
+ for(id in ids) { t <- gsub(paste0('id="',id,'"'),paste0('id="',prefix,id,'"'),t,fixed=TRUE); t <- gsub(paste0("url(#",id,")"),paste0("url(#",prefix,id,")"),t,fixed=TRUE) }
+ xml2::read_xml(t)
+}
+s <- xml2::read_xml('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1250"><rect width="2000" height="1250" fill="white"/></svg>')
+files <- c("experimental_setup_reactor.svg","experimental_setup_cleaning-event.svg","experimental_setup_sampling-design.svg","experimental_setup_tmp.svg")
+pos <- data.frame(x=c(30,900,30,910),y=c(55,55,550,550),w=c(830,1070,840,1070),h=c(311,447,374,663))
+for(i in 1:4) {
+ p <- scope(xml2::read_xml(file.path(base,files[i])),paste0("p",i,"-"))
+ xml2::xml_set_attrs(xml2::xml_root(p),c(x=pos$x[i],y=pos$y[i],width=pos$w[i],height=pos$h[i]))
+ xml2::xml_add_child(xml2::xml_root(s),xml2::xml_root(p))
+ xml2::xml_add_child(xml2::xml_root(s),xml2::xml_root(xml2::read_xml(sprintf('<text xmlns="http://www.w3.org/2000/svg" x="%d" y="%d" font-family="Arial" font-size="24">%s</text>',pos$x[i],pos$y[i]-18,LETTERS[i]))))
+}
+xml2::write_xml(s,file.path(out,"FigureS1-original-experiment.svg"))
+python <- "/tmp/phage-workflow-svg-render-20260915/bin/python"
+for(stem in c("Figure1-analytical-workflow","FigureS1-original-experiment")) {
+ p <- normalizePath(file.path(out,paste0(stem,".svg")))
+ code <- sprintf("import cairosvg; cairosvg.svg2png(url=%s,write_to=%s,scale=1.5); cairosvg.svg2pdf(url=%s,write_to=%s)",dQuote(p,FALSE),dQuote(sub("svg$","png",p),FALSE),dQuote(p,FALSE),dQuote(sub("svg$","pdf",p),FALSE))
+ stopifnot(system2(python,c("-c",shQuote(code)),env="DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib")==0)
+}
+inputs <- c(file.path(base,c(files,"workflow_metro.svg")),"manuscript/cleaning_model_methods_2026-09-15.md","notes/handoff-2026-09-15-figure7-table1.md","notes/handoff-2026-09-14-SOS-heterogeneity-models.md")
+write.table(data.frame(file=inputs,md5=unname(tools::md5sum(inputs))),file.path(out,"input_checksums.tsv"),sep="\t",quote=FALSE,row.names=FALSE)
+```

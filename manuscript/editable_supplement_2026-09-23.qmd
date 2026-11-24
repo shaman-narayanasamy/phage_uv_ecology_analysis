@@ -1,0 +1,62 @@
+---
+title: "Editable supplementary figures"
+format: html
+---
+
+Build an editable-caption DOCX from the verified supplementary PDF. Artwork is
+unchanged; captions are extracted as native text with title and panel emphasis.
+
+```{python}
+from pathlib import Path
+import json, re, subprocess, sys
+import pdfplumber
+from pypdf import PdfReader, PdfWriter
+from docx import Document
+from docx.shared import Inches, Pt
+from PIL import Image
+
+src=Path(sys.argv[1]); out=Path(sys.argv[2]); out.mkdir(parents=True,exist_ok=False)
+doc=Document(); sec=doc.sections[0]
+sec.page_width=Inches(8.27); sec.page_height=Inches(11.69)
+sec.top_margin=sec.bottom_margin=Inches(.5)
+sec.left_margin=sec.right_margin=Inches(.5)
+style=doc.styles['Normal']; style.font.name='Arial'; style.font.size=Pt(10)
+style.paragraph_format.space_after=Pt(0)
+style.paragraph_format.line_spacing=1.08
+records=[]
+with pdfplumber.open(src) as pdf:
+    for i,page in enumerate(pdf.pages):
+        lines=page.extract_text_lines()
+        cap=next(x for x in lines if re.match(r'^Figure S\d+:',x['text']))
+        caption=' '.join(x['text'] for x in lines if x['top']>=cap['top']-.1 and x['bottom']<page.height-30)
+        assert caption.startswith('Figure S')
+        # Crop artwork only, excluding caption/footer. Preserve original pixels.
+        p=PdfReader(src).pages[i]
+        p.cropbox.lower_left=(30,page.height-cap['top']+6)
+        p.cropbox.upper_right=(page.width-30,page.height-28)
+        w=PdfWriter();w.add_page(p)
+        artwork=out/f'figure-{i+1}.pdf'
+        with artwork.open('wb') as f:w.write(f)
+        subprocess.run(['pdftoppm','-cropbox','-singlefile','-r','240','-png',str(artwork),str(artwork.with_suffix(''))],check=True,capture_output=True)
+        if i:doc.add_page_break()
+        pic=doc.add_paragraph();pic.paragraph_format.keep_with_next=True
+        pic.paragraph_format.space_after=Pt(8)
+        png=artwork.with_suffix('.png'); iw,ih=Image.open(png).size
+        width=min(7.27,8.6*iw/ih)
+        pic.add_run().add_picture(str(png),width=Inches(width))
+        paragraph=doc.add_paragraph(); paragraph.paragraph_format.keep_together=True
+        # PDF fonts supply exact title/panel emphasis, not inferred prose edits.
+        chars=[c for c in page.chars if c['top']>=cap['top']-.1 and c['bottom']<page.height-30]
+        for line in [x for x in lines if x['top']>=cap['top']-.1 and x['bottom']<page.height-30]:
+            lc=sorted([c for c in chars if abs(c['top']-line['top'])<2],key=lambda c:c['x0'])
+            last=None
+            for c in lc:
+                if last and c['x0']-last['x1']>1.5:paragraph.add_run(' ')
+                r=paragraph.add_run(c['text']);r.bold='Bold' in c['fontname'];last=c
+            paragraph.add_run(' ')
+        assert re.sub(r'\s+',' ',paragraph.text).strip()==re.sub(r'\s+',' ',caption).strip(), (i,paragraph.text,caption)
+        records.append({'page':i+1,'caption':caption,'artwork':str(png)})
+doc.save(out/'Supplementary_figures_editable.docx')
+(out/'manifest.json').write_text(json.dumps({'source':str(src),'figures':records},indent=2))
+print(out/'Supplementary_figures_editable.docx')
+```

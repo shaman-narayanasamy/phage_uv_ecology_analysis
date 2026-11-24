@@ -60,7 +60,8 @@ repo_root <- function() {
 }
 
 default_data_root <- function(root = repo_root()) {
-  normalizePath(file.path(root, "..", ".."), mustWork = FALSE)
+  normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+    "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"), mustWork = TRUE)
 }
 
 parse_cli <- function(args) {
@@ -69,11 +70,11 @@ parse_cli <- function(args) {
   values <- list(
     metadata = file.path(root, "metadata", "sample_metadata.tsv"),
     counts_dir = file.path(
-      data_root, "PRJEB79569", "quantification", "mags_votu", "gene_coverage",
+      data_root, "quantification", "mags_votu", "gene_coverage",
       "metatranscriptomics"
     ),
     output_dir = file.path(
-      data_root, "PRJEB79569", "derived", "full_transcriptome_de"
+      data_root, "derived", "full_transcriptome_de"
     ),
     annotations = NA_character_,
     min_count = DEFAULT_MIN_COUNT,

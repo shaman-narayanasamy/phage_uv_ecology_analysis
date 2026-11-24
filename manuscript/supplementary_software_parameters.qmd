@@ -1,0 +1,90 @@
+---
+title: "Supplementary table: software and executed parameters"
+format: html
+execute:
+  eval: false
+---
+
+Author decision: supplementary material only; numbering remains provisional.
+This is an evidence-backed upstream-processing table, not yet a complete inventory
+of every downstream analysis. Do not substitute current installations for historical
+versions. Environment pins are labelled separately from verified runtime versions.
+
+```{python}
+import base64, csv, hashlib, json, sys
+from collections import defaultdict
+from pathlib import Path
+repo=Path.cwd()
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=Path(sys.argv[1]);assert not out.exists()
+sources=['upstream_execution_audit_2026-09-09-v2/execution_audit.json',
+         'coassembly_execution_audit_2026-09-21-v1/evidence.json',
+         'binning_input_audit_2026-09-21-v1/evidence.json']
+records={};source_hashes={}
+for name in sources:
+ p=root/name;raw=p.read_bytes();source_hashes[name]=hashlib.sha256(raw).hexdigest()
+ d=json.loads(raw)
+ for r in d['records'] if isinstance(d,dict) else d:
+  records[r['path']]=r
+groups=defaultdict(list)
+for r in records.values():groups[r['metadata']['rule']].append(r)
+specs=[
+ ('fastp','fastp_trimming','Read preprocessing','--length_required 36; --detect_adapter_for_pe; --thread 12','fastp'),
+ ('SortMeRNA','sortmerna_rrna_paired','Paired MT rRNA filtering','--fastx; --out2; --sout; --zip-out no; --threads 24; smr_v4.3_default_db.fasta','sortmerna'),
+ ('SortMeRNA','sortmerna_rrna_single','Unpaired MT rRNA filtering','--fastx; --zip-out no; --threads 12; smr_v4.3_default_db.fasta; run conditional on non-empty input','sortmerna'),
+ ('Penguin','penguin_assembly','Separate MG and MT assembly','guided_nuclassemble; paired reads; --threads 24','plass'),
+ ('MEGAHIT','megahit','MT assembly and per-sample MG/MT co-assembly','-t 24; paired and unpaired reads; co-assembly additionally includes MT MEGAHIT contigs through -r and --continue','megahit'),
+ ('Workflow concatenation','get_all_prokaryotic_seqs','Binning input','Pool prokaryotic, prokaryotic-virus and plasmid contigs; no length filtering at this concatenation step',''),
+ ('CONCOCT','concoct_cut_contigs','Contig splitting','-c 1000; -o 0; --merge_last','concoct'),
+ ('CONCOCT','concoct','Binning','-l 1500; -t 24; split-contig composition and coverage inputs','concoct'),
+ ('MaxBin2','maxbin2','Binning','-min_contig_length 1500; -thread 24; abundance input','maxbin2'),
+ ('MetaBAT2','metabat2','Binning','-m 1500; -t 24; contig depth input','metabat2'),
+ ('Vamb','vamb','Binning','bin default; -m 1500; --minfasta 200000; -p 24; BAM directory input','vamb'),
+ ('SemiBin2','semibin','Single-sample binning','single_easy_bin; -m 1500; --engine auto; --environment global','semibin'),
+ ('SemiBin2','semibin_multi_sample','Multisample binning','multi_easy_bin; -m 1500; --engine auto; -t 24; concatenated FASTA and abundance files','semibin'),
+ ('MAGScoT','magscot_bin_refinement','Bin refinement','-i combined contig assignments; --hmm marker hits; six assignment streams from five binners',''),
+ ('BWA-MEM','bwa_mapping_catalogue','Unified-catalogue mapping','mem -M -v 1 -t 24; read groups; paired and unpaired alignments merged','bwa'),
+ ('SAMtools','bwa_mapping_catalogue','Alignment merging and sorting','merge --threads 24; view -bS; sort --threads 24 -m 10G','samtools'),
+ ('BEDTools','bedtools_gene_coverage','MT gene coverage','coverage -a unified MAG/vOTU gene intervals -b sorted alignments','bedtools'),
+]
+rows=[]
+for tool,rule,role,params,package in specs:
+ rs=groups[rule];assert rs,rule
+ assert all(not r['metadata'].get('incomplete') for r in rs),rule
+ pins=set()
+ for r in rs:
+  m=r['metadata'];env=m.get('decoded_conda_env') or (base64.b64decode(m['conda_env']).decode() if m.get('conda_env') else '')
+  for line in env.splitlines():
+   line=line.strip()
+   if package and line.startswith('- '+package+'='):pins.add(line[2:].split('=',1)[1])
+ version='; '.join(sorted(pins)) if pins else 'Not established'
+ status='Archived environment pin, not independently verified runtime' if pins else 'Command verified; exact runtime version not established'
+ if tool=='Workflow concatenation':version='Not applicable';status='Executed command verified'
+ if tool=='fastp':
+  audit=json.loads((root/sources[0]).read_text());versions={r['summary']['fastp_version'] for r in audit['fastp_reports']}
+  assert versions=={'1.3.3'};version='1.3.3';status='Runtime verified in 35 fastp reports'
+ rows.append(dict(software=tool,role=role,version=version,status=status,parameters=params,
+                  metadata_records=len(rs),rule=rule,evidence=[{'path':r['path'],'sha256':r['sha256']} for r in rs]))
+with (repo/'manuscript/upstream_software_provenance.tsv').open() as f:
+ for r in csv.DictReader(f,delimiter='\t'):
+  rows.append(dict(software=r['workflow_component'],role=r['role'],version=r['software_version'],
+   status=r['verification_status']+'; '+r['provenance_note'],
+   parameters='Database: '+r['database']+'; '+r['database_version_or_date']+'. Other parameters not consolidated in this table yet.',
+   evidence=[{'path':r['evidence_location'],'sha256':r['evidence_sha256']}]))
+missing=['DeepMicroClass','dRep','CheckM','geNomad','VirSorter2','ViraLM','Vclust','Cenote-Taker 3','MinCED','PILER-CR','16S/DADA2 and taxonomy databases','Downstream statistical and figure-generation packages']
+out.mkdir(parents=True)
+(out/'evidence.json').write_text(json.dumps({'source_hashes':source_hashes,'rows':rows,'pending_inventory':missing},indent=2))
+lines=['# Supplementary table: software and executed parameters','',
+ 'Working draft; table number unassigned. Environment pins are not presented as verified runtime versions. Exact commands, record counts, paths and hashes are retained in the companion evidence.json.','',
+ '| Software | Step | Version / environment pin | Parameters / database | Evidence status |',
+ '|---|---|---|---|---|']
+for r in rows:
+ cells=[r[k] for k in ['software','role','version','parameters','status']]
+ lines.append('| '+' | '.join(str(s).replace('|','\\|').replace('\n',' ') for s in cells)+' |')
+lines+=['','## Remaining inventory checks','']+['- '+s for s in missing]
+lines+=['','Binner length parameters are reported as executed, not as a universal upstream contig filter. CONCOCT splitting and length settings are distinct steps. The MAGScoT input includes single- and multisample SemiBin2 streams.']
+(out/'software_parameters.md').write_text('\n'.join(lines)+'\n')
+assert len(rows)==22
+print('Created',len(rows),'evidence-linked rows;',len(missing),'remaining inventory categories')
+print(out/'software_parameters.md')
+```

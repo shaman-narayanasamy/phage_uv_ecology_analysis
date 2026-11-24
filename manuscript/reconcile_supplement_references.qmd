@@ -1,0 +1,83 @@
+---
+title: "Live supplementary reference reconciliation"
+format: html
+---
+
+Read-only planning from a verified live snapshot. Writes local plans, never the
+manuscript. Browser Suggesting mode is required to apply each exact unique match.
+
+```{python}
+import json,re
+from pathlib import Path
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment')
+out=root/'PRJEB79569/derived/supplementary_reference_reconciliation_2026-09-22'
+out.mkdir(exist_ok=True)
+text=(root/'PRJEB79569/derived/manuscript_snapshot_2026-09-22_overnight_start/accepted_preview.txt').read_text()
+pre=[
+('Our combined non-redundant MAG-vOTU catalogue recruited an average of 87.76% and 96.78% of MG and MT reads respectively indicating that our de novo assembled catalogue is highly representative of the community (Supplementary Table S22).', 'Coassembly mapped-alignment fractions ranged from 78.05–88.49% for MG and 95.77–97.58% for MT. These fractions include secondary alignment records; catalogue-assigned counts are reported separately (Supplementary Table S22).'),
+('Per -MAG/-vOTU quality metrics and taxonomic assignments are provided in Supplementary Tables S1, S2 and S6.', 'Per-MAG and per-vOTU quality metrics and taxonomic assignments are provided in Supplementary Tables S1 and S2.'),
+('4,005 downregulated in treatment (FIG; Supplementary Table S8).','4,005 downregulated in treatment (Supplementary Table S8).'),
+('Cycle-level comparison showed 1 and 11 significantly expressed features at FDR ≤ 0.05, respectively, in cycles 2 and 3 (FIG; Supplementary Table S8).','Treatment-by-cycle contrasts identified 1 and 11 genes whose treatment–control differences changed in cycles 2 and 3, respectively, relative to cycle 1 (FDR (BH) ≤ 0.05; Supplementary Table S8).'),
+('CRISPR-mediated phage interaction evidence (Figure 2) to finalise the list (Table 1).','CRISPR-mediated phage interaction evidence (Figure 2; Supplementary Table S7) to finalise the list (Table 1).'),
+('with paired-end adapter detection enabled and a minimum retained read length of 36 bases.','with paired-end adapter detection enabled and a minimum retained read length of 36 bases. Software versions and key parameters are listed in Supplementary Table S28.'),
+('Detailed information available in Supplementary Tables S17 and S18.','Score inputs, candidate fits, suppression scenarios and the all-MAG comparison are provided in Supplementary Tables S16–S19.'),
+('membranes, which is the application of high-pressure back washes to remove biofilms built up in the membrane (Figure S1).','membranes, which is the application of high-pressure back washes to remove biofilms built up in the membrane (Supplementary Figure S1).'),
+('experiment described in Supplementary Figure 1.','experiment described in Supplementary Figure S1.'),
+('i)main design, ~ phase + cycle + condition, estimating  the treatment vs control DEGs adjusting for phase and cycle ii) the interaction design, ~ phase + cycle * condition, to estimate cycle-2 and cycle-3 differences from the cycle-1. The interaction model tested whether differences in gene expression between treatment and control at cycles 2 and 3 differed from those at cycle 1, adjusting for sampling phase.', 'i) the main design, ~ phase + cycle + condition, estimating treatment–control differences adjusted for phase and cycle; and ii) the interaction design, ~ phase + cycle * condition, testing whether treatment–control differences changed in cycles 2 and 3 relative to cycle 1, adjusted for phase.'),
+('). . Genes were retained','). Genes were retained'),
+('across all samples. , and the phase- and cycle-adjusted design. Library composition','across all samples. Library composition'),
+]
+plan=[]
+for old,new in pre:
+    assert text.count(old)==1,(old,text.count(old))
+    # Match a heading without its newline so Google Find remains single-line.
+    if old.endswith('\n'):
+        old=old.rstrip('\n');new=new.rstrip('\n')
+    plan.append({'old':old,'new':new,'kind':'comment_correction'})
+    text=text.replace(old,new,1)
+pat=r'Supplementary Tables? S\d+(?:(?:[–-]|, | and )S?\d+)*'
+def nums(s):
+    result=[]
+    for token in re.findall(r'S?\d+(?:[–-]S?\d+)?',s):
+        z=[int(v) for v in re.findall(r'\d+',token)]
+        result.extend(range(z[0],z[-1]+1))
+    return result
+order=[]
+for m in re.finditer(pat,text):
+    for n in nums(m.group()):
+        if n not in order:order.append(n)
+assert set(order)==set(range(1,29)),order
+mapping={n:i+1 for i,n in enumerate(order)}
+def label(ns):
+    ns=sorted(ns);groups=[];i=0
+    while i<len(ns):
+        j=i
+        while j+1<len(ns) and ns[j+1]==ns[j]+1:j+=1
+        if j-i>=2:groups.append(f'S{ns[i]}–S{ns[j]}')
+        else:groups.extend(f'S{x}' for x in ns[i:j+1])
+        i=j+1
+    joined=groups[0] if len(groups)==1 else ', '.join(groups[:-1])+' and '+groups[-1]
+    return 'Supplementary Table'+('s' if len(ns)>1 else '')+' '+joined
+refplan=[]
+matches=list(re.finditer(pat,text))
+for mi,m in enumerate(matches):
+    replacement=label([mapping[n] for n in nums(m.group())])
+    if replacement==m.group():continue
+    # Exact context around each occurrence prevents cascading old/new numbers.
+    a=max(text.rfind('\n',0,m.start())+1,m.start()-35)
+    b=m.end()
+    if mi:a=max(a,(matches[mi-1].end()+m.start()+1)//2)
+    if mi+1<len(matches):b=min(b,(m.end()+matches[mi+1].start())//2)
+    e=text.find('\n',m.end());b=min(b,e) if e>=0 else b
+    old=text[a:b];new=text[a:m.start()]+replacement+text[m.end():b]
+    assert text.count(old)==1,(old,text.count(old))
+    refplan.append({'old':old,'new':new,'kind':'table_reference','old_reference':m.group(),'new_reference':replacement})
+for p in refplan:
+    assert text.count(p['old'])==1,p
+    text=text.replace(p['old'],p['new'],1)
+plan+=refplan
+(out/'browser_plan.json').write_text(json.dumps(plan,indent=2,ensure_ascii=False))
+(out/'mapping.json').write_text(json.dumps({'old_to_new':mapping,'old_numbers_in_new_order':order},indent=2))
+(out/'planned_projection.txt').write_text(text)
+print('Planned',len(plan),'unique edits; map',mapping)
+```

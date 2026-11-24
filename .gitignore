@@ -28,3 +28,30 @@ outputs/
 scratch/
 config/local*.yml
 config/*_local.yml
+
+# Figure assets stay local; only their generating code is versioned.
+*.[pP][dD][fF]
+*.[sS][vV][gG]
+*.[pP][nN][gG]
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[eE][pP][sS]
+
+# Private project paperwork and Google Docs tooling: kept on disk, never committed.
+# Holds personal addresses, account identities and journal correspondence (2026-11-24).
+notes/
+manuscript/isme_communications/
+scripts/manuscript_identity.py
+scripts/share_manuscript_assistant.py
+scripts/upload_review_asset.py
+scripts/upload_review_figure.py
+scripts/import_editable_supplement.py
+scripts/import_figures_google_doc.py
+scripts/snapshot_figures_doc.py
+scripts/build_isme_submission_review.py
+scripts/publish_figure_audit_20260923.py
+scripts/repair_intro_citation_placement.py
+scripts/restore_cancelled_intro_reference.py
+tests/test_manuscript_identity.py

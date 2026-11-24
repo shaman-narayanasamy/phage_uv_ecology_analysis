@@ -1,0 +1,84 @@
+---
+title: "Supplementary provenance and host-catalogue reconciliation"
+format: html
+---
+
+Read-only reconciliation of existing outputs; no model refits or new biological
+claims. Historical keyword rules are provenance inputs only.
+
+```{python}
+from pathlib import Path
+import csv, hashlib, json, sys
+repo=Path.cwd()
+root=Path('/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived')
+out=Path(sys.argv[1]); assert not out.exists()
+sources={}
+def read(p):
+    p=Path(p); b=p.read_bytes()
+    sources[str(p)] = hashlib.sha256(b).hexdigest()
+    return list(csv.DictReader(b.decode().splitlines(),delimiter='\t'))
+registry=repo/'resources/biofilm_review_sets.tsv'
+rules=read(registry)
+receipt=read(root/'biofilm_full_transcriptome_review_2026-09-13-v4/input_sha256.tsv')
+expected={r['input']:r for r in receipt}
+assert sources[str(registry)]==expected['registry']['sha256']
+historical=[]
+for key in ['source_original','source_combined']:
+    p=Path(expected[key]['path']); b=p.read_bytes()
+    assert hashlib.sha256(b).hexdigest()==expected[key]['sha256']
+    sources[str(p)]=hashlib.sha256(b).hexdigest()
+    lines=b.decode().splitlines()
+    start=next(i for i,l in enumerate(lines) if l.startswith('keywords <- c('))
+    end=start
+    while ')' not in lines[end]: end+=1
+    historical.append(dict(source=str(p),sha256=sources[str(p)],line_start=start+1,line_end=end+1,excerpt='\n'.join(lines[start:end+1])))
+active=[r for r in rules if r['role']=='module' or r['set_id'] in ('historical9','historical12')]
+members=read(root/'biofilm_combined_definition_2026-09-13-v1/combined_gene_membership.tsv')
+assert len(members)==3905 and len({r['feature_id'] for r in members})==3905
+assert all(r['set_id']=='biofilm_combined' for r in members)
+edges=read(root/'figure1_shared_taxonomy_2026-09-14-v3/tables/plotted_network_edges.tsv')
+quality=read(root/'figure1_shared_taxonomy_2026-09-14-v3/tables/viral_node_quality.tsv')
+taxonomy=read(root/'votu_taxonomic_resolution_review_2026-09-13-v4/tables/catalogue_rank_assignments.tsv')
+counts=read(root/'community_cycle_models_catalogue_aligned_2026-09-16-v1/tables/votu_counts.tsv')
+idcol=next(iter(counts[0])); eligible={r[idcol] for r in counts}; assert len(eligible)==634
+tax={r['contig_id']:r for r in taxonomy}; q={r['phage_id']:r for r in quality}
+clusters=read(root.parent/'viromics/votu_clustering/cluster_summary.tsv')
+linked={e['phage_id'] for e in edges}
+member_map={}
+for c in clusters:
+    for member in c['members'].split(','):
+        if member in linked:
+            assert member not in member_map,member
+            member_map[member]=c
+assert set(member_map)==linked
+assert len(edges)==86 and len({r['MAG_ID'] for r in edges})==80 and len({r['phage_id'] for r in edges})==85
+joined=[]
+for e in edges:
+    r=dict(e); rep=e['representative']; t=tax.get(rep,{})
+    assert member_map[e['phage_id']]['representative']==rep
+    r['representative_mapping_provenance']='Verified against archived vOTU cluster_summary.tsv; no clustering rerun'
+    r['cluster_members']=member_map[e['phage_id']]['members'].split(',')
+    r['cluster_members_in_current_abundance_universe']=sorted(set(r['cluster_members']) & eligible)
+    r['in_current_634_abundance_universe']=rep in eligible
+    r['current_taxonomy_record_present']=bool(t)
+    r['current_taxonomy']=t
+    r['viral_quality_record']=q.get(e['phage_id'],{})
+    joined.append(r)
+out.mkdir(parents=True)
+(out/'biofilm_keyword_provenance.json').write_text(json.dumps(dict(active_definition='combined union, 3905 genes',rules=active,historical_sources=historical,excluded='historical_symbols is not part of the combined definition'),indent=2))
+(out/'host_phage_catalogue_reconciliation.json').write_text(json.dumps(joined,indent=2))
+lines=['# Active combined biofilm keyword provenance','',
+'The single active list is the union of the six annotation categories and the historical annotation-keyword lists. It contains 3,905 unique tested MAG-associated genes. Historical lists are inclusion provenance, not separate active analyses. Exact-symbol sensitivity is excluded.','',
+'Matching was case-insensitive on the full-transcriptome tested gene annotations, restricted to genes assigned to MAGs. Multiple matches are collapsed to unique gene IDs. The historical line break in "polymeric substance" is implemented as a whitespace regex.','',
+'| Rule | Exact annotation pattern |','|---|---|']
+for r in active: lines.append('| '+r['set_id']+' | `'+r['pattern'].replace('|','&#124;')+'` |')
+lines+=['','## Original author code evidence','']
+for r in historical: lines += [r['source']+' (lines '+str(r['line_start'])+'–'+str(r['line_end'])+')','```r',r['excerpt'],'```','']
+lines+=['The six added categories are operational annotation searches recorded in the analysis code, not a validated external biofilm-gene database. Gene-level matching rules and historical inclusion flags are retained in the combined membership and supplementary gene-evidence tables.']
+(out/'biofilm_keyword_provenance.md').write_text('\n'.join(lines)+'\n')
+summary=dict(pairs=len(joined),MAGs=len({r['MAG_ID'] for r in joined}),viral_contigs=len({r['phage_id'] for r in joined}),viral_contigs_in_current_abundance_universe=len({r['phage_id'] for r in joined if r['in_current_634_abundance_universe']}),pairs_in_current_abundance_universe=sum(r['in_current_634_abundance_universe'] for r in joined),all_85_cluster_assignments_verified=True,linked_clusters_with_abundance_eligible_members=len({r['representative'] for r in joined if r['cluster_members_in_current_abundance_universe']}))
+(out/'CHECKS.json').write_text(json.dumps(dict(keyword_registry_matches_execution_receipt=True,historical_sources_match_execution_receipt=True,combined_unique_genes=3905,network=summary),indent=2))
+(out/'source_sha256.json').write_text(json.dumps(sources,indent=2))
+(out/'README.md').write_text('# Supplementary evidence reconciliation\n\nKeyword provenance is verified against archived execution hashes. All 85 host-linked viral contigs were checked against the archived cluster membership table, and each representative matches the frozen network. Both representatives and all members of their clusters were checked against the current 634-vOTU abundance universe. CRISPR-linked viral contigs and abundance-eligible vOTUs are different sets; retain all network records, not only their intersection. No sequence clustering was rerun.\n\n'+json.dumps(summary,indent=2)+'\n')
+print(json.dumps(summary)); print(out)
+```

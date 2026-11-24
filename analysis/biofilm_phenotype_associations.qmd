@@ -1,0 +1,114 @@
+---
+title: "Exploratory conditional MAG transcription–phenotype associations"
+format: html
+editor: source
+---
+
+Author-approved exploratory modelling of digitised published means.14 MAGs x3
+outcomes, one model per pair. This is conditional association, not phage efficacy.
+Model: transformed outcome ~ phase + factor(cycle) + condition + expression_score.
+Cells retain published log10 units; EPS endpoints are log10 transformed.
+The expression score includes all tested combined-list genes within each MAG.
+MAGs were selected post hoc using upregulated genes, not independent validation.
+Condition is confounded with membrane;12 observations and6 residual df per fit.
+Nominal OLS and HC3 t tests with residual df, separate BH families of42 each.
+Neither provides design-based repeated-membrane causal inference.
+Leave-one-sample and leave-one-cycle refits are influence checks, not independent
+cross-validation. Pixel envelopes are extraction bounds, not sampling intervals.
+No TMP duplication across phases, no composite or technical pseudo-replicates.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-file.path(root,"figure_derived_biofilm_phenotypes_2026-09-13-v1/tables/expression_phenotype_overlay.tsv")
+sha<-function(p)digest::digest(file=p,algo="sha256")
+before<-sha(src);z<-fread(src)
+stopifnot(nrow(z)==504,!anyDuplicated(z[,.(MAG_ID,outcome,sample_title)]))
+for(d in c("tables","figures","source"))dir.create(file.path(out,d),recursive=TRUE)
+ans<-list();influence<-list();residuals<-list();fits<-list()
+for(mag in sort(unique(z$MAG_ID)))for(o in sort(unique(z$outcome))){
+ d<-copy(z[MAG_ID==mag & outcome==o]);setorder(d,sample_title)
+ d[,`:=`(phase=factor(phase),cycle=factor(cycle),condition=factor(condition))]
+ stopifnot(nrow(d)==12,all(d$pixel_envelope_low>0))
+ transform_y<-function(y)if(o=="log10_cells")y else log10(y)
+ d[,`:=`(y=transform_y(estimate),ylow=transform_y(pixel_envelope_low),yhigh=transform_y(pixel_envelope_high))]
+ fit<-lm(y~phase+cycle+condition+expression_score,data=d)
+ X<-model.matrix(fit);stopifnot(qr(X)$rank==ncol(X),df.residual(fit)==6)
+ j<-match("expression_score",colnames(X));V<-solve(crossprod(X));weights<-V%*%t(X)
+ beta<-coef(fit)[j];se<-sqrt(diag(vcov(fit)))[j];df<-df.residual(fit)
+ hc3<-V%*%crossprod(X,X*as.numeric((resid(fit)/(1-hatvalues(fit)))^2))%*%V
+ se3<-sqrt(diag(hc3))[j]
+ # Exact coefficient range over independent transformed-y extraction envelopes.
+ w<-weights[j,];lo<-sum(ifelse(w>=0,w*d$ylow,w*d$yhigh));hi<-sum(ifelse(w>=0,w*d$yhigh,w*d$ylow))
+ nuisance<-lm(expression_score~phase+cycle+condition,data=d)
+ inf<-rbindlist(lapply(seq_len(nrow(d)),function(i){
+  dd<-droplevels(d[-i]);ff<-lm(y~phase+cycle+condition+expression_score,data=dd)
+  data.table(drop_type="sample",dropped=as.character(d$sample_title[i]),beta=coef(ff)['expression_score'],rank=ff$rank)
+ }))
+ inf<-rbind(inf,rbindlist(lapply(levels(d$cycle),function(cy){
+  dd<-droplevels(d[cycle!=cy]);ff<-lm(y~phase+cycle+condition+expression_score,data=dd)
+  data.table(drop_type="cycle",dropped=cy,beta=coef(ff)['expression_score'],rank=ff$rank)
+ })))
+ inf[,`:=`(MAG_ID=mag,outcome=o,same_sign=sign(beta)==sign(as.numeric(coef(fit)[j])))]
+ influence[[paste(mag,o)]]<-inf
+ ans[[paste(mag,o)]]<-data.table(MAG_ID=mag,genus=d$genus[1],outcome=o,n=12,df=df,
+  beta=beta,se=se,CI_low=beta-qt(.975,df)*se,CI_high=beta+qt(.975,df)*se,
+  p=2*pt(-abs(beta/se),df),HC3_se=se3,HC3_p=2*pt(-abs(beta/se3),df),
+  partial_R2=(beta/se)^2/((beta/se)^2+df),predictor_VIF=1/(1-summary(nuisance)$r.squared),
+  design_kappa=kappa(X),max_Cook=max(cooks.distance(fit)),max_leverage=max(hatvalues(fit)),
+  pixel_beta_low=lo,pixel_beta_high=hi,pixel_direction_stable=lo*hi>0,
+  leave_sample_same_sign=sum(inf[drop_type=="sample",same_sign],na.rm=TRUE),
+  leave_cycle_same_sign=sum(inf[drop_type=="cycle",same_sign],na.rm=TRUE))
+ d[,`:=`(fitted=fitted(fit),residual=resid(fit),leverage=hatvalues(fit),Cook=cooks.distance(fit),
+  partial_expression=resid(nuisance),partial_y=resid(lm(y~phase+cycle+condition,data=d)))]
+ residuals[[paste(mag,o)]]<-d
+ fits[[paste(mag,o)]]<-fit
+}
+a<-rbindlist(ans);stopifnot(nrow(a)==42)
+a[,`:=`(FDR=p.adjust(p,"BH",n=42),HC3_FDR=p.adjust(HC3_p,"BH",n=42))]
+fwrite(a,file.path(out,"tables/model_results.tsv"),sep="\t")
+fwrite(rbindlist(influence),file.path(out,"tables/deletion_sensitivity.tsv"),sep="\t")
+fwrite(rbindlist(residuals),file.path(out,"tables/model_observations.tsv"),sep="\t")
+saveRDS(fits,file.path(out,"fitted_models.rds"))
+```
+
+```{r}
+#| label: verify-and-preview
+# Frisch-Waugh-Lovell independent slope check for all42fits.
+rr<-rbindlist(residuals)
+check<-rr[,.(beta_FWL=sum(partial_expression*partial_y)/sum(partial_expression^2)),by=.(MAG_ID,outcome)]
+check<-merge(check,a[,.(MAG_ID,outcome,beta)],by=c("MAG_ID","outcome"))
+stopifnot(max(abs(check$beta-check$beta_FWL))<1e-9,all(a$pixel_beta_low<=a$beta),all(a$pixel_beta_high>=a$beta))
+# End-point construction verifies the analytic pixel bounds directly.
+for(key in names(fits)){
+ ff<-fits[[key]];dd<-residuals[[key]];xx<-model.matrix(ff)
+ w<-solve(crossprod(xx),t(xx))["expression_score",]
+ low_y<-ifelse(w>=0,dd$ylow,dd$yhigh)
+ high_y<-ifelse(w>=0,dd$yhigh,dd$ylow)
+ stopifnot(abs(coef(lm.fit(xx,low_y))["expression_score"]-sum(w*low_y))<1e-9,
+  abs(coef(lm.fit(xx,high_y))["expression_score"]-sum(w*high_y))<1e-9)
+}
+a[,label:=paste(ifelse(is.na(genus)|genus=="","Unclassified",genus),MAG_ID,sep=" / ")]
+a[,nominal_support:=ifelse(FDR<.05,"OLS FDR < 0.05","OLS FDR >= 0.05")]
+g<-ggplot(a,aes(beta,label,colour=nominal_support))+geom_vline(xintercept=0,colour="grey65")+
+ geom_segment(aes(x=CI_low,xend=CI_high,yend=label),linewidth=.5)+geom_point(size=2)+
+ facet_wrap(~outcome,nrow=1,scales="free_x")+theme_bw(base_size=9)+
+ scale_colour_manual(values=c("OLS FDR < 0.05"="#175D83","OLS FDR >= 0.05"="#777777"))+
+ labs(x="Conditional slope (log10 outcome per unit transcription score)",y=NULL,
+  subtitle="Figure-derived outcomes; adjusted for phase, cycle and condition; nominal OLS 95% intervals",
+  caption="Exploratory, post hoc candidates. Intervals assume independent model errors; not phage-efficacy predictions.")+theme(legend.position="bottom")
+ggsave(file.path(out,"figures/conditional_associations.png"),g,width=16,height=8,dpi=160,device=ragg::agg_png)
+stopifnot(identical(before,sha(src)))
+notebook<-Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+file.copy(notebook,file.path(out,"source",basename(notebook)))
+fwrite(data.table(path=c(src,notebook),sha256=vapply(c(src,notebook),sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+writeLines(c("PASS:42full-rank models;6 residual df;independent FWL slopes;analytic pixel-bound verification.",
+ "42OLS and42HC3 p-values adjusted separately; no sample independence guaranteed by HC3.",
+ "Provisional published-cycle alignment and Backflush fraction ambiguity retained.",
+ "No DNA abundance adjustment; scores are community RNA, not per-cell expression.",
+ "Delete-one-cycle is sensitivity, not independent predictive validation."),file.path(out,"CHECKS.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

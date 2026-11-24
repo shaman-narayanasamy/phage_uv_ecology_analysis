@@ -1,0 +1,93 @@
+---
+title: "Whole-MAG suppression under a detachment hypothesis"
+format: html
+editor: source
+---
+
+Expression selects 14 candidates; whole-MAG DNA abundance is the predictor.
+Increased released material is the directional endpoint here, NOT proven degradation.
+Do not reverse p-values or call a change in interpretation an independent test.
+The existing common-slope fit is retained. A new phase-interaction sensitivity
+estimates Backflush-specific slopes (5 residual df; two-sided BH across 42 pairs).
+Equal pre-backwash component burden B is an imposed scenario, not an observation:
+R=eB, remaining=B-R, so remaining ratio=(1-e0*release_ratio)/(1-e0).
+e0=.1,.25,.5,.75 are illustrative, not estimated. Impossible fractions are flagged.
+Digitised means, provisional cycle mapping and one membrane per condition remain.
+
+```{r}
+suppressPackageStartupMessages({library(data.table);library(ggplot2)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+src<-file.path(root,"biofilm_MAG_abundance_models_2026-09-14-v1/tables")
+paths<-file.path(src,c("model_results.tsv","model_observations.tsv","abundance_suppression_scenarios.tsv"))
+sha<-function(p)digest::digest(file=p,algo="sha256")
+hashes<-vapply(paths,sha,character(1))
+a<-fread(paths[1]);z<-fread(paths[2]);sc<-fread(paths[3])
+for(d in c("tables","figures","source"))dir.create(file.path(out,d),recursive=TRUE)
+fits<-list();del<-list()
+for(m in unique(z$MAG_ID))for(o in unique(z$outcome)){
+ d<-copy(z[MAG_ID==m & outcome==o])
+ d[,`:=`(phase=relevel(factor(phase),"backflush"),cycle=factor(cycle),condition=factor(condition))]
+ f<-lm(y~cycle+condition+phase*log2_MAG_abundance,data=d)
+ X<-model.matrix(f);stopifnot(f$rank==7,df.residual(f)==5)
+ j<-match("log2_MAG_abundance",colnames(X));v<-solve(crossprod(X))
+ hc<-v%*%crossprod(X,X*as.numeric((resid(f)/(1-hatvalues(f)))^2))%*%v
+ b<-coef(f)[j];se<-sqrt(diag(vcov(f)))[j];se3<-sqrt(diag(hc))[j]
+ # Backflush reference coding independently verified by a prediction contrast.
+ dd<-copy(d[phase=="backflush"]);pr<-predict(f,dd);dd[,log2_MAG_abundance:=log2_MAG_abundance+1]
+ stopifnot(max(abs(predict(f,dd)-pr-b))<1e-9)
+ inf<-rbindlist(lapply(levels(d$cycle),function(cy){
+  ff<-lm(y~cycle+condition+phase*log2_MAG_abundance,data=droplevels(d[cycle!=cy]))
+  data.table(MAG_ID=m,outcome=o,omitted_cycle=cy,beta=coef(ff)["log2_MAG_abundance"],df=df.residual(ff))
+ }))
+ del[[paste(m,o)]]<-inf
+ fits[[paste(m,o)]]<-data.table(MAG_ID=m,outcome=o,genus=d$genus[1],beta=b,se=se,HC3_se=se3,
+  p=2*pt(-abs(b/se),5),HC3_p=2*pt(-abs(b/se3),5),df=5,
+  leave_cycle_same_sign=sum(sign(inf$beta)==sign(b)))
+}
+f<-rbindlist(fits);f[,`:=`(FDR=p.adjust(p,"BH"),HC3_FDR=p.adjust(HC3_p,"BH"))]
+fwrite(f,file.path(out,"tables/backflush_interaction_models.tsv"),sep="\t")
+fwrite(rbindlist(del),file.path(out,"tables/backflush_cycle_sensitivity.tsv"),sep="\t")
+base<-a[,.(MAG_ID,outcome,genus,beta,se,HC3_se,df,FDR,HC3_FDR)]
+base[,model:="Common slope"]
+alt<-f[,.(MAG_ID,outcome,genus,beta,se,HC3_se,df,FDR,HC3_FDR)];alt[,model:="Backflush-specific"]
+both<-rbind(base,alt)
+ss<-both[,{
+ s<-c(0,seq(.1,.9,.1),.95);dx<-log2(1-s)
+ list(suppression=s,release_ratio=10^(beta*dx),
+  low=10^((beta+qt(.975,df)*se)*dx),high=10^((beta-qt(.975,df)*se)*dx),
+  HC3_low=10^((beta+qt(.975,df)*HC3_se)*dx),HC3_high=10^((beta-qt(.975,df)*HC3_se)*dx))
+},by=.(MAG_ID,outcome,genus,model)]
+ss[,release_change_pct:=100*(release_ratio-1)]
+fwrite(ss,file.path(out,"tables/release_scenarios.tsv"),sep="\t")
+mass<-rbindlist(lapply(c(.1,.25,.5,.75),function(e){
+ dd<-copy(ss);dd[,baseline_detachment_fraction:=e]
+ dd[,`:=`(scenario_detachment_fraction=e*release_ratio,feasible=e*release_ratio<=1)]
+ dd[,remaining_component_change_pct:=ifelse(feasible,100*((1-e*release_ratio)/(1-e)-1),NA_real_)]
+ dd
+}))
+stopifnot(all(ss[suppression==0,release_ratio]==1),all(mass[feasible==TRUE,scenario_detachment_fraction]>=0))
+# Independent absolute mass balance with arbitrary starting B=100.
+ok<-mass[feasible==TRUE];remaining0<-100*(1-ok$baseline_detachment_fraction)
+remaining1<-100-100*ok$scenario_detachment_fraction
+stopifnot(max(abs(100*(remaining1/remaining0-1)-ok$remaining_component_change_pct))<1e-9)
+fwrite(mass,file.path(out,"tables/equal_starting_burden_sensitivity.tsv"),sep="\t")
+p<-ggplot(ss[suppression==.5],aes(x=log2(release_ratio),y=paste(genus,MAG_ID,sep=" / "),colour=model))+
+ geom_vline(xintercept=0,colour="grey60")+geom_point(position=position_dodge(width=.5),size=2)+
+ facet_wrap(~outcome,nrow=1)+theme_bw(base_size=9)+
+ labs(x="Log2 released-material ratio at 50% MAG suppression (right = more release)",y=NULL,
+ subtitle="Directional scenario comparison, not confirmed removal or degradation",
+ caption="Points only; full OLS and HC3 intervals in tables. Equal starting burden is unverified.")+
+ theme(legend.position="bottom")
+ggsave(file.path(out,"figures/release_direction_comparison.png"),p,width=15,height=8,dpi=160,device=ragg::agg_png)
+stopifnot(identical(hashes,vapply(paths,sha,character(1))),nrow(f)==42,nrow(ss)==924)
+nb<-Sys.getenv("PHAGE_UV_NOTEBOOK_PATH");file.copy(nb,file.path(out,"source",basename(nb)))
+fwrite(data.table(path=c(paths,nb),sha256=vapply(c(paths,nb),sha,character(1))),file.path(out,"input_sha256.tsv"),sep="\t")
+writeLines(c("PASS 42 full-rank phase-interaction models; independent Backflush contrasts; 924 scenarios; mass balance; source hashes.",
+ "Interpretation reversal is not independent evidence; two-sided testing retained.",
+ "Increased release does not demonstrate degradation. Remaining burden is conditional on equal starting burden.",
+ "Cycle deletion fits have only 2 residual df; sensitivity only."),file.path(out,"CHECKS.txt"))
+capture.output(sessionInfo(),file=file.path(out,"sessionInfo.txt"))
+files<-list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,sha,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+```

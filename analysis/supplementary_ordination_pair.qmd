@@ -1,0 +1,29 @@
+---
+title: "Retained 16S paired ordination display"
+format: html
+---
+
+Uses archived coordinates without recalculating distances or statistics.
+
+```{r}
+library(data.table);library(ggplot2);library(patchwork)
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out));dir.create(out,recursive=TRUE)
+path<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived/16s_analysis/09_return_package/16s_beta_ordination_coordinates.tsv"
+d<-fread(path);stopifnot(nrow(d)==24,uniqueN(d$sample_title)==12)
+d[,condition:=factor(condition,levels=c("control","treatment"),labels=c("Control","Treatment"))]
+d[,phase:=factor(phase,levels=c("initial","backflush"),labels=c("Initial","Backflush"))]
+panel<-function(metric_name,title){
+ x<-d[metric==metric_name]
+ ggplot(x,aes(axis1,axis2,colour=condition,shape=phase))+
+ geom_point(size=2.3)+geom_text(aes(label=cycle),nudge_y=diff(range(x$axis2))*.045,size=2.8,show.legend=FALSE)+
+ scale_colour_manual(values=c(Control="#8FCB8A",Treatment="#7E57C2"))+
+ scale_shape_manual(values=c(Initial=16,Backflush=17))+
+ scale_y_continuous(expand=expansion(mult=.12))+
+ labs(x=sprintf("Axis 1 (%.1f%%)",x$axis1_percent_variance[1]),y=sprintf("Axis 2 (%.1f%%)",x$axis2_percent_variance[1]),colour=NULL,shape=NULL)+
+ theme_classic(base_size=9)+theme(plot.title=element_text(size=10),legend.position="bottom",plot.margin=margin(8,8,8,8))
+}
+p<-(panel("bray_curtis","Bray-Curtis")+panel("aitchison","Aitchison"))+plot_layout(guides="collect")+plot_annotation(tag_levels="A") & theme(legend.position="bottom")
+ggsave(file.path(out,"paired-ordinations.pdf"),p,width=7.25,height=3.6,device=pdf,useDingbats=FALSE)
+fwrite(d,file.path(out,"plotted_coordinates.tsv"),sep="\t")
+writeLines(digest::digest(file=path,algo="sha256"),file.path(out,"source_sha256.txt"))
+```

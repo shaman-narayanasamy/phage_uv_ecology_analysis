@@ -1,0 +1,278 @@
+---
+title: "Circular native MAG heat tree with aligned quality rings"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Figure 1 review only. Add one terminal leaf for each of the 348 MAGs to the
+verified 698-node taxonomy. Existing taxonomic clade abundances stay unchanged;
+each MAG leaf uses its own equal-sample mean mapped-read fraction. Direct
+assignments move from taxonomic nodes to MAG leaves, preventing double counting.
+Native metacoder draws the taxonomy and MAG branches with deterministic custom
+circular cladogram coordinates. All MAG leaves share one radius. Two aligned
+annular tracks display completeness (inner) then contamination (outer).
+The installed package is not modified: a local copy of heat_tree resolves only
+its layout dispatcher through a private environment. All native sizing, polygons,
+labels and abundance legends remain metacoder's.
+
+```sh
+PHAGE_UV_METACODER_LIB=/Users/shaman.narayanasamy/.local/share/R/phage-uv-metacoder-0.3.9 \
+  bash scripts/run_qmd.sh analysis/mag_heat_tree_circular_quality.qmd NEW_OUTPUT_DIRECTORY
+python3 tests/test_mag_heat_tree_circular_quality.py NEW_OUTPUT_DIRECTORY
+```
+
+```{r}
+#| label: native-mag-quality-leaves
+lib <- Sys.getenv("PHAGE_UV_METACODER_LIB")
+if(nzchar(lib)) .libPaths(c(lib,.libPaths()))
+suppressPackageStartupMessages({library(data.table); library(metacoder); library(ggplot2); library(ggnewscale)})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)==1L,"Supply a new output directory")
+output <- normalizePath(args[[1]],mustWork=FALSE)
+check(!file.exists(output),"Output exists; use a new version")
+repo <- normalizePath(getwd())
+data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"))
+native <- file.path(data,"derived/native_metacoder_heat_trees_2026-09-13-v4")
+mag_source <- file.path(data,"derived/mag_global_abundance_tree_2026-09-13-v2")
+paths <- c(nodes=file.path(native,"tables/mag_plotted_nodes.tsv"),
+  assignments=file.path(mag_source,"tables/deepest_assignments.tsv"),
+  quality=file.path(data,"binning/dereplication/data_tables/Widb.csv"),
+  family_colours=file.path(data,"derived/taxonomic_resolution_exploration/tables/family_microshades_colour_key.tsv"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+input_hashes <- vapply(paths,hash,character(1))
+for(spec in list(c(native,"tables/mag_plotted_nodes.tsv"),c(mag_source,"tables/deepest_assignments.tsv"))) {
+  m <- fread(file.path(spec[[1]],"output_sha256.tsv")); rel <- spec[[2]]
+  check(identical(hash(file.path(spec[[1]],rel)),m[path==rel,sha256]),"Verified source changed")
+}
+taxa <- fread(paths[["nodes"]])
+assigned <- fread(paths[["assignments"]])
+qc <- fread(paths[["quality"]])
+qc[,MAG_ID:=sub("[.]fasta$","",genome)]
+check(nrow(qc)==348L && !anyDuplicated(qc$MAG_ID),"Expected 348 unique quality records")
+check(nrow(assigned)==348L && !anyDuplicated(assigned$MAG_ID) &&
+  setequal(assigned$MAG_ID,qc$MAG_ID),"MAG-quality join mismatch")
+check(all(is.finite(qc$completeness)&qc$completeness>=75&qc$completeness<=100),"Completeness outside fixed 75-100% scale")
+check(all(is.finite(qc$contamination)&qc$contamination>=0&qc$contamination<=25),"Contamination outside fixed 0-25% scale")
+mags <- merge(assigned,qc[,.(MAG_ID,completeness,contamination)],by="MAG_ID",sort=TRUE)
+mags[,node_id:=sprintf("mag%03d",seq_len(.N))]
+mags[,`:=`(parent=assigned_node,phylum=taxa$phylum[match(assigned_node,taxa$node_id)],
+  colour=taxa$colour[match(assigned_node,taxa$node_id)])]
+check(!anyNA(mags$colour),"Unknown parent node")
+nodes <- taxa[,.(node_id,parent,rank,taxon,phylum,clade_abundance,clade_mags,
+  direct_abundance=0,direct_mags=0L,colour,plot_label)]
+leaves <- mags[,.(node_id,parent,rank="MAG",taxon=MAG_ID,phylum,
+  clade_abundance=mean_abundance,clade_mags=1L,direct_abundance=mean_abundance,
+  direct_mags=1L,colour,plot_label="")]
+nodes <- rbind(nodes,leaves)
+# Use the actual frozen stacked-bar key, not newly generated family shades.
+# Higher ranks retain phylum colours. Family and descendant nodes (including
+# every MAG leaf) use the bar category, including its explicit remainder bins.
+family_key <- fread(paths[["family_colours"]])
+check(!anyDuplicated(family_key$display_category),"Duplicate family colour category")
+nodes[,`:=`(colour_category=paste0("phylum: ",phylum),family_ancestor=NA_character_)]
+for(i in seq_len(nrow(nodes))) {
+  if(!nodes$rank[i] %in% c("family","genus","species","MAG")) next
+  ancestor <- nodes$node_id[i]
+  while(length(ancestor)==1L && !is.na(ancestor) && ancestor %in% nodes$node_id) {
+    j <- match(ancestor,nodes$node_id)
+    if(nodes$rank[j]=="family") break
+    ancestor <- nodes$parent[j]
+  }
+  family <- if(length(ancestor)==1L && !is.na(ancestor) && ancestor %in% nodes$node_id)
+    nodes$taxon[match(ancestor,nodes$node_id)] else NA_character_
+  key_row <- which(family_key$category_type=="top25 named" &
+    family_key$display_category==family & family_key$phylum==nodes$phylum[i])
+  if(!length(key_row)) key_row <- which(family_key$category_type=="within-phylum remainder" &
+    family_key$phylum==nodes$phylum[i])
+  if(!length(key_row)) key_row <- which(family_key$category_type=="global remainder")
+  check(length(key_row)==1L,"Ambiguous family colour lookup")
+  nodes[i,`:=`(colour=family_key$colour[key_row],
+    colour_category=family_key$display_category[key_row],family_ancestor=family)]
+}
+mags[,colour:=nodes$colour[match(node_id,nodes$node_id)]]
+check(nrow(nodes)==1046L && !anyDuplicated(nodes$node_id),"Expected 1046 unique nodes")
+check(abs(sum(nodes$direct_abundance)-1)<1e-12 && sum(nodes$direct_mags)==348L,"Direct assignment conservation failed")
+for(i in seq_len(nrow(nodes))) {
+  id <- nodes$node_id[[i]]
+  check(abs(nodes$clade_abundance[[i]]-nodes$direct_abundance[[i]]-
+    sum(nodes[parent==id,clade_abundance]))<1e-12,"Clade conservation failed")
+}
+# Deterministic depth-first order keeps every clade contiguous around the circle.
+children <- split(nodes$node_id,nodes$parent)
+root <- nodes[is.na(parent)|!parent %in% node_id,node_id]
+check(length(root)==1L,"Expected a single taxonomy root")
+descendants <- list(); heights <- setNames(numeric(nrow(nodes)),nodes$node_id)
+visit <- function(id) {
+  kids <- children[[id]]
+  if(!length(kids)) {
+    descendants[[id]] <<- id
+    return(id)
+  }
+  kids <- kids[order(nodes$taxon[match(kids,nodes$node_id)],kids)]
+  result <- unlist(lapply(kids,visit),use.names=FALSE)
+  descendants[[id]] <<- result
+  heights[[id]] <<- 1+max(heights[kids])
+  result
+}
+leaf_order <- visit(root)
+check(length(leaf_order)==348L && setequal(leaf_order,mags$node_id),"Circular order lost MAGs")
+leaf_index <- setNames(seq_along(leaf_order),leaf_order)
+angles <- vapply(nodes$node_id,function(id)
+  pi/2-2*pi*(mean(leaf_index[descendants[[id]]])-.5)/348,numeric(1))
+radial <- 1-heights[nodes$node_id]/heights[[root]]
+coordinates <- data.table(node_id=nodes$node_id,angle=angles,radial=radial,
+  x=radial*cos(angles),y=radial*sin(angles))
+# Version-specific, isolated layout adapter; do not patch the package namespace.
+check(as.character(packageVersion("metacoder"))=="0.3.9","Revalidate layout adapter for this metacoder version")
+native_heat_tree <- getS3method("heat_tree","default",envir=asNamespace("metacoder"))
+layout_env <- new.env(parent=environment(native_heat_tree))
+layout_env$layout_functions <- function(name=NULL,graph=NULL,intitial_coords=NULL,...) {
+  if(is.null(name)&&is.null(graph)) return(c(metacoder:::layout_functions(),"circular-mag"))
+  if(identical(name,"circular-mag")) {
+    ids <- igraph::V(graph)$name
+    xy <- as.matrix(coordinates[match(ids,node_id),.(x,y)])
+    check(!anyNA(xy),"Missing circular coordinates")
+    return(xy)
+  }
+  metacoder:::layout_functions(name,graph,intitial_coords,...)
+}
+environment(native_heat_tree) <- layout_env
+
+set.seed(913)
+grDevices::pdf(NULL,width=14,height=12)
+p <- native_heat_tree(taxon_id=nodes$node_id,supertaxon_id=nodes$parent,
+  node_label=nodes$plot_label,node_size=100*nodes$clade_abundance,edge_size=100*nodes$clade_abundance,
+  node_color=nodes$colour,edge_color=nodes$colour,
+  node_size_trans="area",edge_size_trans="area",node_size_interval=c(0,100),edge_size_interval=c(0,100),
+  node_size_range=c(0,.045),edge_size_range=c(0,.018),
+  node_label_size=1,node_label_size_range=c(.013,.013),node_label_color="#252525",
+  node_label_max=1000,repel_labels=TRUE,repel_force=2,repel_iter=3000,
+  layout="circular-mag",initial_layout=NULL,
+  make_node_legend=TRUE,make_edge_legend=FALSE,node_legend_title=NA,
+  node_size_axis_label="Mean relative abundance (%)",node_color_axis_label=NA,
+  title=NULL,background_color="#FFFFFF",margin_size=c(.06,.06,.06,.06),verbose=TRUE)
+grDevices::dev.off()
+# Move the native abundance key clear of the outer ring, without resizing it.
+for(i in seq_along(p$layers)) {
+  d <- p$layers[[i]]$data
+  if(!is.data.frame(d)||!"group" %in% names(d)) next
+  is_key <- grepl("legend",d$group)
+  for(k in intersect(c("x","xmin","xmax"),names(d))) d[is_key,k] <- d[is_key,k]+.14
+  p$layers[[i]]$data <- d
+}
+geometry <- as.data.table(p$layers[[1]]$data)
+# Native circles are closed regular 35-gons: bounding-box midpoints are biased.
+# The centroid of the 35 distinct vertices recovers the exact layout centre.
+centres <- geometry[grepl("_node$",group),.(x=mean(x[-.N]),y=mean(y[-.N]),
+  radius=max(x)-mean(x[-.N])),by=group]
+centres[,node_id:=sub("_node$","",group)]
+check(setequal(centres$node_id,nodes$node_id),"Renderer lost nodes")
+mags <- merge(mags,centres[,.(node_id,x,y,radius)],by="node_id",sort=FALSE)
+# Native rescaling is isotropic; recover the circle centre from its root.
+origin <- centres[node_id==root]
+mags[,`:=`(leaf_order=unname(leaf_index[node_id]),
+  angle=coordinates$angle[match(node_id,coordinates$node_id)])]
+mags[,leaf_radius:=sqrt((x-origin$x)^2+(y-origin$y)^2)]
+check(diff(range(mags$leaf_radius))<1e-8,"MAG leaves are not on a common circle")
+tip_radius <- mean(mags$leaf_radius)
+mags[,`:=`(origin_x=origin$x,origin_y=origin$y)]
+setorder(mags,leaf_order)
+ring_start <- tip_radius+max(mags$radius)+.012
+ring_width <- .022
+ring_gap <- .005
+pairs <- list(); polygons <- list()
+for(i in seq_len(nrow(mags))) {
+  m <- mags[i]
+  for(j in 1:2) {
+    metric <- c("completeness","contamination")[[j]]
+    inner <- ring_start+(j-1)*(ring_width+ring_gap)
+    outer <- inner+ring_width
+    # Small visual separation, identical angular sector for both measurements.
+    half_angle <- pi/348*.94
+    theta <- seq(m$angle-half_angle,m$angle+half_angle,length.out=5)
+    radii <- c(rep(inner,5),rep(outer,5))
+    arc <- c(theta,rev(theta))
+    pairs[[length(pairs)+1L]] <- data.table(node_id=m$node_id,MAG_ID=m$MAG_ID,
+      metric=metric,value=m[[metric]],leaf_order=m$leaf_order,angle=m$angle,
+      inner_radius=inner,outer_radius=outer,leaf_x=m$x,leaf_y=m$y,
+      cx=origin$x+mean(c(inner,outer))*cos(m$angle),
+      cy=origin$y+mean(c(inner,outer))*sin(m$angle))
+    polygons[[length(polygons)+1L]] <- data.table(node_id=m$node_id,MAG_ID=m$MAG_ID,
+      metric=metric,value=m[[metric]],corner=seq_along(arc),
+      x=origin$x+radii*cos(arc),y=origin$y+radii*sin(arc))
+  }
+}
+tiles <- rbindlist(pairs); polygons <- rbindlist(polygons)
+label_layer <- which(vapply(p$layers,function(x)inherits(x$geom,"GeomFitText"),logical(1)))
+native_labels <- p$layers[[label_layer]]
+halo <- lapply(seq(0,2*pi,length.out=9)[-9],function(angle) {
+  shifted <- native_labels$data
+  shifted$xmin <- shifted$xmin+.0008*cos(angle); shifted$xmax <- shifted$xmax+.0008*cos(angle)
+  shifted$ymin <- shifted$ymin+.0008*sin(angle); shifted$ymax <- shifted$ymax+.0008*sin(angle)
+  do.call(ggfittext::geom_fit_text,c(list(data=shifted,mapping=native_labels$mapping,
+    inherit.aes=FALSE,colour="white"),native_labels$geom_params))
+})
+p$layers <- c(p$layers[-label_layer],halo,list(native_labels))
+p <- p+
+  geom_segment(data=tiles[metric=="completeness"],aes(x=leaf_x,y=leaf_y,xend=cx,yend=cy),
+    inherit.aes=FALSE,colour="#BBBBBB",linewidth=.12)+
+  geom_polygon(data=polygons[metric=="completeness"],aes(x=x,y=y,group=node_id,fill=value),inherit.aes=FALSE,colour=NA)+
+  scale_fill_gradient(low="#F7FBFF",high="#08519C",limits=c(75,100),name="1  Completeness (%)",
+    guide=guide_colourbar(order=1,direction="horizontal",barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  guides(fill=guide_colourbar(order=1,direction="horizontal",title.position="top",
+    barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  ggnewscale::new_scale_fill()+
+  geom_polygon(data=polygons[metric=="contamination"],aes(x=x,y=y,group=node_id,fill=value),inherit.aes=FALSE,colour=NA)+
+  scale_fill_gradient(low="#FFF5F0",high="#A50F15",limits=c(0,25),name="2  Contamination (%)",
+    guide=guide_colourbar(order=2,direction="horizontal",barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  guides(fill=guide_colourbar(order=2,direction="horizontal",title.position="top",
+    barwidth=grid::unit(40,"mm"),barheight=grid::unit(3,"mm")))+
+  theme(legend.position="bottom",legend.box="horizontal",legend.title=element_text(size=10),legend.text=element_text(size=9))
+old_limits <- p$coordinates$limits
+# The installed ggnewscale leaves explicit guide availability at "fill";
+# update it to the renamed completeness aesthetic for ggplot2 4.x.
+p$guides$guides[["fill_ggnewscale_1"]]$available_aes <- "fill_ggnewscale_1"
+# Native fixed position scales otherwise censor the new ring at the old limits.
+for(axis in c("x","y")) {
+  position_scale <- p$scales$get_scales(axis)
+  position_scale$limits <- NULL
+}
+p <- p+coord_equal(xlim=range(c(old_limits$x+.14,polygons$x))+c(-.025,.025),
+  ylim=range(c(old_limits$y,polygons$y))+c(-.025,.025),clip="off")
+dir.create(file.path(output,"figures"),recursive=TRUE)
+dir.create(file.path(output,"tables")); dir.create(file.path(output,"source"))
+fwrite(coordinates,file.path(output,"tables/circular_layout.tsv"),sep="\t")
+fwrite(nodes,file.path(output,"tables/tree_nodes.tsv"),sep="\t")
+fwrite(nodes[,.(node_id,rank,taxon,phylum,family_ancestor,colour_category,colour)],
+  file.path(output,"tables/node_colour_audit.tsv"),sep="\t")
+fwrite(mags,file.path(output,"tables/mag_leaves.tsv"),sep="\t")
+fwrite(tiles,file.path(output,"tables/quality_tiles.tsv"),sep="\t")
+fwrite(polygons,file.path(output,"tables/quality_tile_polygons.tsv"),sep="\t")
+fwrite(geometry,file.path(output,"tables/native_tree_polygons.tsv"),sep="\t")
+saveRDS(p,file.path(output,"source/native_mag_quality_tree.rds"))
+ggsave(file.path(output,"figures/mag_heat_tree_circular_quality.pdf"),p,
+  device=grDevices::pdf,useDingbats=FALSE,width=14,height=12,units="in")
+check(identical(input_hashes,vapply(paths,hash,character(1))),"Input changed during execution")
+for(kind in names(paths)) file.copy(paths[[kind]],file.path(output,"source",basename(paths[[kind]])))
+file.copy(file.path(repo,"analysis/mag_heat_tree_circular_quality.qmd"),file.path(output,"source/mag_heat_tree_circular_quality.qmd"))
+fwrite(data.table(input=names(paths),path=unname(paths),sha256=input_hashes),file.path(output,"input_sha256.tsv"),sep="\t")
+writeLines(c("Author-review candidate; manuscript and viral figure unchanged.",
+  "Colours harmonised with frozen family stacked bars: family nodes and descendants use exact named-family or remainder-category colours; higher ranks retain phylum colours. No topology, abundance or quality change.",
+  "Native metacoder tree: 698 taxonomic nodes + 348 individual MAG leaves. Clade areas and MAG proportions use the verified 12-sample equal-weight means.",
+  "Circular cladogram: all 348 MAG leaves share one radius; completeness is the inner ring, contamination the outer ring. Each MAG occupies the same angle in both rings. Custom deterministic layout adapter; native metacoder geometry and sizes.",
+  "Completeness 75-100% (blue); contamination 0-25% (red): same scales as the earlier MAG annotation rings. No clipping, filtering, or taxon-level averaging of MAG quality.",
+  "Only quality annotations added. No expression annotations or MAG-name labels; exact MAG-to-leaf correspondence is in tables/mag_leaves.tsv.",
+  "Direct assignments transferred to terminal MAG leaves; parent clade abundances remain inclusive and must not be added to descendant values.",
+  "Topology denotes taxonomy, not sequence divergence. This is MAG-mapped read composition, not whole-community or absolute abundance.",
+  capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+files <- list.files(output,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(output)+2L),sha256=vapply(files,hash,character(1))),file.path(output,"output_sha256.tsv"),sep="\t")
+cat(nrow(nodes),"nodes;",nrow(mags),"MAG leaves;",nrow(tiles),"quality tiles;",diff(range(mags$leaf_radius)),"leaf radius spread\n")
+```

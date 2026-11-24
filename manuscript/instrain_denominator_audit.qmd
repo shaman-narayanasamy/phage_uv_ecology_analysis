@@ -25,6 +25,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import re
 import statistics
 import sys
@@ -33,7 +34,7 @@ out = Path(sys.argv[1]).resolve()
 if out.exists():
     raise SystemExit("Refusing to overwrite an existing audit directory")
 repo = Path.cwd()
-data = repo.parent.parent/"PRJEB79569"
+data = Path(os.environ.get("PHAGE_UV_DATA_ROOT", "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569")).resolve(strict=True)
 base = data/"community_uv_response/variant_analysis/instrain_priority_20/compare/all_samples"
 paths = {
     "comparison": base/"output/all_samples_genomeWide_compare.tsv",

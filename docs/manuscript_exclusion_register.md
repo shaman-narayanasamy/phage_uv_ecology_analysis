@@ -16,6 +16,8 @@ Paths naming generated outputs above are relative to the data root PRJEB79569/de
 
 ## Required checks before using an artifact
 
+Author update, 2026-09-22: 16S v1 is the retained manuscript source. Version-2-only results are not adopted. See `notes/decision-2026-09-22-retain-16s-v1.md`. Current-experiment v1 remains active; this is not a blanket exclusion of 16S or its provenance audits.
+
 1. Check this register and docs/expression_quarantine.md before selecting a source.
 2. Trace result definition, model universe and catalogue version. A newer timestamp or attractive significance is not evidence of eligibility.
 3. Mark unknown or mixed-scope artifacts NEEDS_REVIEW; do not silently approve or quarantine the whole folder.

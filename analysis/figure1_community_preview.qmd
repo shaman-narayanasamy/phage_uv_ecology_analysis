@@ -1,0 +1,519 @@
+---
+title: "Figure 1: community trees and prokaryotic sample profiles"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Author-review assembly, not a live manuscript replacement. Two saved native
+metacoder plots are reused without changing their geometry or data. Panel C
+uses the frozen family profile and the same colour key as the circular MAG tree.
+No phage bars, ordinations, experimental schematic or statistical insets.
+Phage profiles and ordinations are reserved for a supplementary candidate.
+
+```sh
+PHAGE_UV_METACODER_LIB=/Users/shaman.narayanasamy/.local/share/R/phage-uv-metacoder-0.3.9 \
+  bash scripts/run_qmd.sh analysis/figure1_community_preview.qmd NEW_OUTPUT_DIRECTORY side-by-side
+```
+
+Layout choices: `original`, `side-by-side`, or `large-mag`. The last two put
+Control and Phage-UV facets side by side with narrower bars. `large-mag`
+gives more space to the MAG tree and moves both its abundance key and the
+family-bar legend left. These are layout comparisons, not new analyses.
+
+```{r}
+#| label: assemble-community-preview
+lib <- Sys.getenv("PHAGE_UV_METACODER_LIB")
+if(nzchar(lib)) .libPaths(c(lib,.libPaths()))
+suppressPackageStartupMessages({library(data.table);library(ggplot2);library(grid)})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)%in%c(1L,2L),"Supply a new output directory and optional layout")
+layout <- if(length(args)==2L) match.arg(args[2],c("original","side-by-side","large-mag","shared-key","clean-shared","family-key-right","network","network-circular","network-rich","network-quality")) else "original"
+quality_network <- layout=="network-quality"
+unified <- identical(Sys.getenv("PHAGE_UV_SHARED_TAXONOMY"),"1")
+check(!unified||quality_network,"Shared taxonomy requires network-quality layout")
+rich_network <- layout%in%c("network-rich","network-quality")
+circular_network <- layout%in%c("network-circular","network-rich","network-quality")
+if(circular_network)layout <- "network"
+clean <- layout%in%c("clean-shared","family-key-right","network")
+shared <- layout=="shared-key"||clean
+out <- normalizePath(args[1],mustWork=FALSE)
+check(!file.exists(out),"Preserve previous versions: use a new directory")
+root <- Sys.getenv("PHAGE_UV_DATA_ROOT","/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569")
+mag_dir <- file.path(root,"derived/mag_heat_tree_circular_quality_2026-09-13-v3")
+viral_dir <- file.path(root,"derived/native_metacoder_heat_trees_2026-09-13-v4")
+profile_dir <- file.path(root,"derived/taxonomic_resolution_exploration")
+paths <- c(mag_plot=file.path(mag_dir,"source/native_mag_quality_tree.rds"),
+  phage_plot=file.path(viral_dir,"source/votu_native_heat_tree.rds"),
+  profile=file.path(profile_dir,"tables/family_top25_community_profile.tsv"),
+  palette=file.path(profile_dir,"tables/family_microshades_colour_key.tsv"),
+  nodes=file.path(mag_dir,"tables/tree_nodes.tsv"),
+  metadata=file.path(getwd(),"metadata/sample_metadata.tsv"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[1],1,64)
+before <- vapply(paths,hash,character(1))
+if(unified) {
+  paths <- c(paths,taxonomy=file.path(root,"annotation/catbat/gtdb/BAT.bin2classification.txt"),
+    counts=file.path(root,"quantification/mags_votu/coverage/metagenomics/coverm/output-Read_Count.tsv"))
+  before <- vapply(paths,hash,character(1))
+  assignment <- fread(paths['taxonomy'])
+  assignment[,MAG_ID:=sub("[.]fasta$","",get("# bin"))]
+  assignment[,deepest:=vapply(strsplit(lineage,";",fixed=TRUE),function(z) tail(z[grepl("^[dpcofgs]__.+",z)],1),character(1))]
+  assignment[,phylum:=vapply(strsplit(lineage,";",fixed=TRUE),function(z) sub("^p__","",z[startsWith(z,"p__")][1]),character(1))]
+  counts <- fread(paths['counts'])[grepl("_MAGScoT_",Contig,fixed=TRUE)]
+  counts[,MAG_ID:=vapply(strsplit(Contig,"_",fixed=TRUE),function(z)paste(z[1:4],collapse="_"),character(1))]
+  cols <- setdiff(names(counts),c("Contig","MAG_ID"))
+  abundance <- melt(counts[,lapply(.SD,sum),by=MAG_ID,.SDcols=cols],id.vars="MAG_ID",variable.name="source_sample",value.name="reads")
+  abundance[,metagenome_run_accession:=sub(".*(ERR[0-9]+).*","\\1",source_sample)]
+  abundance <- merge(abundance,fread(paths['metadata']),by="metagenome_run_accession")
+  abundance <- merge(abundance,assignment[,.(MAG_ID,deepest,phylum)],by="MAG_ID")
+  check(nrow(abundance)==348*12 && uniqueN(abundance$sample_title)==12,"Incomplete abundance join")
+  abundance[,relative_abundance:=reads/sum(reads),by=sample_title]
+  ranked <- abundance[,.(mean_abundance=sum(relative_abundance)/12),by=.(phylum,deepest)][order(-mean_abundance,deepest)]
+  top <- ranked$deepest[1:25]
+  assignment[,display_category:=ifelse(deepest%in%top,
+    ifelse(startsWith(deepest,"s__"),deepest,paste0(deepest," [unresolved]")),paste0("p__",phylum," [remainder]"))]
+  unified_key <- unique(assignment[,.(display_category,phylum)])
+  base <- fread(paths['nodes'])[rank=="phylum",.(phylum=taxon,base=colour)]
+  unified_key <- merge(unified_key,base,by="phylum",all.x=TRUE)
+  check(!anyNA(unified_key$base),"Missing phylum hue")
+  setorder(unified_key,phylum,display_category)
+  unified_key[,colour:={is_rest<-grepl("[remainder]",display_category,fixed=TRUE); z<-rep(NA_character_,.N);
+    z[is_rest]<-colorspace::lighten(base[1],.50);
+    z[!is_rest]<-vapply(seq(.32,0,length.out=sum(!is_rest)),function(a)colorspace::darken(base[1],a),character(1));z},by=phylum]
+  unified_key[,category_type:=ifelse(grepl("[remainder]",display_category,fixed=TRUE),"lineage remainder","deepest named")]
+  assignment[,colour:=unified_key$colour[match(display_category,unified_key$display_category)]]
+  abundance[,display_category:=assignment$display_category[match(MAG_ID,assignment$MAG_ID)]]
+  unified_profile <- abundance[,.(relative_abundance=sum(relative_abundance)),by=.(sample_title,display_category)]
+}
+if(layout=="network") {
+  paths <- c(paths,network=file.path(root,"derived/host_phage_network_review/tables/deduplicated_host_phage_edges.tsv"))
+  before <- vapply(paths,hash,character(1))
+  edges <- fread(paths['network'])
+  check(nrow(edges)==86L && uniqueN(edges$MAG_ID)==80L && uniqueN(edges$phage_id)==85L,"Network contract changed")
+  hosts <- unique(edges[,.(MAG_ID,host_y)])
+  viruses <- unique(edges[,.(phage_id,phage_y)])
+  network <- ggplot()+geom_segment(data=edges,aes(x=0,xend=1,y=host_y,yend=phage_y),
+    colour="#AAB5BD",linewidth=.4,alpha=.75)+
+    geom_point(data=hosts,aes(x=0,y=host_y),shape=21,fill="#27647A",size=1.8,stroke=.2)+
+    geom_point(data=viruses,aes(x=1,y=phage_y),shape=23,fill="#B69A63",size=1.8,stroke=.2)+
+    scale_x_continuous(breaks=c(0,1),labels=c("80 MAGs","85 viral contigs"),expand=expansion(mult=c(.07,.07)))+
+    labs(x=NULL,y=NULL)+theme_classic(base_size=12)+
+    theme(axis.line=element_blank(),axis.ticks=element_blank(),axis.text.y=element_blank(),
+      plot.margin=margin(12,24,12,24))
+  if(circular_network) {
+    setorder(hosts,host_y,MAG_ID);setorder(viruses,phage_y,phage_id)
+    hosts[,angle:=seq(pi/2+.06,3*pi/2-.06,length.out=.N)]
+    viruses[,angle:=seq(pi/2-.06,-pi/2+.06,length.out=.N)]
+    hosts[,`:=`(x=cos(angle),y=sin(angle))]
+    viruses[,`:=`(x=cos(angle),y=sin(angle))]
+    circ <- merge(edges,hosts[,.(MAG_ID,x,y)],by="MAG_ID")
+    circ <- merge(circ,viruses[,.(phage_id,xend=x,yend=y)],by="phage_id")
+    check(nrow(circ)==86L,"Circular layout lost edges")
+    nd <- rbind(hosts[,.(id=MAG_ID,x,y,type="MAG (80)")],
+      viruses[,.(id=phage_id,x,y,type="Viral contig (85)")])
+    network <- ggplot()+geom_segment(data=circ,aes(x=x,y=y,xend=xend,yend=yend),
+        colour="#9EAEB7",linewidth=.35,alpha=.65)+
+      geom_point(data=nd,aes(x=x,y=y,shape=type,fill=type),size=1.65,stroke=.18)+
+      scale_shape_manual(values=c("MAG (80)"=21,"Viral contig (85)"=23),name=NULL)+
+      scale_fill_manual(values=c("MAG (80)"="#27647A","Viral contig (85)"="#B69A63"),name=NULL)+
+      coord_equal(xlim=c(-1.08,1.08),ylim=c(-1.08,1.08),clip="off")+theme_void(base_size=11)+
+      theme(legend.position="bottom",legend.text=element_text(size=9),
+        plot.margin=margin(8,6,8,6))+guides(fill=guide_legend(ncol=1),shape=guide_legend(ncol=1))
+    if(rich_network) {
+      paths <- c(paths,host_context=file.path(root,"derived/host_phage_network_review/tables/linked_host_context.tsv"))
+      before <- vapply(paths,hash,character(1))
+      hc <- fread(paths['host_context'])
+      hp <- merge(hosts,hc[,.(MAG_ID,phylum,host_label)],by="MAG_ID",all.x=TRUE)
+      palette_nodes <- fread(paths['nodes'])[rank=="phylum"]
+      phylum_key <- unique(palette_nodes[,.(taxon,colour)])
+      hp[,fill:=phylum_key$colour[match(phylum,phylum_key$taxon)]]
+      hp[is.na(fill),fill:="#B8B8B8"]
+      if(unified) {
+        hp[,display_category:=assignment$display_category[match(MAG_ID,assignment$MAG_ID)]]
+        hp[,fill:=assignment$colour[match(MAG_ID,assignment$MAG_ID)]]
+        check(!anyNA(hp$fill),"Network missing shared colour")
+      }
+      hp[,label:=paste(sub("_MAGScoT_cleanbin_","/",MAG_ID),host_label)]
+      hp[,label:=ifelse(nchar(label)>45,paste0(substr(label,1,42),"..."),label)]
+      vp <- merge(viruses,unique(edges[,.(phage_id,realm_display)]),by="phage_id")
+      setorder(vp,phage_y,phage_id);vp[,label:=sprintf("V%03d",seq_len(.N))]
+      if(quality_network) {
+        paths <- c(paths,viral_quality=file.path(root,"viromics/annotation/PRJEB79569_vOTUs/vclust_catalogue/checkv/quality_summary.tsv"))
+        before <- vapply(paths,hash,character(1))
+        q <- fread(paths['viral_quality'])
+        check(!anyDuplicated(q$contig_id),"Duplicate CheckV identifiers")
+        mapping <- unique(edges[,.(phage_id,representative)])
+        vp <- merge(vp,mapping,by="phage_id",all.x=TRUE)
+        vp <- merge(vp,q[,.(representative=contig_id,completeness,completeness_method,checkv_quality,miuvig_quality,viral_genes,warnings)],by="representative",all.x=TRUE)
+        check(nrow(vp)==85L && all(vp$representative%in%q$contig_id),"CheckV mapping incomplete")
+        check(all(vp$completeness[is.finite(vp$completeness)]>=0 & vp$completeness[is.finite(vp$completeness)]<=100),"Completeness outside percentage bounds")
+      }
+      # Radial text orientation: all labels face outward and read upright.
+      for(obj in c("hp","vp")) {
+        tab <- get(obj);tab[,`:=`(lx=1.055*x,ly=1.055*y,
+          text_angle=angle*180/pi+ifelse(x<0,180,0),hjust=ifelse(x<0,1,0))]
+        assign(obj,tab)
+      }
+      curves <- rbindlist(lapply(seq_len(nrow(circ)),function(i){
+        e <- circ[i];t <- seq(0,1,length.out=45)
+        # Quadratic Bezier curves through an inset midpoint; all edges retained.
+        data.table(edge=i,x=(1-t)^2*e$x+2*(1-t)*t*.18*(e$x+e$xend)/2+t^2*e$xend,
+          y=(1-t)^2*e$y+2*(1-t)*t*.18*(e$y+e$yend)/2+t^2*e$yend,
+          response_state=e$response_state,n_hits=e$n_hits)
+      }))
+      nodecols <- setNames(hp$fill,hp$phylum);nodecols<-nodecols[!duplicated(names(nodecols))]
+      network <- ggplot()+geom_path(data=curves,aes(x,y,group=edge,colour=response_state,linewidth=n_hits),alpha=.52)+
+        geom_point(data=hp,aes(x,y,fill=phylum),shape=21,size=3.1,stroke=.35,colour="#30343A")+
+        scale_fill_manual(values=nodecols,name="Host phylum",guide=guide_legend(ncol=6,byrow=TRUE))
+      if(unified) network <- ggplot()+geom_path(data=curves,aes(x,y,group=edge,colour=response_state,linewidth=n_hits),alpha=.52)+
+        geom_point(data=hp,aes(x,y,fill=display_category),shape=21,size=3.1,stroke=.35,colour="#30343A")+
+        scale_fill_manual(values=setNames(unified_key$colour,unified_key$display_category),guide="none")
+      if(quality_network) {
+        network <- network+ggnewscale::new_scale_fill()+
+          geom_point(data=vp,aes(x,y,shape=realm_display,fill=completeness),size=3.1,stroke=.6,colour="#30343A")+
+          scale_fill_gradientn(colours=c("#FFF4C7","#E8B46D","#B57133","#593214"),
+            limits=c(0,100),trans="sqrt",breaks=c(0,1,5,10,25,50,100),na.value="#D5D9DD",
+            name="Viral completeness (%)\nGrey: unavailable",guide=guide_colourbar(barwidth=unit(3.3,"in"),barheight=unit(.12,"in")))
+      } else network <- network+geom_point(data=vp,aes(x,y,shape=realm_display),size=2.5,fill="white",stroke=.65,colour="#30343A")
+      network <- network+
+        geom_text(data=hp,aes(lx,ly,label=label,angle=text_angle,hjust=hjust),size=2.45,colour="#24282C")+
+        geom_text(data=vp,aes(lx,ly,label=label,angle=text_angle,hjust=hjust),size=2.45,colour="#24282C")+
+        scale_colour_manual(values=c("Control higher"="#8FCB8A","Not supported"="#B0B7BD","Phage-UV higher"="#7E57C2"),
+          name="Host expression association")+
+        scale_shape_manual(values=c(Duplodnaviria=23,Unclassified=25),name="Viral realm")+
+        scale_linewidth_continuous(trans="log1p",range=c(.18,1.6),breaks=c(1,10,30,88),name="Reported link hits")+
+        coord_equal(xlim=c(-1.85,1.35),ylim=c(-1.65,1.65),clip="off")+theme_void(base_size=10)+
+        theme(legend.position="bottom",legend.box="vertical",legend.text=element_text(size=8),
+          legend.title=element_text(size=9),plot.margin=margin(18,24,8,24))+
+        guides(colour=guide_legend(nrow=1))
+      nd <- rbind(hp[,.(id=MAG_ID,label,x,y,type="MAG")],vp[,.(id=phage_id,label,x,y,type="Viral contig")])
+    }
+  }
+}
+for(spec in list(c(mag_dir,"source/native_mag_quality_tree.rds"),c(viral_dir,"source/votu_native_heat_tree.rds"))) {
+  m <- fread(file.path(spec[1],"output_sha256.tsv"))
+  check(identical(hash(file.path(spec[1],spec[2])),m[path==spec[2],sha256]),"Tree snapshot checksum mismatch")
+}
+mag <- readRDS(paths[["mag_plot"]]); phage <- readRDS(paths[["phage_plot"]])
+d <- fread(paths[["profile"]]); key <- fread(paths[["palette"]]); metadata <- fread(paths[["metadata"]])
+nodes <- fread(paths[["nodes"]])
+if(unified) {
+  d <- copy(unified_profile);key <- copy(unified_key)
+  # Internal nodes retain parent-lineage hue; exact leaf colours match bars/network.
+  node_colour <- base$base[match(nodes$phylum,base$phylum)]
+  node_colour[is.na(node_colour)] <- "#666666"
+  leaf <- nodes$rank=="MAG"
+  node_colour[leaf] <- assignment$colour[match(nodes$taxon[leaf],assignment$MAG_ID)]
+  check(sum(leaf)==348 && !anyNA(node_colour),"Incomplete leaf colour join")
+  nodes[,colour:=node_colour]
+  for(i in which(!leaf)) {
+    descendants <- nodes$node_id[i]; frontier <- descendants
+    while(length(frontier)) {frontier <- nodes[parent%in%frontier,node_id];descendants <- c(descendants,frontier)}
+    shades <- unique(nodes[node_id%in%descendants & rank=="MAG",colour])
+    if(length(shades)==1L)nodes$colour[i] <- shades
+  }
+  z <- mag$layers[[1]]$data
+  ids <- sub("_(edge|node)$","",as.character(z$group))
+  m <- match(ids,nodes$node_id); take <- !is.na(m)
+  z$color[take] <- nodes$colour[m[take]]
+  mag$layers[[1]]$data <- z
+  mag$layers[[1]]$aes_params[[1]] <- z$color
+  leaf_check <- nodes[rank=="MAG",.(MAG_ID=taxon,tree_colour=colour)]
+  alignment <- merge(assignment[,.(MAG_ID,deepest,display_category,colour)],leaf_check,by="MAG_ID")
+  alignment[,bar_colour:=key$colour[match(display_category,key$display_category)]]
+  alignment[,network_colour:=hp$fill[match(MAG_ID,hp$MAG_ID)]]
+  check(all(alignment$colour==alignment$tree_colour & alignment$colour==alignment$bar_colour),"Tree/bar colour mismatch")
+  check(all(alignment[!is.na(network_colour),colour==network_colour]),"Network colour mismatch")
+}
+check(setequal(d$sample_title,metadata$sample_title)&&uniqueN(d$sample_title)==12L,"Sample contract changed")
+check(all(abs(d[,sum(relative_abundance),by=sample_title]$V1-1)<1e-10),"Profile sums must equal one")
+check(all(d$relative_abundance>=0),"Negative abundance")
+check(!anyDuplicated(d[,.(sample_title,display_category)]),"Duplicate sample category")
+fams <- nodes[rank=="family" & taxon %in% key[category_type=="top25 named",display_category]]
+if(!unified)check(nrow(fams)==25L && all(fams$colour==key$colour[match(fams$taxon,key$display_category)]),"Tree/bar family colours differ")
+# Reconstruct ordering from canonical metadata, never from incidental file order.
+sample_order <- c("C1-I","C1-B","C2-I","C2-B","C3-I","C3-B")
+idx <- match(d$sample_title,metadata$sample_title)
+d[,sample_label:=factor(sprintf("C%d-%s",metadata$cycle[idx],
+  ifelse(metadata$phase[idx]=="initial","I","B")),levels=sample_order)]
+d[,condition_label:=factor(ifelse(metadata$condition[idx]=="control","Control","Phage-UV"),
+  levels=c("Control","Phage-UV"))]
+d[,display_category:=factor(display_category,levels=rev(key$display_category))]
+legend_key <- key[category_type=="top25 named"|display_category=="Other phyla"]
+if(unified)legend_key <- key
+bars <- ggplot(d,aes(sample_label,relative_abundance,fill=display_category))+
+  geom_col(width=if(layout=="original").8 else .55,colour="white",linewidth=.08)+
+  (if(layout=="original"||shared) facet_grid(condition_label~.) else facet_grid(.~condition_label))+
+  scale_fill_manual(values=setNames(key$colour,key$display_category),breaks=legend_key$display_category,
+    name=if(unified)"Shared prokaryotic taxonomy - A (MAG tips), C, D (MAG nodes)" else "Family",drop=FALSE)+
+  scale_y_continuous(labels=scales::label_percent(),breaks=c(0,.25,.5,.75,1),expand=expansion(mult=c(0,.01)))+
+  labs(x="Cleaning cycle and sampling phase",y="Relative abundance among MAG-mapped reads",
+    caption="I: initial; B: backflush. Pale shades: remaining/unclassified families within each phylum; grey: other phyla.")+
+  theme_classic(base_size=12)+
+  theme(legend.position="right",legend.text=element_text(size=9),legend.title=element_text(size=10),
+    legend.key.height=unit(.23,"in"),legend.key.width=unit(.18,"in"),
+    strip.background=element_rect(fill="#F5F5F5",colour=NA),strip.text.y=element_text(angle=0,face="bold"),
+    plot.caption=element_text(size=9,hjust=0),plot.margin=margin(6,10,6,12))+
+  guides(fill=guide_legend(ncol=2,byrow=TRUE))
+if(layout!="original") bars <- bars+labs(y="Relative abundance\n(MAG-mapped reads)")+theme(panel.spacing.x=unit(.35,"in"),
+  strip.text.x=element_text(face="bold"),axis.text.x=element_text(size=10))
+if(layout=="large-mag") {
+  bars <- bars+theme(legend.position="left",legend.text=element_text(size=8),
+    legend.key.height=unit(.15,"in"),legend.spacing.y=unit(0,"in"),
+    legend.margin=margin(0,12,0,0),plot.caption=element_text(size=8))
+  # Move only the native MAG abundance legend, leaving all tree coordinates
+  # and quality tracks untouched. The original saved object is not overwritten.
+  for(i in seq_along(mag$layers)) {
+    z <- mag$layers[[i]]$data
+    if(!is.data.frame(z)||!"group"%in%names(z)) next
+    selected <- grepl("legend",z$group)
+    for(k in intersect(c("x","xmin","xmax"),names(z))) z[selected,k] <- z[selected,k]-1.57
+    mag$layers[[i]]$data <- z
+  }
+  mag$coordinates$limits$x <- c(-.52,1.12)
+}
+if(shared) {
+  # Both native legends use the same numerical intervals and size transform.
+  # This common key describes within-community abundance, not shared read totals.
+  get_key_labels <- function(p) {
+    z <- p$layers[[which(vapply(p$layers,function(l) "label"%in%names(l$data),logical(1)))[1]]]$data
+    z[z$group=="legend" & !grepl("Mean",z$label),"label"]
+  }
+  check(identical(get_key_labels(mag),get_key_labels(phage)),"Tree abundance legend breaks differ")
+  legend_geom <- mag$layers[[1]]$data
+  legend_geom <- legend_geom[grepl("legend",legend_geom$group),]
+  label_layer <- tail(which(vapply(mag$layers,function(l) "label"%in%names(l$data),logical(1))),1)
+  legend_labels <- mag$layers[[label_layer]]$data
+  legend_labels <- legend_labels[legend_labels$group=="legend" & !grepl("Mean",legend_labels$label),]
+  shared_key <- ggplot()+geom_polygon(data=legend_geom,aes(x,y,group=group,fill=color))+
+    scale_fill_identity()+
+    geom_text(data=legend_labels,aes(x=(xmin+xmax)/2,y=(ymin+ymax)/2,label=label),size=4)+
+    coord_cartesian(clip="off")+theme_void()+
+    labs(title="Mean relative\nabundance (%)",caption="Within each community\nNode area scales with abundance")+
+    theme(plot.title=element_text(size=12,hjust=0),plot.caption=element_text(size=9,hjust=0),
+      plot.margin=margin(10,10,10,10))
+  strip_key <- function(p) {
+    for(i in seq_along(p$layers)) {
+      z <- p$layers[[i]]$data
+      if(is.data.frame(z)&&"group"%in%names(z)) {
+        keep <- !grepl("legend",z$group)
+        # Native metacoder stores per-row fill vectors as fixed aesthetics.
+        # Subset those alongside their polygons when extracting its legend.
+        for(k in names(p$layers[[i]]$aes_params)) {
+          v <- p$layers[[i]]$aes_params[[k]]
+          if(length(v)==nrow(z)) p$layers[[i]]$aes_params[[k]] <- v[keep]
+        }
+        p$layers[[i]]$data <- z[keep,]
+      }
+    }
+    all_x <- all_y <- numeric()
+    for(l in p$layers) {
+      z <- l$data
+      if(!is.data.frame(z)) next
+      for(k in intersect(c("x","xmin","xmax"),names(z))) all_x <- c(all_x,z[[k]])
+      for(k in intersect(c("y","ymin","ymax"),names(z))) all_y <- c(all_y,z[[k]])
+    }
+    for(axis in c("x","y")) {s <- p$scales$get_scales(axis);if(!is.null(s)) s$limits <- NULL}
+    p$coordinates$limits$x <- range(all_x,na.rm=TRUE)+c(-.02,.02)
+    p$coordinates$limits$y <- range(all_y,na.rm=TRUE)+c(-.02,.02)
+    p
+  }
+  mag <- strip_key(mag); phage <- strip_key(phage)
+  bars <- bars+theme(legend.position="bottom",legend.text=element_text(size=8),
+    legend.key.height=unit(.14,"in"),legend.key.width=unit(.13,"in"),
+    legend.margin=margin(3,0,0,0),strip.text.y=element_text(size=10),
+    plot.caption=element_text(size=8))+guides(fill=guide_legend(ncol=3,byrow=TRUE))+
+    labs(caption="I: initial; B: backflush. Pale shades: within-phylum remainders.\nGrey: other phyla.")
+}
+if(clean) {
+  # Detach the genuine QC guides into the upper-right space; no new palette.
+  qc_plot <- mag+theme(legend.box="vertical",legend.position="bottom")
+  grDevices::pdf(NULL,width=16,height=19)
+  qc_gtable <- ggplotGrob(qc_plot)
+  grDevices::dev.off()
+  qc_index <- which(qc_gtable$layout$name=="guide-box-bottom")
+  check(length(qc_index)==1L,"Cannot locate QC guides")
+  qc_guides <- qc_gtable$grobs[[qc_index]]
+  mag <- mag+theme(legend.position="none")
+  # Rotate the common abundance key into a compact between-panel strip.
+  ticks <- data.frame(value=as.numeric(as.character(get_key_labels(readRDS(paths[["mag_plot"]])))))
+  ticks$x <- sqrt(ticks$value/100)
+  shared_key <- ggplot()+
+    annotate("polygon",x=c(0,1,1),y=c(0,0,.18),fill="black")+
+    geom_segment(data=ticks,aes(x=x,xend=x,y=0,yend=-.025),linewidth=.3)+
+    geom_text(data=ticks,aes(x=x,y=-.06,label=format(value,trim=TRUE)),size=3.5)+
+    coord_cartesian(xlim=c(-.035,1.035),ylim=c(-.08,.20),clip="off")+
+    labs(title="Mean relative abundance (%) - A, B")+
+    theme_void()+theme(plot.title=element_text(size=11,face="bold",hjust=.5),
+      plot.margin=margin(0,8,0,8))
+  bars <- bars+labs(caption=NULL)
+  if(layout%in%c("family-key-right","network")) {
+    # Preserve the bar panel dimensions: replace its old guide with a blank
+    # grob of the same allocated size, and draw the guide separately.
+    grDevices::pdf(NULL,width=16,height=19)
+    bars_gtable <- ggplotGrob(bars)
+    guide_index <- which(bars_gtable$layout$name=="guide-box-bottom")
+    check(length(guide_index)==1L,"Missing family guide")
+    moved_guide <- ggplotGrob(bars+guides(fill=guide_legend(ncol=if(unified)5 else if(layout=="network")4 else 2,byrow=TRUE,
+      title.position="top"))+theme(legend.text=element_text(size=9),
+        legend.key.height=unit(if(unified).16 else .19,"in"),legend.title=element_text(size=10)))
+    family_guides <- moved_guide$grobs[[which(moved_guide$layout$name=="guide-box-bottom")]]
+    bars_gtable$grobs[[guide_index]] <- zeroGrob()
+    if(rich_network) bars_gtable <- ggplotGrob(bars+theme(legend.position="none"))
+    grDevices::dev.off()
+  }
+}
+# Verify bar heights and fills after faceting, including all remainder groups.
+built <- ggplot_build(bars)$data[[1]]
+check(nrow(built)==nrow(d),"A stacked category disappeared")
+check(all(is.finite(built$ymin)&is.finite(built$ymax)),"Clipped or missing bar values")
+totals <- as.data.table(built)[,.(total=sum(ymax-ymin)),by=.(PANEL,x)]
+check(nrow(totals)==12L && all(abs(totals$total-1)<1e-10),"Rendered bars do not sum to one")
+check(all(built$fill %in% key$colour),"Rendered bar palette changed")
+if(unified) {
+  rendered_hosts <- ggplot_build(network)$data[[2]]
+  host_fill_column <- grep("^fill",names(rendered_hosts),value=TRUE)
+  check(length(host_fill_column)==1 && identical(as.character(rendered_hosts[[host_fill_column]]),hp$fill),"Rendered network host colours differ")
+  rendered_tree <- ggplot_build(mag)$data[[1]]
+  tree_fill_column <- grep("^fill",names(rendered_tree),value=TRUE)
+  check(length(tree_fill_column)==1 && identical(as.character(rendered_tree[[tree_fill_column]]),mag$layers[[1]]$data$color),"Rendered tree polygon colours differ")
+  check(identical(as.character(ggplot_build(bars)$plot$scales$get_scales("fill")$map(key$display_category)),key$colour),"Rendered bar scale differs")
+}
+# The two original tree grobs keep their layouts, scales and all legends.
+dir.create(file.path(out,"figures"),recursive=TRUE)
+dir.create(file.path(out,"tables"));dir.create(file.path(out,"source"))
+pdf(file.path(out,"figures/figure1-community-preview.pdf"),width=16,
+  height=if(unified)22 else if(rich_network)20 else if(layout=="side-by-side")13 else if(clean)19 else if(shared)18 else 15,useDingbats=FALSE)
+grid.newpage()
+if(rich_network) {
+  print(mag,vp=viewport(x=.29,y=.765,width=.57,height=.445),newpage=FALSE)
+  print(phage,vp=viewport(x=.79,y=.775,width=.41,height=.40),newpage=FALSE)
+  pushViewport(viewport(x=.14,y=.53,width=.25,height=.065));grid.draw(qc_guides);popViewport()
+  print(shared_key,vp=viewport(x=.43,y=.53,width=.30,height=.045),newpage=FALSE)
+  pushViewport(viewport(x=.255,y=.375,width=.49,height=.22));grid.draw(bars_gtable);popViewport()
+  pushViewport(if(unified)viewport(x=.5,y=.15,width=.98,height=.17) else viewport(x=.26,y=.208,width=.49,height=.09));grid.draw(family_guides);popViewport()
+  network_gtable <- ggplotGrob(network)
+  network_guides <- network_gtable$grobs[[which(network_gtable$layout$name=="guide-box-bottom")]]
+  print(network+theme(legend.position="none"),vp=viewport(x=.755,y=if(unified).42 else .35,width=.49,height=if(unified).34 else .36),newpage=FALSE)
+  pushViewport(viewport(x=.5,y=if(unified).033 else .079,width=.98,height=if(unified).06 else .15));grid.draw(network_guides);popViewport()
+  heading_b <- .59;heading_c <- .485
+} else if(layout=="network") {
+  print(mag,vp=viewport(x=.31,y=.75,width=.62,height=.47),newpage=FALSE)
+  print(phage,vp=viewport(x=.80,y=.765,width=.38,height=.40),newpage=FALSE)
+  pushViewport(viewport(x=.15,y=.498,width=.25,height=.065));grid.draw(qc_guides);popViewport()
+  print(shared_key,vp=viewport(x=.47,y=.493,width=.32,height=.05),newpage=FALSE)
+  pushViewport(viewport(x=.38,y=.255,width=.73,height=.405));grid.draw(bars_gtable);popViewport()
+  pushViewport(viewport(x=.37,y=.057,width=.73,height=.09));grid.draw(family_guides);popViewport()
+  print(network,vp=viewport(x=.875,y=.27,width=.24,height=.40),newpage=FALSE)
+  heading_b <- .64;heading_c <- .46
+} else if(clean) {
+  print(mag,vp=viewport(x=.405,y=.715,width=.80,height=.54),newpage=FALSE)
+  pushViewport(viewport(x=.885,y=.89,width=.21,height=.18))
+  grid.draw(qc_guides);popViewport()
+  print(shared_key,vp=viewport(x=.265,y=.405,width=.45,height=.055),newpage=FALSE)
+  print(phage,vp=viewport(x=.25,y=.1825,width=.49,height=.355),newpage=FALSE)
+  if(layout=="family-key-right") {
+    pushViewport(viewport(x=.75,y=.18,width=.49,height=.355));grid.draw(bars_gtable);popViewport()
+    pushViewport(viewport(x=.872,y=.565,width=.248,height=.28));grid.draw(family_guides);popViewport()
+  } else print(bars,vp=viewport(x=.75,y=.18,width=.49,height=.355),newpage=FALSE)
+  heading_b <- .018;heading_c <- .37
+} else if(layout=="shared-key") {
+  print(mag,vp=viewport(x=.405,y=.704,width=.79,height=.55),newpage=FALSE)
+  print(shared_key,vp=viewport(x=.89,y=.56,width=.18,height=.22),newpage=FALSE)
+  print(phage,vp=viewport(x=.25,y=.213,width=.49,height=.395),newpage=FALSE)
+  print(bars,vp=viewport(x=.75,y=.209,width=.49,height=.395),newpage=FALSE)
+  heading_b <- .018; heading_c <- .42
+} else if(layout=="large-mag") {
+  print(mag,vp=viewport(x=.337,y=.615,width=.67,height=.70),newpage=FALSE)
+  print(phage,vp=viewport(x=.835,y=.615,width=.325,height=.68),newpage=FALSE)
+  print(bars,vp=viewport(x=.5,y=.13,width=.97,height=.24),newpage=FALSE)
+  heading_b <- .68; heading_c <- .26
+} else if(layout=="side-by-side") {
+  print(mag,vp=viewport(x=.265,y=.65,width=.52,height=.63),newpage=FALSE)
+  print(phage,vp=viewport(x=.765,y=.65,width=.46,height=.63),newpage=FALSE)
+  print(bars,vp=viewport(x=.5,y=.155,width=.99,height=.29),newpage=FALSE)
+  heading_b <- .545; heading_c <- .315
+} else {
+  print(mag,vp=viewport(x=.265,y=.665,width=.52,height=.60),newpage=FALSE)
+  print(phage,vp=viewport(x=.765,y=.665,width=.46,height=.60),newpage=FALSE)
+  print(bars,vp=viewport(x=.5,y=.178,width=.99,height=.335),newpage=FALSE)
+  heading_b <- .545; heading_c <- .355
+}
+grid.text(if(clean)"A" else "A  Prokaryotic community",x=.018,y=.975,just="left",gp=gpar(fontsize=16,fontface="bold"))
+grid.text(if(clean)"B" else "B  Phage community",x=heading_b,
+  y=if(layout=="network").975 else if(clean).37 else if(shared).42 else .975,just="left",gp=gpar(fontsize=16,fontface="bold"))
+grid.text(if(clean)"C" else if(shared)"C  Prokaryotic relative abundance" else "C  Prokaryotic relative abundance across samples",
+  x=if(layout=="network").018 else if(shared).52 else .018,y=heading_c,just="left",gp=gpar(fontsize=16,fontface="bold"))
+if(layout=="network")grid.text("D",x=if(rich_network).52 else .76,y=if(unified).575 else if(rich_network).485 else .46,just="left",gp=gpar(fontsize=16,fontface="bold"))
+dev.off()
+if(layout=="network") {
+ fwrite(edges,file.path(out,"tables/plotted_network_edges.tsv"),sep="\t")
+ if(circular_network) {
+  fwrite(nd,file.path(out,"tables/circular_network_nodes.tsv"),sep="\t")
+  ggsave(file.path(out,"figures/circular-network-detail.png"),network,width=if(rich_network)15 else 7,height=if(rich_network)15 else 7,dpi=180,device=ragg::agg_png,bg="white")
+  if(rich_network)writeLines("Rich panel D: MAG labels combine shortened exact IDs and source taxonomy; V001-V085 map to full viral contig IDs in circular_network_nodes.tsv. Host fills match the MAG-tree phylum colours. Edge colour is the archived full-transcriptome adjusted membrane-association category, not infectivity or the new composite model. Curved-edge width encodes reported source hit counts, not calibrated confidence. Viral shapes encode source realm annotation. Geometry is illustrative. No nodes or links filtered.",file.path(out,"RICH_NETWORK_LEGEND.txt"))
+  if(quality_network) {
+    fwrite(vp,file.path(out,"tables/viral_node_quality.tsv"),sep="\t")
+    writeLines("Viral node fill: CheckV completeness of the mapped catalogue representative, 0-100% cream-to-brown scale with square-root colour spacing. Grey denotes unavailable estimates, not zero. 25 of85 have estimates,60 unavailable. Retain separate source realm shapes. Quality estimates do not establish host range or infectivity. All representative CheckV rows, methods and warnings retained in viral_node_quality.tsv.",file.path(out,"VIRAL_QUALITY_LEGEND.txt"))
+  }
+ }
+ network_caption <- if(rich_network) paste(
+   "(D) CRISPR-derived host associations: 86 deduplicated SpacePHARER links connect 80 MAGs with 85 viral contigs.",
+   "Host-node fill indicates phylum using the colours in A; host labels give shortened MAG identifiers and taxonomy.",
+   "Viral labels V001-V085 map to full sequence identifiers in the source table. Diamonds indicate Duplodnaviria; triangles indicate unclassified viral realm.",
+   "Edge colour indicates the archived adjusted host-expression association (control higher, unsupported, or phage-UV higher); edge width scales with reported link-hit counts.",
+   if(quality_network) "Viral-node fill indicates CheckV completeness of the mapped catalogue representative (square-root colour spacing, 0-100%); grey means unavailable. Estimates are available for 25 of85 representatives. All CheckV methods and warnings are retained in the source table." else "Viral nodes have white fill.",
+   "Node sizes are fixed. Circular position and curved-edge geometry are layout choices. Links are compatible with historical CRISPR exposure, not demonstrated infection or therapeutic susceptibility.") else
+   "(D) 86 CRISPR/SpacePHARER associations connect 80 MAGs and85viral contigs. Node sizes are fixed. Full supporting evidence is supplementary."
+ writeLines(network_caption,file.path(out,"NETWORK_LEGEND_DRAFT.txt"))
+}
+fwrite(d,file.path(out,"tables/plotted_family_profile.tsv"),sep="\t")
+fwrite(key,file.path(out,"tables/family_colour_key.tsv"),sep="\t")
+panels <- data.table(panel=c("A","B","C"),content=c("Circular MAG heat tree + quality rings",
+  "Non-circular phage heat tree","Family relative abundance across 12 samples"))
+if(layout=="network")panels <- rbind(panels,data.table(panel="D",content="86 CRISPR-derived host associations; 80 MAGs and 85 viral contigs"))
+fwrite(panels,file.path(out,"tables/panels.tsv"),sep="\t")
+check(identical(before,vapply(paths,hash,character(1))),"Inputs changed during assembly")
+fwrite(data.table(input=names(paths),path=unname(paths),sha256=before),file.path(out,"input_sha256.tsv"),sep="\t")
+file.copy(file.path(getwd(),"analysis/figure1_community_preview.qmd"),file.path(out,"source/figure1_community_preview.qmd"))
+writeLines(c("Figure 1. Prokaryotic and viral community composition.",
+  "(A) Global abundance-weighted taxonomic tree of 348 dereplicated MAGs. Completeness (inner) and contamination (outer) are shown in two aligned quality rings.",
+  "(B) Global abundance-weighted viral taxonomic tree representing 634 qualifying vOTUs. The shared abundance key applies to A and B: node area scales with the equal-weight mean of 12 within-sample mapped-read proportions. MAG and viral denominators are separate; these are not absolute cross-community abundances. Branch lengths denote layout, not sequence divergence.",
+  "(C) Family-level relative abundance among MAG-mapped reads in 12 samples, with control above phage-UV and aligned cycle-phase positions. The 25 named families use the same shades as their MAG-tree branches. Pale shades pool remaining or unclassified families within a phylum; grey pools other phyla. All categories remain in the denominator. I, initial; B, backflush.",
+  if(layout=="network")network_caption else character(),
+  "Local caption draft only; no Google Doc text or comments changed."),file.path(out,"FIGURE_LEGEND_DRAFT.txt"))
+writeLines(c("Author-review layout preview, not final journal-size typography or a Google Doc update.",
+  paste("Layout:",layout,"; side-by-side options use bar width 0.55 instead of 0.8."),
+  "A: 348 MAGs; circular native heat tree, completeness then contamination rings. B: original non-circular phage heat tree (634 qualifying vOTUs).",
+  "C: 12 samples; top25 named families and remainder categories; exact frozen profile and family colours.",
+  "Trees are abundance-weighted taxonomic hierarchies, not sequence phylogenies. Separate MAG and viral read denominators.",
+  "Phage relative-abundance bars and ordinations excluded; proposed supplementary grouping, not yet assembled. Experimental workflow remains S1.",
+  "Checked sample identity, per-sample sums, duplicate categories, all 25 named-family colours, tree-source and unchanged-input SHA-256.",
+  capture.output(sessionInfo())),file.path(out,"REVIEW_README.txt"))
+if(unified) {
+  panels[panel=="C",content:="Deepest reported mixed-rank taxonomy; top25 and within-phylum remainders"]
+  fwrite(panels,file.path(out,"tables/panels.tsv"),sep="\t")
+  writeLines("Host nodes use shared_taxonomy_key.tsv, identical to MAG tips and stacked-bar categories. Viral completeness, realm, edge-expression and hit-count encodings unchanged. See FIGURE_LEGEND_DRAFT.txt for complete current caption.",file.path(out,"RICH_NETWORK_LEGEND.txt"))
+  writeLines("Host nodes use shared_taxonomy_key.tsv, not a separate host-phylum key. See FIGURE_LEGEND_DRAFT.txt for current network caption.",file.path(out,"NETWORK_LEGEND_DRAFT.txt"))
+  fwrite(alignment,file.path(out,"tables/MAG_colour_alignment.tsv"),sep="\t")
+  fwrite(key,file.path(out,"tables/shared_taxonomy_key.tsv"),sep="\t")
+  fwrite(d,file.path(out,"tables/deepest_taxonomy_profile.tsv"),sep="\t")
+  fwrite(nodes,file.path(out,"tables/recoloured_tree_nodes.tsv"),sep="\t")
+  fwrite(assignment,file.path(out,"tables/reported_taxonomy_assignments.tsv"),sep="\t")
+  writeLines(c("Figure 1. Community structure and host associations.",
+    "A: Abundance-weighted MAG taxonomy with original completeness and contamination rings. Every MAG tip and its incident edge has exactly the same display-category colour as its abundance contribution in C and host node in D. Internal clades containing several categories retain the parent-phylum hue; homogeneous clades use the common descendant shade. Geometry and abundance sizes unchanged.",
+    "B: Original viral taxonomy. Shared A/B size key describes separate within-community relative abundances, not a pooled denominator.",
+    "C: Deepest reported BAT/GTDB assignments, merged only for display. Top 25 assignments by equal-weight mean relative abundance across all 12 samples are explicit; other assignments pool within each phylum. [unresolved] denotes MAGs assigned no deeper, not the whole parent clade; [remainder] excludes the explicitly displayed assignments. Original asterisk flags and lineage scores are retained in the source table. All reads remain in the MAG-mapped denominator.",
+    "D: All 80 MAGs, 85 viral nodes and 86 archived host associations retained. MAG colours use the same category key as A/C; viral fill still represents CheckV completeness, shapes source realm; edge colours represent archived host expression association and width source hit count. Neither denotes experimentally validated infectivity.",
+    "One taxonomy legend serves A/C/D. Colour-alignment checks passed for all 348 MAG tips and all 80 network MAGs. Local review only; Google Doc unchanged."),file.path(out,"FIGURE_LEGEND_DRAFT.txt"))
+  writeLines(c("Deepest-assignment shared-colour preview. Previous family-only files in this package are compatibility filenames and now contain mixed-rank categories; use deepest_taxonomy_profile.tsv and shared_taxonomy_key.tsv.",
+    "All 348 MAGs retained; display aggregation only. No new statistical models. Original input files unchanged.",
+    "Reproduce: PHAGE_UV_SHARED_TAXONOMY=1 PHAGE_UV_METACODER_LIB=/Users/shaman.narayanasamy/.local/share/R/phage-uv-metacoder-0.3.9 bash scripts/run_qmd.sh analysis/figure1_community_preview.qmd NEW_OUTPUT network-quality"),file.path(out,"REVIEW_README.txt"))
+  cat("PASS: shared taxonomy colours for 348 MAG tips, 80 network hosts and every stacked-bar category\n")
+}
+files <- list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(out)+2),sha256=vapply(files,hash,character(1))),file.path(out,"output_sha256.tsv"),sep="\t")
+cat(sprintf("PASS: %d panels; 12 samples; %s; original tree objects and input hashes unchanged\n",nrow(panels),if(unified)"shared mixed-rank colours verified in rendered layers" else "25 matching family colours"))
+```

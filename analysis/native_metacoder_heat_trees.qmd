@@ -1,0 +1,137 @@
+---
+title: "Native metacoder global abundance heat trees"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Figure 1 review only. This notebook calls **metacoder::heat_tree**, not a
+ggtree approximation. Both communities reuse the verified equal-sample mean
+mapped-read abundances without refitting, renormalising or dropping taxa.
+The prior global figures remain preserved. No manuscript changes.
+
+The package authors recommend Reingold-Tilford initialisation followed by
+Davidson-Harel layout: <https://grunwaldlab.github.io/metacoder_documentation/workshop--05--plotting.html>.
+Package paper: Foster, Sharpton and Gruenwald (2017), doi:10.1371/journal.pcbi.1005404.
+See `docs/metacoder_runtime.md` for the additive R library; no Conda environment.
+
+```sh
+PHAGE_UV_METACODER_LIB=/Users/shaman.narayanasamy/.local/share/R/phage-uv-metacoder-0.3.9 \
+  bash scripts/run_qmd.sh analysis/native_metacoder_heat_trees.qmd NEW_OUTPUT_DIRECTORY
+python3 tests/test_native_metacoder_heat_trees.py NEW_OUTPUT_DIRECTORY
+```
+
+```{r}
+#| label: native-heat-trees
+lib <- Sys.getenv("PHAGE_UV_METACODER_LIB")
+if(nzchar(lib)) .libPaths(c(lib,.libPaths()))
+suppressPackageStartupMessages({library(data.table); library(metacoder); library(ggplot2)})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)==1L,"Supply one new output directory")
+output <- normalizePath(args[[1]],mustWork=FALSE)
+check(!file.exists(output),"Output exists; choose a new version")
+repo <- normalizePath(getwd())
+source(file.path(repo,"R/figure_style.R"))
+data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"))
+sources <- c(votu=file.path(data,"derived/votu_global_abundance_tree_2026-09-13-v3"),
+  mag=file.path(data,"derived/mag_global_abundance_tree_2026-09-13-v2"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+input_records <- list()
+dir.create(file.path(output,"figures"),recursive=TRUE)
+dir.create(file.path(output,"tables"))
+dir.create(file.path(output,"source"))
+for(community in names(sources)) {
+  input <- sources[[community]]
+  manifest <- fread(file.path(input,"output_sha256.tsv"))
+  paths <- c(nodes="tables/tree_nodes.tsv",labels="tables/tree_layout.tsv")
+  if(community=="mag") paths <- c(paths,colours="tables/phylum_colour_key.tsv")
+  for(kind in names(paths)) {
+    rel <- paths[[kind]]; path <- file.path(input,rel)
+    check(identical(hash(path),manifest[path==rel,sha256]),"Source differs from verified output")
+    archived <- file.path(output,"source",paste0(community,"_",kind,".tsv"))
+    check(file.copy(path,archived),"Failed to archive source")
+    input_records[[length(input_records)+1L]] <- data.table(community=community,input=kind,path=path,sha256=hash(path))
+  }
+  nodes <- fread(file.path(input,paths[["nodes"]]))
+  labels <- fread(file.path(input,paths[["labels"]]))
+  check(nrow(nodes)==if(community=="mag")698L else 76L,"Unexpected node count")
+  check(abs(nodes[node_id=="n000",clade_abundance]-1)<1e-12,"Root must sum to one")
+  lab <- labels[match(nodes$node_id,label)]
+  check(identical(lab$label,nodes$node_id),"Label alignment failed")
+  colour_key <- if(community=="mag") {
+    key <- fread(file.path(input,paths[["colours"]])); setNames(key$colour,key$phylum)
+  } else c(phage_uv_viral_realm_colours,root="#666666")
+  group <- if(community=="mag")nodes$phylum else nodes$realm
+  colours <- unname(colour_key[group])
+  check(!anyNA(colours),"Missing taxonomic colour")
+  plotted <- copy(nodes)
+  plotted[,`:=`(mean_percent=100*clade_abundance,colour=colours,
+    plot_label=ifelse(lab$show_label,lab$label_text,""))]
+  # Native labels have no leader lines. Avoid a central pile-up by labelling
+  # MAG phyla >=1%; smaller phyla remain fully drawn and tabulated.
+  if(community=="mag") plotted[rank=="phylum" & clade_abundance<.01,plot_label:=""]
+  # The root now has its true 100% clade size, using native metacoder scaling.
+  # Explicit intervals and zero minima give area proportional to abundance.
+  # Text uses native metacoder positioning, with no rectangular label boxes.
+  set.seed(913)
+  # Native text measurement needs a device; do not create Rplots.pdf in Git.
+  grDevices::pdf(file=NULL,width=13,height=11)
+  p <- metacoder::heat_tree(
+    taxon_id=plotted$node_id,supertaxon_id=plotted$parent,
+    node_label=plotted$plot_label,node_size=plotted$mean_percent,
+    edge_size=plotted$mean_percent,node_color=plotted$colour,edge_color=plotted$colour,
+    node_size_trans="area",edge_size_trans="area",
+    node_size_interval=c(0,100),edge_size_interval=c(0,100),
+    node_size_range=c(0,.045),edge_size_range=c(0,.018),
+    node_label_size=1,node_label_size_range=c(.013,.013),node_label_color="#252525",
+    node_label_max=1000,repel_labels=TRUE,repel_force=2,repel_iter=3000,
+    layout="davidson-harel",initial_layout="reingold-tilford",
+    make_node_legend=TRUE,make_edge_legend=FALSE,
+    node_legend_title=NA,node_size_axis_label="Mean relative abundance (%)",
+    node_color_axis_label=NA,title=NULL,background_color="#FFFFFF",
+    margin_size=c(.04,.04,.04,.04),verbose=TRUE)
+  grDevices::dev.off()
+  check(inherits(p,"ggplot"),"Expected native heat_tree ggplot result")
+  # Keep native text positions and native ggfittext rendering. A subtle white
+  # text halo improves contrast over branches; no label rectangles or borders.
+  label_layer <- which(vapply(p$layers,function(x) inherits(x$geom,"GeomFitText"),logical(1)))
+  check(length(label_layer)==1L,"Unexpected native label layer structure")
+  native_labels <- p$layers[[label_layer]]
+  halo <- lapply(seq(0,2*pi,length.out=9)[-9],function(angle) {
+    shifted <- native_labels$data
+    shifted$xmin <- shifted$xmin+.0008*cos(angle)
+    shifted$xmax <- shifted$xmax+.0008*cos(angle)
+    shifted$ymin <- shifted$ymin+.0008*sin(angle)
+    shifted$ymax <- shifted$ymax+.0008*sin(angle)
+    do.call(ggfittext::geom_fit_text,c(list(data=shifted,mapping=native_labels$mapping,
+      inherit.aes=FALSE,colour="white"),native_labels$geom_params))
+  })
+  p$layers <- c(p$layers[-label_layer],halo,list(native_labels))
+  fwrite(plotted,file.path(output,"tables",paste0(community,"_plotted_nodes.tsv")),sep="\t")
+  saveRDS(p,file.path(output,"source",paste0(community,"_native_heat_tree.rds")))
+  ggsave(file.path(output,"figures",paste0(community,"_native_heat_tree.pdf")),p,
+    device=grDevices::pdf,useDingbats=FALSE,width=13,height=11,units="in")
+  cat(community,":",nrow(nodes),"nodes;",sum(nzchar(plotted$plot_label)),"labels\n")
+}
+fwrite(rbindlist(input_records),file.path(output,"input_sha256.tsv"),sep="\t")
+check(file.copy(file.path(repo,"analysis/native_metacoder_heat_trees.qmd"),file.path(output,"source/native_metacoder_heat_trees.qmd")),"Notebook archive failed")
+fwrite(as.data.table(installed.packages()[,c("Package","Version","LibPath")]),file.path(output,"source/runtime_packages.tsv"),sep="\t")
+writeLines(c("Native metacoder heat_tree review candidates; manuscript unchanged.",
+  paste("metacoder",as.character(packageVersion("metacoder"))),
+  "Layout: Reingold-Tilford initialisation, Davidson-Harel; seed 913. Native node/edge drawing and label repulsion; no ggtree or ggrepel substitution. Native text receives a subtle white halo for contrast, with no border boxes.",
+  "Identical verified inclusive clade abundances: 634 qualifying vOTUs and 348 MAGs; 12 within-sample proportions averaged equally.",
+  "Node area is proportional to mean relative abundance; edge widths use area (square-root) scaling. The root represents 100%, unlike the former decorative root marker.",
+  "Taxonomic colours unchanged. MAG phylum labels require >=1% clade abundance to reduce central crowding; other label rules unchanged. No taxa filtered; 76 viral nodes and 698 MAG nodes.",
+  "Parent and descendant values are nested, not additive. MAG and viral read denominators are separate; not absolute cross-community abundance or a temporal/treatment analysis.",
+  "Taxonomic hierarchy only; branch lengths do not encode sequence divergence. Prior variants remain preserved.",
+  "Reference: https://doi.org/10.1371/journal.pcbi.1005404",
+  capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+files <- list.files(output,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(output)+2L),sha256=vapply(files,hash,character(1))),file.path(output,"output_sha256.tsv"),sep="\t")
+```

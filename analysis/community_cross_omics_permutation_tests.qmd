@@ -1,0 +1,200 @@
+---
+title: "Matrix-aware tests of cross-omics Bray-Curtis concordance"
+format: html
+editor: source
+execute:
+  enabled: false
+---
+
+Run with `bash scripts/run_qmd.sh analysis/community_cross_omics_permutation_tests.qmd NEW_OUTPUT`.
+Tests the three descriptive cross-assay Spearman correlations without treating
+the 66 pairwise distances as independent observations. The global test uses
+99,999 random sample-label permutations. The design-constrained sensitivity
+enumerates all 6^4 = 1,296 permutations of cycle labels within each condition
+by phase stratum. Both tests are two-sided. Benjamini-Hochberg correction is
+applied across the three assay comparisons separately for each permutation
+scheme.
+
+```{r}
+suppressPackageStartupMessages({
+  library(data.table)
+  library(ggplot2)
+  library(patchwork)
+  library(digest)
+})
+
+args <- commandArgs(trailingOnly=TRUE)
+stopifnot(length(args)==1L)
+out <- args[[1L]]
+stopifnot(!dir.exists(out))
+repo <- normalizePath(getwd())
+source(file.path(repo,"R/figure_style.R"))
+root <- "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"
+source_root <- file.path(root,"derived/community_cross_omics_2026-09-15-v3")
+paths <- c(
+  MG=file.path(source_root,"MG_relative_profile.tsv"),
+  MT=file.path(source_root,"MT_relative_profile.tsv"),
+  `16S`=file.path(source_root,"16S_relative_profile.tsv"),
+  metadata=file.path(repo,"metadata/sample_metadata.tsv"),
+  notebook=Sys.getenv("PHAGE_UV_NOTEBOOK_PATH")
+)
+stopifnot(all(file.exists(paths)))
+dir.create(file.path(out,"tables"),recursive=TRUE)
+dir.create(file.path(out,"figures"),recursive=TRUE)
+sha <- function(p) digest(file=p,algo="sha256")
+hashes <- vapply(paths,sha,character(1))
+fwrite(data.table(source=names(paths),path=paths,sha256=hashes),
+       file.path(out,"input_sha256.tsv"),sep="\t")
+
+meta <- fread(paths[["metadata"]])[,.(sample_title,condition,phase,cycle)]
+setorder(meta,condition,phase,cycle)
+stopifnot(nrow(meta)==12L,!anyDuplicated(meta$sample_title),
+          all(table(meta$condition,meta$phase,meta$cycle)==1L))
+samples <- meta$sample_title
+read_profile <- function(p) {
+  x <- fread(p)
+  stopifnot(all(samples %in% names(x)))
+  m <- as.matrix(x[,..samples])
+  rownames(m) <- x[[1L]]
+  stopifnot(all(is.finite(m)),all(m>=0),max(abs(colSums(m)-1))<1e-10)
+  m
+}
+profiles <- lapply(paths[c("MG","MT","16S")],read_profile)
+
+bray <- function(m) {
+  n <- ncol(m)
+  d <- matrix(0,n,n,dimnames=list(colnames(m),colnames(m)))
+  for(i in seq_len(n-1L)) for(j in (i+1L):n) {
+    z <- sum(abs(m[,i]-m[,j])) / sum(m[,i]+m[,j])
+    d[i,j] <- d[j,i] <- z
+  }
+  d
+}
+distances <- lapply(profiles,bray)
+lower <- lower.tri(distances[[1L]])
+rank_matrix <- function(d) {
+  r <- matrix(NA_real_,nrow(d),ncol(d),dimnames=dimnames(d))
+  r[lower] <- rank(d[lower],ties.method="average")
+  r[upper.tri(r)] <- t(r)[upper.tri(r)]
+  diag(r) <- 0
+  r
+}
+ranks <- lapply(distances,rank_matrix)
+
+# Global Monte Carlo permutations. Plus-one correction yields valid finite-sample
+# Monte Carlo p-values and a minimum attainable p of 1e-5.
+set.seed(20260916L)
+B_global <- 99999L
+global_permutations <- replicate(B_global,sample.int(nrow(meta)),simplify="matrix")
+
+# Exact cycle-label permutations within the four condition-by-phase strata.
+groups <- split(seq_len(nrow(meta)),interaction(meta$condition,meta$phase,drop=TRUE))
+stopifnot(length(groups)==4L,all(lengths(groups)==3L))
+perm3 <- rbind(c(1L,2L,3L),c(1L,3L,2L),c(2L,1L,3L),
+               c(2L,3L,1L),c(3L,1L,2L),c(3L,2L,1L))
+choices <- as.matrix(expand.grid(rep(list(seq_len(nrow(perm3))),length(groups))))
+constrained_permutations <- vapply(seq_len(nrow(choices)),function(i) {
+  p <- seq_len(nrow(meta))
+  for(g in seq_along(groups)) {
+    idx <- groups[[g]]
+    p[idx] <- idx[perm3[choices[i,g],]]
+  }
+  p
+},integer(nrow(meta)))
+stopifnot(ncol(constrained_permutations)==1296L,
+          uniqueN(as.data.table(t(constrained_permutations)))==1296L,
+          any(apply(constrained_permutations,2,identical,seq_len(nrow(meta)))))
+for(p in seq_len(ncol(constrained_permutations))) for(idx in groups)
+  stopifnot(setequal(constrained_permutations[idx,p],idx))
+
+pair_specs <- list(c("MG","MT"),c("MG","16S"),c("MT","16S"))
+null_rows <- list()
+results <- rbindlist(lapply(seq_along(pair_specs),function(k) {
+  pair <- pair_specs[[k]]
+  r1 <- ranks[[pair[[1L]]]][lower]
+  r2 <- ranks[[pair[[2L]]]]
+  observed <- cor(r1,r2[lower],method="pearson")
+  permuted <- function(pm) apply(pm,2L,function(p) cor(r1,r2[p,p][lower],method="pearson"))
+  global_null <- permuted(global_permutations)
+  constrained_null <- permuted(constrained_permutations)
+  null_rows[[length(null_rows)+1L]] <<- data.table(
+    assay1=pair[[1L]],assay2=pair[[2L]],scheme="global",rho=global_null)
+  null_rows[[length(null_rows)+1L]] <<- data.table(
+    assay1=pair[[1L]],assay2=pair[[2L]],scheme="condition_phase_constrained",rho=constrained_null)
+  data.table(
+    assay1=pair[[1L]],assay2=pair[[2L]],n_samples=nrow(meta),n_distances=sum(lower),
+    spearman_rho=observed,global_permutations=B_global,
+    global_p=(1+sum(abs(global_null)>=abs(observed)-1e-12))/(B_global+1),
+    constrained_permutations=ncol(constrained_permutations),
+    constrained_p=mean(abs(constrained_null)>=abs(observed)-1e-12)
+  )
+}))
+results[,global_q_BH:=p.adjust(global_p,"BH")]
+results[,constrained_q_BH:=p.adjust(constrained_p,"BH")]
+results[,`:=`(alternative="two-sided",correlation="Spearman")]
+setcolorder(results,c("assay1","assay2","n_samples","n_distances","spearman_rho",
+ "global_permutations","global_p","global_q_BH","constrained_permutations",
+ "constrained_p","constrained_q_BH","alternative","correlation"))
+fwrite(results,file.path(out,"tables/bray_curtis_matrix_permutation_tests.tsv"),sep="\t")
+nulls <- rbindlist(null_rows)
+null_summary <- nulls[,.(null_mean=mean(rho),null_sd=sd(rho),
+ q025=quantile(rho,.025),q50=quantile(rho,.5),q975=quantile(rho,.975)),
+ by=.(assay1,assay2,scheme)]
+fwrite(null_summary,file.path(out,"tables/permutation_null_summary.tsv"),sep="\t")
+
+fmt <- function(x) ifelse(x<.0001,format(x,scientific=TRUE,digits=2),sprintf("%.4f",x))
+md <- c(
+  "# Cross-assay Bray-Curtis concordance", "",
+  "| Comparison | Spearman rho | Global P | Global FDR (BH) | Constrained P | Constrained FDR (BH) |",
+  "|---|---:|---:|---:|---:|---:|",
+  sprintf("| %s–%s | %.3f | %s | %s | %s | %s |",results$assay1,results$assay2,
+          results$spearman_rho,fmt(results$global_p),fmt(results$global_q_BH),
+          fmt(results$constrained_p),fmt(results$constrained_q_BH)), "",
+  sprintf("Global: %s random label permutations. Constrained: all %s cycle-label permutations within condition × phase strata. Two-sided tests; BH correction across three assay comparisons separately for each scheme.",
+          format(B_global,big.mark=","),format(ncol(constrained_permutations),big.mark=","))
+)
+writeLines(md,file.path(out,"tables/bray_curtis_matrix_permutation_tests.md"))
+
+plot_data <- results[,.(comparison=factor(paste(assay1,assay2,sep=" / "),
+ levels=rev(paste(assay1,assay2,sep=" / "))),spearman_rho)]
+plot_data[,rho_label:=sprintf("rho == %.3f",spearman_rho)]
+q_data <- melt(results[,.(comparison=paste(assay1,assay2,sep=" / "),
+ Global=global_q_BH,`Condition x phase constrained`=constrained_q_BH)],
+ id.vars="comparison",variable.name="scheme",value.name="q")
+q_data[,comparison:=factor(comparison,levels=levels(plot_data$comparison))]
+q_data[,label:=paste0("FDR (BH) = ",fmt(q))]
+theme_set(theme_phage_uv(base_size=8,base_family="Helvetica"))
+a <- ggplot(plot_data,aes(spearman_rho,comparison))+
+  geom_segment(aes(x=0,xend=spearman_rho,yend=comparison),linewidth=.65,colour="#B0BEC5")+
+  geom_point(size=2.8,colour="#355070")+
+  geom_text(aes(label=rho_label),hjust=1.18,size=2.7,parse=TRUE)+
+  scale_x_continuous(limits=c(0,1.08),breaks=c(0,.25,.5,.75,1),expand=expansion(mult=c(0,.01)))+
+  labs(x="Spearman correlation of Bray-Curtis matrices",y=NULL)+
+  theme(plot.margin=margin(5,12,4,5))
+b <- ggplot(q_data,aes(-log10(q),comparison,shape=scheme,colour=scheme))+
+  geom_vline(xintercept=-log10(.05),linetype="dashed",linewidth=.5,colour="#777777")+
+  geom_point(size=2.5,stroke=.8)+
+  geom_text(aes(label=label),hjust=-.12,size=2.5,show.legend=FALSE)+
+  scale_colour_manual(values=c(Global="#355070",`Condition x phase constrained`="#E76F51"))+
+  scale_shape_manual(values=c(Global=16,`Condition x phase constrained`=17))+
+  scale_x_continuous(expand=expansion(mult=c(.02,.34)))+
+  labs(x="-log10 FDR (BH)",y=NULL,colour=NULL,shape=NULL)+
+  theme(legend.position="bottom",plot.margin=margin(5,32,4,5))
+fig <- a+b+plot_layout(widths=c(1,1.12))+plot_annotation(tag_levels="A")
+ggsave(file.path(out,"figures/bray_curtis_concordance_tests.pdf"),fig,
+       width=180,height=78,units="mm",device=grDevices::pdf,useDingbats=FALSE)
+ggsave(file.path(out,"figures/bray_curtis_concordance_tests.png"),fig,
+       width=180,height=78,units="mm",dpi=300,bg="white",device=ragg::agg_png)
+writeLines(c(
+  "# Figure caption", "",
+  "Cross-assay concordance of community dissimilarity. **A**, Spearman correlations between corresponding Bray-Curtis dissimilarities from 12 matched samples (66 unique sample pairs) profiled by metagenomics (MG), metatranscriptomics (MT) and cDNA-derived 16S sequencing. **B**, Benjamini-Hochberg-adjusted permutation FDR (BH) values. Circles show global sample-label tests using 99,999 random permutations; triangles show exact tests over all 1,296 cycle-label permutations within condition-by-phase strata. The dashed line denotes FDR (BH) = 0.05. Tests were two-sided and correction was applied across the three assay comparisons separately within each permutation scheme."
+),file.path(out,"figures/FIGURE_CAPTION.md"))
+
+stopifnot(identical(hashes,vapply(paths,sha,character(1))))
+file.copy(paths[["notebook"]],file.path(out,"source.qmd"))
+writeLines(capture.output(sessionInfo()),file.path(out,"sessionInfo.txt"))
+payload <- list.files(out,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(payload,nchar(out)+2),sha256=vapply(payload,sha,character(1))),
+       file.path(out,"output_sha256.tsv"),sep="\t")
+print(results)
+```

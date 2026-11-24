@@ -1,0 +1,205 @@
+---
+title: "Global abundance-weighted prokaryotic taxonomy tree"
+format:
+  html:
+    toc: true
+    code-fold: false
+editor: source
+execute:
+  enabled: false
+---
+
+Figure 1 author-review candidate. Aggregate metagenomic contig read counts to
+the 348 dereplicated MAGs; normalise within each of the 12 samples; average
+the sample proportions with equal weights. This is the MAG-mapped read
+composition, not genome-copy abundance or all-community read composition.
+All MAGs and their assigned taxonomic nodes remain in the tree. Taxonomic
+labels (including BAT asterisks) are retained verbatim. Branch lengths are
+layout only, not evolutionary distances. Parent and child abundances overlap.
+
+```sh
+bash scripts/run_qmd.sh analysis/mag_global_abundance_tree.qmd NEW_OUTPUT_DIRECTORY
+python3 tests/test_mag_global_tree.py NEW_OUTPUT_DIRECTORY
+```
+
+```{r}
+#| label: global-mag-tree
+suppressPackageStartupMessages({
+  library(data.table); library(ape); library(ggtree)
+  library(ggplot2); library(ggrepel); library(scales)
+})
+check <- function(ok,msg) if(!isTRUE(ok)) stop(msg,call.=FALSE)
+repo <- normalizePath(getwd())
+source(file.path(repo,"R/figure_style.R"))
+args <- commandArgs(trailingOnly=TRUE)
+check(length(args)==1L,"Supply a new output directory")
+output <- normalizePath(args[[1]],mustWork=FALSE)
+check(!file.exists(output),"Output exists; choose a new version")
+data <- normalizePath(Sys.getenv("PHAGE_UV_DATA_ROOT",
+  "/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569"))
+input_paths <- c(taxonomy=file.path(data,"annotation/catbat/gtdb/BAT.bin2classification.txt"),
+  counts=file.path(data,"quantification/mags_votu/coverage/metagenomics/coverm/output-Read_Count.tsv"),
+  metadata=file.path(repo,"metadata/sample_metadata.tsv"))
+hash <- function(p) substr(system2("shasum",c("-a","256",shQuote(p)),stdout=TRUE)[[1]],1,64)
+input_hashes <- vapply(input_paths,hash,character(1))
+taxa <- fread(input_paths[["taxonomy"]])
+setnames(taxa,"# bin","MAG_ID")
+taxa[,MAG_ID:=sub("[.]fasta$","",MAG_ID)]
+check(nrow(taxa)==348L && !anyDuplicated(taxa$MAG_ID),"Expected 348 unique MAGs")
+prefix <- c(domain="d__",phylum="p__",class="c__",order="o__",family="f__",genus="g__",species="s__")
+for(rank in names(prefix)) {
+  marker <- prefix[[rank]]
+  taxa[[rank]] <- vapply(strsplit(taxa$lineage,";",fixed=TRUE),function(tokens) {
+    hits <- tokens[startsWith(tokens,marker)]
+    check(length(hits)<=1L,"Duplicate rank in source lineage")
+    if(length(hits)) substring(hits,nchar(marker)+1L) else NA_character_
+  },character(1))
+}
+check(all(taxa$domain %in% c("Bacteria","Archaea")),"Non-prokaryotic or unknown domain")
+meta <- fread(input_paths[["metadata"]])
+check(nrow(meta)==12L && !anyDuplicated(meta$sample_title) &&
+  !anyDuplicated(meta$metagenome_run_accession),"Expected 12 unique sample mappings")
+raw <- fread(input_paths[["counts"]])
+check(!anyDuplicated(raw$Contig),"Duplicate contig identifiers")
+raw <- raw[grepl("_MAGScoT_",Contig,fixed=TRUE)]
+check(all(grepl("^[^_]+_MAGScoT_cleanbin_[0-9]+_",raw$Contig)),"Unexpected MAG contig identifier")
+raw[,MAG_ID:=sub("^([^_]+_MAGScoT_cleanbin_[0-9]+)_.*$","\\1",Contig)]
+check(setequal(raw$MAG_ID,taxa$MAG_ID),"Count matrix MAGs do not equal the 348-MAG catalogue")
+cols <- setdiff(names(raw),c("Contig","MAG_ID"))
+runs <- sub(".*(ERR[0-9]+).*","\\1",cols)
+check(length(cols)==12L && !anyDuplicated(runs) &&
+  setequal(runs,meta$metagenome_run_accession),"Count columns do not match the 12 samples")
+check(all(vapply(raw[,..cols],function(x) all(is.finite(x)&x>=0),logical(1))),"Invalid read counts")
+contig_inventory <- raw[,.(contigs=.N),by=MAG_ID]
+wide <- raw[,lapply(.SD,sum),by=MAG_ID,.SDcols=cols]
+counts <- melt(wide,id.vars="MAG_ID",variable.name="column",value.name="reads")
+counts[,sample_title:=meta$sample_title[match(runs[match(column,cols)],meta$metagenome_run_accession)]]
+counts[,column:=NULL]
+totals <- counts[,.(total_reads=sum(reads)),by=sample_title]
+check(all(totals$total_reads>0),"Zero sample denominator")
+counts <- merge(counts,totals,by="sample_title")
+counts[,proportion:=reads/total_reads]
+weights <- counts[,.(mean_abundance=mean(proportion)),by=MAG_ID]
+check(abs(sum(weights$mean_abundance)-1)<1e-12,"Global abundance does not sum to one")
+nodes <- data.table(node_id="n000",parent=NA_character_,rank="root",taxon="All MAGs",
+  display="All MAGs",phylum="Domain",depth=0L)
+lookup <- new.env(parent=emptyenv())
+assignments <- vector("list",nrow(taxa))
+for(i in seq_len(nrow(taxa))) {
+  parent <- "n000"; depth <- 0L
+  for(rank in names(prefix)) {
+    value <- taxa[[rank]][[i]]
+    if(is.na(value)||!nzchar(value)) next
+    key <- paste(parent,rank,value,sep="|")
+    if(!exists(key,envir=lookup,inherits=FALSE)) {
+      id <- sprintf("n%03d",nrow(nodes)); depth <- depth+1L
+      group <- if(rank=="domain") "Domain" else taxa$phylum[[i]]
+      if(is.na(group)||!nzchar(group)) group <- "Unclassified"
+      nodes <- rbind(nodes,data.table(node_id=id,parent=parent,rank=rank,taxon=value,
+        display=paste0(sub("_$","",prefix[[rank]]),value),phylum=group,depth=depth))
+      assign(key,id,envir=lookup)
+    }
+    parent <- get(key,envir=lookup,inherits=FALSE)
+    parent_key <- parent
+    depth <- nodes[node_id==parent_key,depth]
+  }
+  assignments[[i]] <- data.table(MAG_ID=taxa$MAG_ID[[i]],assigned_node=parent)
+}
+assigned <- merge(rbindlist(assignments),weights,by="MAG_ID")
+direct <- assigned[,.(direct_abundance=sum(mean_abundance),direct_mags=.N),by=assigned_node]
+nodes <- merge(nodes,direct,by.x="node_id",by.y="assigned_node",all.x=TRUE,sort=FALSE)
+nodes[is.na(direct_abundance),`:=`(direct_abundance=0,direct_mags=0L)]
+nodes[,`:=`(clade_abundance=direct_abundance,clade_mags=direct_mags)]
+for(d in rev(sort(unique(nodes$depth)))) {
+  if(d==0L) next
+  for(id in nodes[depth==d,node_id]) {
+    parent_id <- nodes[node_id==id,parent]
+    value <- nodes[node_id==id,.(clade_abundance,clade_mags)]
+    nodes[node_id==parent_id,`:=`(clade_abundance=clade_abundance+value$clade_abundance,
+      clade_mags=clade_mags+value$clade_mags)]
+  }
+}
+check(nodes[node_id=="n000",clade_mags]==348L &&
+  abs(nodes[node_id=="n000",clade_abundance]-1)<1e-12,"Root fails conservation")
+check(sum(nodes$direct_mags)==348L,"Direct assignments are not a partition")
+newick <- function(id) {
+  children <- nodes[parent==id][order(phylum,-clade_abundance,display)]$node_id
+  if(!length(children)) return(id)
+  paste0("(",paste(vapply(children,newick,character(1)),collapse=","),")",id)
+}
+tree <- read.tree(text=paste0(newick("n000"),";"))
+set.seed(913)
+layout <- ggtree(tree,layout="daylight",branch.length="none")
+xy <- as.data.table(layout$data)[,.(node,label,parent,x,y,isTip)]
+check(setequal(xy$label,nodes$node_id),"Layout changed node identities")
+xy <- merge(xy,nodes,by.x="label",by.y="node_id",suffixes=c(".tree",".tax"))
+xy[,`:=`(x_rot=y,y_rot=-x)]
+xy[,`:=`(x=x_rot,y=y_rot)]
+edges <- merge(xy[parent.tree!=node,.(parent.tree,xend=x,yend=y,phylum,clade_abundance)],
+  xy[,.(parent.tree=node,x,y)],by="parent.tree")
+# Previously plotted phyla retain their fixed colours. Freeze an ordered
+# extension for the additional phyla instead of collapsing them into Other.
+extra_phyla <- c("Armatimonadota","Synergistota","UBP6","Gemmatimonadota",
+  "Bacillota","Desulfobacterota_G","Methanobacteriota_B","Desulfobacterota_F",
+  "Cloacimonadota","Caldisericota","Bdellovibrionota","Bacillota_C","JANLFM01",
+  "Methanobacteriota","Sumerlaeota","KSB1","CLD3","Fermentibacterota","UBA3054",
+  "Elusimicrobiota","4484-113","Moduliflexota","Fusobacteriota")
+colours <- c(phage_uv_phylum_colours,
+  setNames(grDevices::hcl.colors(length(extra_phyla),"Dark 3"),extra_phyla),Domain="#666666")
+check(all(nodes$phylum %in% names(colours)),"Missing phylum colour")
+# Label thinning is visual only; no abundance or taxonomic nodes are filtered.
+xy[,show_label:=rank %in% c("domain","phylum") | direct_abundance>=.01 |
+  (rank=="family" & clade_abundance>=.025)]
+xy[rank=="root",show_label:=FALSE]
+xy[,label_text:=display]
+xy[show_label==TRUE,label_text:=vapply(seq_len(.N),function(i) paste0(display[[i]],"\n",
+  formatC(100*clade_abundance[[i]],format="f",digits=if(clade_abundance[[i]]>=.01)1 else 2),"%"),character(1))]
+span_x <- diff(range(xy$x)); span_y <- diff(range(xy$y))
+p <- ggplot()+
+  geom_segment(data=edges,aes(x=x,y=y,xend=xend,yend=yend,colour=phylum,
+    linewidth=clade_abundance),alpha=.55,lineend="round")+
+  scale_linewidth_continuous(range=c(.25,2.8),transform="sqrt",guide="none")+
+  geom_point(data=xy[rank!="root"],aes(x=x,y=y),shape=21,fill="white",colour="#AAA9A4",size=1.1,stroke=.2)+
+  geom_point(data=xy[rank!="root"],aes(x=x,y=y,size=clade_abundance,fill=phylum),shape=21,colour="white",stroke=.3)+
+  geom_point(data=xy[rank=="root"],aes(x=x,y=y),shape=21,fill="white",colour="#555555",size=2.7)+
+  geom_label_repel(data=xy[show_label==TRUE],aes(x=x,y=y,label=label_text),
+    seed=913,size=3.2,min.segment.length=0,segment.colour="#888888",segment.size=.22,
+    box.padding=.7,point.padding=.25,
+    point.size=14*sqrt(xy[show_label==TRUE,clade_abundance]/max(xy$clade_abundance)),
+    force=10,force_pull=.05,max.overlaps=Inf,
+    max.iter=200000,max.time=40,linewidth=0,label.padding=.18,fill="white",
+    colour="#252525",lineheight=.98)+
+  scale_size_area(max_size=14,breaks=c(.01,.1,.5,.8),labels=label_percent(accuracy=1),name="Mean relative abundance")+
+  scale_fill_manual(values=colours,guide="none")+
+  scale_colour_manual(values=colours,guide="none")+
+  coord_equal(xlim=range(xy$x)+c(-.12,.12)*span_x,ylim=range(xy$y)+c(-.12,.12)*span_y,clip="off")+
+  theme_void(base_size=10)+theme(legend.position="bottom",plot.margin=margin(10,12,10,12))+
+  guides(size=guide_legend(override.aes=list(fill="#65798F")))
+dir.create(file.path(output,"figures"),recursive=TRUE)
+dir.create(file.path(output,"tables"))
+for(name in c("nodes","xy","edges","assigned","totals","counts","contig_inventory")) {
+  files <- c(nodes="tree_nodes",xy="tree_layout",edges="tree_edges",assigned="deepest_assignments",
+    totals="sample_denominators",counts="mag_sample_counts",contig_inventory="contig_inventory")
+  fwrite(get(name),file.path(output,"tables",paste0(files[[name]],".tsv")),sep="\t")
+}
+fwrite(taxa,file.path(output,"tables/catalogue_rank_assignments.tsv"),sep="\t")
+fwrite(data.table(phylum=names(colours),colour=unname(colours)),file.path(output,"tables/phylum_colour_key.tsv"),sep="\t")
+write.tree(tree,file.path(output,"global_taxonomy.nwk"))
+ggsave(file.path(output,"figures/global_mag_abundance_tree.pdf"),p,
+  device=grDevices::pdf,useDingbats=FALSE,width=15,height=12,units="in")
+writeLines(c("Review only. Manuscript unchanged.",
+  "348 dereplicated prokaryotic MAGs; 12 equally weighted metagenomic samples.",
+  "Denominator: reads mapped to MAG contigs in each sample, not all sequenced reads or genome copies. This is not the vOTU denominator.",
+  "Node area: mean inclusive clade abundance. Branch width: square-root abundance scale. Colour: fixed phylum palette; domain nodes neutral grey.",
+  "All nodes retained. Labels: all domains/phyla, direct assignments >=1%, families >=2.5% inclusive abundance. Small grey rings mark tiny nodes.",
+  "d_: domain; p_: phylum; c_: class; o_: order; f_: family; g_: genus; s_: species. BAT asterisk annotations retained as supplied.",
+  "Parent and child abundances are nested, not additive. Branch lengths are layout, not sequence distances. No treatment or temporal inference.",
+  capture.output(sessionInfo())),file.path(output,"REVIEW_README.txt"))
+check(identical(input_hashes,vapply(input_paths,hash,character(1))),"Inputs changed during execution")
+input_paths <- c(input_paths,code=file.path(repo,"analysis/mag_global_abundance_tree.qmd"),style=file.path(repo,"R/figure_style.R"))
+fwrite(data.table(input=names(input_paths),path=unname(input_paths),sha256=vapply(input_paths,hash,character(1))),file.path(output,"input_sha256.tsv"),sep="\t")
+files <- list.files(output,recursive=TRUE,full.names=TRUE)
+fwrite(data.table(path=substring(files,nchar(output)+2L),sha256=vapply(files,hash,character(1))),file.path(output,"output_sha256.tsv"),sep="\t")
+print(nodes[rank %in% c("root","domain","phylum"),.(taxon,rank,clade_mags,clade_abundance)])
+cat(nrow(nodes),"nodes;",sum(xy$show_label),"labels\n")
+```

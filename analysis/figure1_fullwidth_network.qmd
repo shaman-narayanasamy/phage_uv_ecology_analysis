@@ -1,0 +1,45 @@
+---
+title: "Figure 1 full-width network allocation trial"
+format: html
+---
+
+User-approved allocation: A-D main; former E-J retained as separate supplementary
+trajectories, without assigning S1 (reserved for experimental design/workflow).
+
+```{r}
+suppressPackageStartupMessages({library(ggplot2);library(grid)})
+out<-commandArgs(TRUE)[1];stopifnot(!dir.exists(out))
+root<-"/Users/shaman.narayanasamy/Work/data/phage_uv_treatment/PRJEB79569/derived"
+a<-readRDS(file.path(root,"figure1_panels_2026-09-15-v1/source/review_panels.rds"))
+n<-readRDS(file.path(root,"figure1D_radial_labels_2026-09-15-v3/source/network_plot.rds"))
+n$layers<-Filter(function(l)!any(l$aes_params$label%in%c("Microbial hosts","Linked viral sequences")),n$layers)
+# Keep actual text sizes, not raster shrinking. Hosts5.5pt, viruses4.7pt.
+for(i in seq_along(n$layers))if(!is.null(n$layers[[i]]$aes_params$size))n$layers[[i]]$aes_params$size<-n$layers[[i]]$aes_params$size*.7857
+for(i in seq_along(n$layers))if(is.data.frame(n$layers[[i]]$data)&&"label"%in%names(n$layers[[i]]$data)){
+ ii<-n$layers[[i]]$data$label%in%c("Microbial hosts","Linked viral sequences")
+ n$layers[[i]]$data$y[ii]<-1.85
+}
+n$coordinates$limits$y<-c(-1.9,1.95)
+n<-n+theme(legend.text=element_text(size=6),legend.title=element_text(size=6),legend.spacing.y=unit(0,"mm"),legend.margin=margin(0,0,0,0),plot.caption=element_blank())
+dir.create(file.path(out,"figures"),recursive=TRUE)
+draw<-function(p,x,y,w,h)print(p,vp=viewport(x=x,y=y,width=w,height=h),newpage=FALSE)
+pdf(file.path(out,"figures/figure1-fullwidth-network.pdf"),width=180/25.4,height=340/25.4,useDingbats=FALSE)
+grid.newpage()
+draw(a$M,.275,.845,.55,.30);draw(a$V,.775,.905,.44,.175)
+draw(a$bars,.765,.725,.46,.17)
+draw(n,.5,.409,.99,.47)
+for(i in 1:4)grid.text(LETTERS[i],x=c(.01,.56,.57,.01)[i],y=c(.989,.989,.812,.636)[i],just="left",gp=gpar(fontsize=9,fontface="bold"))
+scale<-function(x,y,pal,title,limits){cols<-pal(seq(0,1,length.out=40));for(i in 1:40)grid.rect(x=x-.105+.21*(i-.5)/40,y=y,width=.21/40,height=.004,gp=gpar(fill=cols[i],col=NA));grid.text(title,x=x,y=y+.012,gp=gpar(fontsize=7));grid.text(limits,x=c(x-.105,x+.105),y=y-.01,gp=gpar(fontsize=7))}
+scale(.14,.682,a$mag$scales$get_scales("fill_ggnewscale_1")$palette,"A: completeness (%)",c("75","100"))
+scale(.395,.682,a$mag$scales$get_scales("fill")$palette,"A: contamination (%)",c("0","25"))
+grid.text("A, C, D: shared prokaryotic taxonomy",x=.015,y=.169,just="left",gp=gpar(fontsize=7,fontface="bold"))
+k<-a$key;nr<-ceiling(nrow(k)/4)
+for(i in seq_len(nrow(k))){cc<-(i-1)%/%nr;rr<-(i-1)%%nr;xx<-.015+cc*.25;yy<-.158-rr*.008
+grid.rect(x=xx,y=yy,width=.009,height=.004,gp=gpar(fill=k$colour[i],col=NA));lab<-gsub(" \\[unresolved\\]"," *",gsub(" \\[remainder\\]"," +",k$display_category[i]));grid.text(lab,x=xx+.009,y=yy,just="left",gp=gpar(fontsize=7))}
+grid.text("* No deeper assignment; + other assignments within phylum",x=.015,y=.009,just="left",gp=gpar(fontsize=7))
+dev.off()
+pdf(file.path(out,"figures/supplementary-trajectories.pdf"),width=180/25.4,height=135/25.4,useDingbats=FALSE)
+grid.newpage();draw(a$E,.23,.54,.45,.83);draw(a$F,.73,.54,.53,.83)
+grid.text("MAGs",x=.015,y=.98,just="left",gp=gpar(fontsize=9));grid.text("vOTUs",x=.47,y=.98,just="left",gp=gpar(fontsize=9));grid.text("Control: green; Treatment: purple. Initial: circles/solid; backflush: triangles/dashed.",x=.5,y=.025,gp=gpar(fontsize=7));dev.off()
+writeLines("Allocation trial180x340mm; check print readability before adoption. A-D main, six trajectories retained separately. Live Doc/front matter unchanged. S1 reserved.",file.path(out,"REVIEW_STATUS.txt"))
+```

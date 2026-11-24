@@ -1,0 +1,62 @@
+---
+title: "Archived coassembly mapping recovery"
+format: html
+---
+
+Read-only retrieval of existing flagstat reports. This does not rerun mapping and
+does not interpret coassembly recovery as recovery into the MAG/vOTU catalogue.
+The legacy SAMtools mapped percentage counts alignment records, including secondary
+records. It is deliberately not relabelled as a primary-read recovery percentage.
+
+```{python}
+from pathlib import Path
+import subprocess,json,re,hashlib,sys
+out=Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False)
+remote=r'''
+from pathlib import Path
+import json,hashlib
+r=Path('/mnt/isilon/projects/bioinformatics_platform/projects/shared_references/scratch_archives/snarayanasamy/phage_uv_treatment_20260726_full_output/output/PRJEB79569/coassembly')
+records=[]
+for p in sorted(r.glob('*/*.reads.sorted.flagstat.txt')):
+ if '_metaG.' not in p.name and '_metaT.' not in p.name: continue
+ b=p.read_bytes()
+ records.append(dict(path=str(p),sample=p.parent.name,assay='MG' if '_metaG.' in p.name else 'MT',sha256=hashlib.sha256(b).hexdigest(),text=b.decode()))
+print(json.dumps(records))
+'''
+r=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=15','iris-cluster','python3','-'],input=remote,text=True,capture_output=True,check=True,timeout=60)
+records=json.loads(r.stdout)
+(out/'archived_flagstat.json').write_text(json.dumps(records,indent=2))
+assert len(records)==24
+assert len({(r['sample'],r['assay']) for r in records})==24
+parsed=[]
+for r in records:
+ fields={}
+ for line in r['text'].splitlines():
+  m=re.match(r'(\d+) \+ (\d+) (.*)',line)
+  if m: fields[m[3]]=int(m[1])+int(m[2])
+ def get(prefix):
+  hits=[v for k,v in fields.items() if k.startswith(prefix)]
+  assert len(hits)==1,(r['path'],prefix)
+  return hits[0]
+ total=get('in total'); mapped=get('mapped ('); secondary=get('secondary'); supp=get('supplementary')
+ assert 0<=mapped<=total
+ parsed.append(dict(sample=r['sample'],assay=r['assay'],total_alignment_records=total,mapped_alignment_records=mapped,
+                    secondary_records=secondary,supplementary_records=supp,mapped_alignment_percent=100*mapped/total,
+                    source=r['path'],source_sha256=r['sha256']))
+parsed.sort(key=lambda r:(r['assay'],r['sample']))
+(out/'coassembly_mapping_records.json').write_text(json.dumps(parsed,indent=2))
+lines=['# Per-sample coassembly mapping statistics','',
+ 'Source: archived SAMtools flagstat reports. Percentages are mapped alignment records divided by all alignment records, including secondary/supplementary records. These are NOT primary-read mapping percentages and NOT recovery into the unified MAG/vOTU catalogue.','',
+ '| Sample | Assay | Total alignment records | Mapped alignment records | Secondary | Supplementary | Mapped (%) |',
+ '|---|---|---:|---:|---:|---:|---:|']
+for r in parsed:
+ lines.append(f"| {r['sample']} | {r['assay']} | {r['total_alignment_records']:,} | {r['mapped_alignment_records']:,} | {r['secondary_records']:,} | {r['supplementary_records']:,} | {r['mapped_alignment_percent']:.2f} |")
+lines+=['','## Interpretation and next checks','',
+ 'This is an audited source table for supplementary review, not a manuscript claim of MAG recovery. Primary-alignment statistics for the unified MAG/vOTU catalogue remain pending. Do not divide CoverM per-contig count sums by fastp post-QC totals: MT underwent an additional rRNA-removal step and count semantics need checking.',
+ 'No alignment jobs were submitted. Source reports are copied into archived_flagstat.json with SHA256 hashes.']
+(out/'mapping-recovery-review.md').write_text('\n'.join(lines)+'\n')
+for assay in ['MG','MT']:
+ pp=[x['mapped_alignment_percent'] for x in parsed if x['assay']==assay]
+ print(assay,len(pp),f'{min(pp):.2f}-{max(pp):.2f}% mapped alignment records')
+print(out/'mapping-recovery-review.md')
+```
